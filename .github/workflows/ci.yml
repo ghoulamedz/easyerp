@@ -1,0 +1,151 @@
+name: CI
+
+# Every push runs the fast gates. Nothing merges without all of them.
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# A new push to the same branch makes an older run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Reproducible installs and no telemetry noise in the logs.
+  CI: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  verify:
+    name: lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        # The API's typecheck needs the generated client, and generating it proves
+        # the schema is valid before anything tries to migrate against it.
+        run: pnpm --filter @easyerp/api prisma:generate
+        env:
+          DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp?schema=public
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  integration:
+    name: integration tests (real PostgreSQL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # The whole value of these tests is that they talk to a real database with
+    # real locking, so they run on a service and nowhere else.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: easyerp
+          POSTGRES_PASSWORD: easyerp
+          POSTGRES_DB: easyerp_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U easyerp -d easyerp_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp_test?schema=public
+      BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-1234
+      BETTER_AUTH_URL: http://localhost:3001
+      CORS_ORIGINS: http://localhost:3000
+      API_HOST: 127.0.0.1
+      API_PORT: '3001'
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Generate client
+        run: pnpm --filter @easyerp/api prisma:generate
+
+      - name: Migrations apply cleanly from empty
+        # A migration that only works on a database someone built by hand is not
+        # a migration.
+        run: pnpm --filter @easyerp/api prisma:migrate:deploy
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+  e2e:
+    name: browser tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @easyerp/web exec playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: pnpm --filter @easyerp/web test:e2e
+
+  images:
+    name: container images build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Proves the Dockerfiles still work. Without this, a broken Dockerfile is only
+    # discovered during a client's deployment.
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/api.Dockerfile
+          push: false
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/docker/web.Dockerfile
+          push: false

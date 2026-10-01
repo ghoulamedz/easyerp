@@ -1,0 +1,87 @@
+'use client';
+
+/**
+ * The shell.
+ *
+ * Client-side because it has to know the current path to highlight the active
+ * navigation entry. It is still server-rendered: `usePathname` returns the path
+ * during SSR, so a deep link to `/ar/permissions` paints the whole frame —
+ * navigation, theme switch, locale switch — before any JavaScript runs.
+ */
+
+import { usePathname } from 'next/navigation';
+import { AppNav, navItemsFor } from './app-nav';
+import { LocaleSwitcher } from './locale-switcher';
+import { MobileNav } from './mobile-nav';
+import { ThemeSwitch } from './theme-switch';
+import { translatorFor, type Locale } from '../i18n/config';
+
+export function AppShell({ locale, children }: { locale: Locale; children: React.ReactNode }) {
+  const t = translatorFor(locale);
+  const currentPath = usePathname();
+  const items = navItemsFor(t, locale);
+  const active = items.find(
+    (item) => currentPath === item.href || currentPath.startsWith(`${item.href}/`),
+  );
+  const heading = active?.label ?? t('appName');
+
+  return (
+    <div className="min-h-dvh bg-surface">
+      <a
+        href="#main"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-50 focus:ms-4 focus:mt-4 focus:rounded-lg focus:bg-brand focus:px-3 focus:py-2 focus:text-sm focus:text-brand-contrast"
+      >
+        {t('navSkipToContent')}
+      </a>
+
+      {/* The rail is `fixed` on wide screens and the column on narrow ones. Both
+          use inset-inline-start, so Arabic moves it to the right for free. */}
+      <aside
+        className="fixed inset-block-0 inset-inline-start-0 z-30 hidden w-64 flex-col gap-6 border-e border-line bg-surface-raised px-4 py-5 lg:flex"
+        aria-label={t('navMain')}
+      >
+        <div className="flex items-center gap-2.5 px-2">
+          <span
+            aria-hidden="true"
+            data-testid="brand-mark"
+            className="grid size-9 place-items-center rounded-lg bg-brand text-sm font-bold text-brand-contrast"
+          >
+            eE
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-ink">{t('appName')}</p>
+            <p className="truncate text-xs text-ink-subtle">{heading}</p>
+          </div>
+        </div>
+
+        <AppNav items={items} currentPath={currentPath} label={t('navMain')} />
+      </aside>
+
+      <div className="lg:ps-64">
+        <header className="sticky top-0 z-20 border-b border-line bg-surface/85 backdrop-blur">
+          <div className="flex items-center gap-3 px-4 py-3 sm:px-6">
+            <div className="lg:hidden">
+              <MobileNav locale={locale} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-sm font-semibold text-ink">{heading}</h1>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <ThemeSwitch t={t} compact />
+              <LocaleSwitcher locale={locale} label={t('localeLabel')} />
+            </div>
+          </div>
+        </header>
+
+        {/* `data-testid` rather than a styling class: an end-to-end test that
+            asserts on a utility class breaks whenever the design moves, and then
+            gets deleted instead of fixed. */}
+        <main id="main" data-testid="main-content" className="px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-6xl">{children}</div>
+        </main>
+      </div>
+    </div>
+  );
+}

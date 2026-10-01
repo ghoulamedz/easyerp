@@ -1,0 +1,31 @@
+{
+  "name": "@easyerp/ops",
+  "version": "0.0.0",
+  "private": true,
+  "description": "easyERP operations \u2014 deploy, status, backup and restore drill",
+  "type": "module",
+  "scripts": {
+    "dev": "echo \"@easyerp/ops has no dev server\"",
+    "lint": "eslint .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config vitest.config.mts",
+    "test:integration": "echo \"@easyerp/ops integration is a live restore drill, not a test run\"",
+    "deploy": "tsx src/deploy.ts",
+    "status": "tsx src/status.ts",
+    "backup": "bash src/backup.sh",
+    "restore-drill": "tsx src/restore-drill.ts",
+    "clean": "echo \"nothing to clean\""
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.2",
+    "@types/node": "^24.10.1",
+    "eslint": "^9.39.2",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.2"
+  }
+}

@@ -1,0 +1,136 @@
+# easyERP — one Business, one host, one port.
+#
+# Run from the host:
+#   EASYERP_CLIENT_ID=demo EASYERP_PORT=4081 docker compose -f compose.yaml up -d
+#
+# `EASYERP_CLIENT_ID`, `EASYERP_PORT` and `EASYERP_EMAIL_DOMAIN` are supplied by
+# `pnpm --filter @easyerp/ops deploy`, which reads `ops/clients.yaml`. Nothing here
+# is a secret; secrets come from `.env` on the host, which is never committed.
+#
+# Caddy publishes the single port for this Business. Postgres has no published
+# port at all: it is reachable only from this network.
+
+name: easyerp
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: easyerp
+      POSTGRES_DB: easyerp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      # Deterministic collation, so ORDER BY does not change under a Postgres
+      # upgrade and a document listing does not silently reorder.
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U easyerp -d easyerp']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    # No ports:. The database is not reachable from outside this host.
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    image: easyerp/api:${EASYERP_CLIENT_ID:-local}
+    profiles: ['tools']
+    environment:
+      DATABASE_URL: postgresql://easyerp:${POSTGRES_PASSWORD}@postgres:5432/easyerp
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ['pnpm', 'prisma:migrate:deploy']
+    restart: 'no'
+
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/api.Dockerfile
+    image: easyerp/api:${EASYERP_CLIENT_ID:-local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://easyerp:${POSTGRES_PASSWORD}@postgres:5432/easyerp
+      DATABASE_POOL_MAX: ${DATABASE_POOL_MAX:-10}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?BETTER_AUTH_SECRET is required}
+      BETTER_AUTH_URL: https://${EASYERP_EMAIL_DOMAIN:?EASYERP_EMAIL_DOMAIN is required}
+      CORS_ORIGINS: https://${EASYERP_EMAIL_DOMAIN}
+      API_HOST: 0.0.0.0
+      API_PORT: '3000'
+      TZ: Africa/Tunis
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/api/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+  web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/web.Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: /api
+    image: easyerp/web:${EASYERP_CLIENT_ID:-local}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      API_INTERNAL_URL: http://api:3000
+      TZ: Africa/Tunis
+    depends_on:
+      api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - '${EASYERP_PORT:?EASYERP_PORT is required}:443'
+    environment:
+      EASYERP_EMAIL_DOMAIN: ${EASYERP_EMAIL_DOMAIN:?EASYERP_EMAIL_DOMAIN is required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_started
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: '3'
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:

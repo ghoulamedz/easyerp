@@ -1,0 +1,21 @@
+# Keep the build context small and never ship secrets or local state to a daemon.
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+coverage
+**/coverage
+.turbo
+**/.turbo
+.git
+.github
+*.log
+.env
+**/.env
+**/.env.*
+!.env.example
+apps/api/src/generated
+ops/backups
+.DS_Store

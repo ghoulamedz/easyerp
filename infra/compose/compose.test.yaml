@@ -1,0 +1,31 @@
+# PostgreSQL for integration tests only. Never a client deployment.
+#
+#   docker compose -f infra/compose/compose.test.yaml up -d
+#   pnpm --filter @easyerp/api prisma:migrate:deploy
+#   pnpm test:integration
+#
+# The port is published so the host can reach it; a real deployment publishes
+# nothing, because its database is reachable only from its own compose network.
+
+name: easyerp_test
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: easyerp
+      POSTGRES_PASSWORD: easyerp
+      POSTGRES_DB: easyerp_test
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '55432:5432'
+    volumes:
+      - test_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U easyerp -d easyerp_test']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  test_postgres_data:

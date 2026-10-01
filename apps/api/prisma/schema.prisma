@@ -1,0 +1,303 @@
+// easyERP data model.
+//
+// Two rules shape this file (ADR 0003, ADR 0005):
+//   * there is no tenant_id anywhere, because there is exactly one Business per
+//     database. A column whose value is always the same teaches the code to stop
+//     filtering by it;
+//   * money is numeric(18,3) and every date is timestamptz(3). No float ever
+//     touches a column.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+// The connection string lives in prisma.config.ts (Prisma 7 moved it out of the
+// schema) and reaches the client through a driver adapter, see src/prisma.
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Identity (ADR 0007)
+// ---------------------------------------------------------------------------
+
+/// Credentials and session storage for Better Auth. easyERP owns roles and
+/// permissions; it never reads or writes a credential column directly.
+model AuthUser {
+  id            String    @id @default(cuid())
+  name          String    @db.VarChar(255)
+  email         String    @unique @db.VarChar(320)
+  emailVerified Boolean   @default(false)
+  image         String?   @db.VarChar(1000)
+  /// Read on every request: an account switched off stops working immediately,
+  /// instead of at the end of its token's life.
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt     DateTime? @db.Timestamptz(3)
+
+  accounts AuthAccount[]
+  sessions AuthSession[]
+  roles    UserRole[]
+
+  @@map("auth_user")
+}
+
+model AuthAccount {
+  id                String  @id @default(cuid())
+  userId            String
+  providerId        String  @db.VarChar(191)
+  accountId         String  @db.VarChar(191)
+  accessToken       String? @db.Text
+  refreshToken      String? @db.Text
+  idToken           String? @db.Text
+  accessTokenExpiresAt DateTime? @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
+  scope             String? @db.VarChar(500)
+  password          String? @db.VarChar(255)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("auth_account")
+}
+
+model AuthSession {
+  id           String   @id @default(cuid())
+  expiresAt    DateTime @db.Timestamptz(3)
+  token        String   @unique @db.VarChar(255)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
+  ipAddress    String?  @db.VarChar(64)
+  userAgent    String?  @db.VarChar(500)
+  userId       String
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("auth_session")
+}
+
+/// Better Auth's short-lived verification store: password-reset and email-change
+/// tokens. Nothing in the application reads it directly.
+///
+/// It is here because Better Auth checks for this table before serving *any*
+/// request, so its absence is not a warning about a feature nobody uses — it
+/// makes every sign-in fail with `SCHEMA_MISMATCH`.
+model AuthVerification {
+  id         String    @id @default(cuid())
+  identifier String    @db.VarChar(320)
+  value      String    @db.Text
+  expiresAt  DateTime  @db.Timestamptz(3)
+  createdAt  DateTime? @db.Timestamptz(3)
+  updatedAt  DateTime? @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@map("auth_verification")
+}
+
+/// A named bundle of permissions. The Role with `isProtected` is the
+/// Administrator: guaranteed to exist, impossible to remove or strip, so a
+/// Business can never lock itself out.
+model Role {
+  id          String   @id @default(cuid())
+  /// Stable code used by code and migrations, e.g. `WAREHOUSE_CLERK`.
+  code        String   @unique @db.VarChar(64)
+  name        String   @db.VarChar(120)
+  permissions String[] @default([])
+  isProtected Boolean  @default(false)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  users UserRole[]
+
+  @@map("role")
+}
+
+model UserRole {
+  userId     String
+  roleId     String
+  assignedAt DateTime @default(now()) @db.Timestamptz(3)
+
+  user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@map("user_role")
+}
+
+// ---------------------------------------------------------------------------
+// Audit (an immutable record of who did what, with the state before and after)
+// ---------------------------------------------------------------------------
+
+model AuditEntry {
+  id         String   @id @default(cuid())
+  occurredAt DateTime @default(now()) @db.Timestamptz(3)
+  actorId    String?  @db.VarChar(191)
+  actorEmail String?  @db.VarChar(320)
+  action     String   @db.VarChar(64)
+  entityType String   @db.VarChar(64)
+  entityId   String?  @db.VarChar(191)
+  before     Json?    @db.JsonB
+  after      Json?    @db.JsonB
+  context    Json?    @db.JsonB
+  ipAddress  String?  @db.VarChar(64)
+
+  @@index([entityType, entityId])
+  @@index([actorId, occurredAt])
+  @@map("audit_entry")
+}
+
+// ---------------------------------------------------------------------------
+// Business settings and reference data
+// ---------------------------------------------------------------------------
+
+/// The single Business this deployment serves, read from the mounted
+/// configuration file and mirrored here for records that must quote it.
+model Business {
+  id                String   @id @default(cuid())
+  legalName         String   @db.VarChar(255)
+  /// Brand shown in the interface. Distinct from the legal identity quoted on a document.
+  displayName       String   @db.VarChar(255)
+  /// The legal tax identifier, quoted on every fiscal document (ADR 0011).
+  taxIdentifier     String   @db.VarChar(32)
+  taxIdentifierLabel String? @db.VarChar(120)
+  activityCode      String?  @db.VarChar(32)
+  addressLine1      String?  @db.VarChar(255)
+  addressLine2      String?  @db.VarChar(255)
+  city              String?  @db.VarChar(120)
+  postalCode        String?  @db.VarChar(32)
+  countryCode       String   @db.Char(2)
+  phone             String?  @db.VarChar(32)
+  email             String?  @db.VarChar(320)
+  iban              String?  @db.VarChar(64)
+  bankName          String?  @db.VarChar(255)
+  logoUrl           String?  @db.VarChar(1000)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("business")
+}
+
+model Unit {
+  id            String   @id @default(cuid())
+  /// Stable code, e.g. `PCS`, `KG`. Never translated: the code is the identity.
+  code          String   @unique @db.VarChar(16)
+  allowsFraction Boolean  @default(true)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("unit")
+}
+
+/// A rate with effective dates, assigned to an Item or defaulting for the
+/// Business. Rates are rows, never literals in code.
+model TaxRate {
+  id         String    @id @default(cuid())
+  code       String    @unique @db.VarChar(32)
+  rate       Decimal   @db.Decimal(5, 3)
+  isStandard Boolean   @default(true)
+  activeFrom DateTime  @default(now()) @db.Timestamptz(3)
+  activeTo   DateTime? @db.Timestamptz(3)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
+
+  /// Per-locale label for the term, e.g. "TVA 19 %" / "VAT 19 %" / "ضريبة القيمة المضافة 19٪".
+  labels     Label[]
+
+  @@index([activeFrom, activeTo])
+  @@map("tax_rate")
+}
+
+/// A translatable label for a stable code. This is the whole terminology layer:
+/// the code never changes with the client's language.
+model Label {
+  id         String  @id @default(cuid())
+  entityType String  @db.VarChar(32)
+  entityCode String  @db.VarChar(64)
+  locale     String  @db.VarChar(10)
+  value      String  @db.VarChar(255)
+  taxRateId  String?
+  taxRate    TaxRate? @relation(fields: [taxRateId], references: [id], onDelete: Cascade)
+
+  @@unique([entityType, entityCode, locale])
+  @@index([taxRateId])
+  @@map("label")
+}
+
+// ---------------------------------------------------------------------------
+// Numbering (ADR 0006)
+// ---------------------------------------------------------------------------
+
+/// A Number series is the atomic counter guaranteeing an unbroken sequence for
+/// one Document type and one year. Gaps are structurally impossible because the
+/// value is allocated by a single `UPDATE … RETURNING`.
+model NumberSeries {
+  id        String   @id @default(cuid())
+  /// The Document type this series numbers, e.g. `CUSTOMER_INVOICE`.
+  code      String   @db.VarChar(32)
+  year      Int
+  nextValue Int      @default(1)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([code, year])
+  @@map("number_series")
+}
+
+/// The pattern behind a series, e.g. `FA-{year}-{seq}`.
+model NumberPattern {
+  code    String @id @db.VarChar(32)
+  pattern String @db.VarChar(64)
+  padding Int    @default(4)
+
+  @@map("number_pattern")
+}
+
+// ---------------------------------------------------------------------------
+// Custom fields (ADR 0008)
+// ---------------------------------------------------------------------------
+
+/// A field a Business defines on an entity. One schema serves every deployment,
+/// so migrations stay single-sided. `enabled` is set false to retire a field;
+/// stored values outlive the definition.
+model FieldDefinition {
+  id            String    @id @default(cuid())
+  /// The entity this field attaches to, e.g. `ITEM` or `CUSTOMER_INVOICE`.
+  entityType    String    @db.VarChar(32)
+  code          String    @db.VarChar(64)
+  label         String    @db.VarChar(120)
+  fieldType     String    @db.VarChar(16)
+  isRequired    Boolean   @default(false)
+  /// Extra validation, e.g. a minimum length or an enum's allowed values.
+  validation    Json?     @db.JsonB
+  displayOrder  Int       @default(0)
+  enabled       Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([entityType, code])
+  @@index([entityType, enabled])
+  @@map("field_definition")
+}
+
+/// A Custom Record: a row in a table the Business defines, composed of Custom
+/// Fields. Stored, listed, exported — and with no effect on stock, invoicing or
+/// workflows. The GIN index over `values` is added as raw SQL in the first
+/// migration, because Prisma cannot express an index on a JsonB column.
+model CustomRecord {
+  id         String   @id @default(cuid())
+  recordType String   @db.VarChar(32)
+  values     Json     @db.JsonB
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@index([recordType, createdAt])
+  @@map("custom_record")
+}

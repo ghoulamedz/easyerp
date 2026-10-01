@@ -1,0 +1,3 @@
+# Better Auth is mounted directly into Nest, and sessions are re-checked on every request
+
+Better Auth's handler is mounted on the Nest HTTP adapter (`toNodeHandler(auth)`) before body-parsing middleware, and the session is resolved from headers in a guard. Its published Nest integration is community-maintained and an alternative package is alpha, so neither is a dependency of the critical path. The session's user is re-read on every request: re-checking is what makes account disabling, role removal and session revocation take effect immediately — the legacy system's most visible failure was an `isEnabled()` hardcoded to `true`, so a disabled account kept working for as long as its token lived.

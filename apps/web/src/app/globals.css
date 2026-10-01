@@ -1,0 +1,140 @@
+/*
+ * Tailwind CSS v4, CSS-first. There is no tailwind.config.ts: the theme lives
+ * here, next to the tokens it defines.
+ *
+ * Two decisions that shape every component in this app:
+ *
+ * 1. Semantic tokens, not palette classes. Components say `bg-surface`,
+ *    `text-ink-muted`, `border-line` — never `bg-white dark:bg-zinc-900`. The
+ *    night/day switch is then one class on <html> and no component changes.
+ *
+ * 2. Logical properties only: `ms-*`, `pe-*`, `start-*`, `border-inline-*`.
+ *    Arabic right-to-left works from the first commit (ADR 0009), because there
+ *    is no `left` or `right` in this codebase to go stale.
+ */
+
+@import 'tailwindcss';
+
+/* Class-based dark mode, so a user can override the system preference. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  --surface: oklch(99.2% 0.003 250);
+  --surface-raised: oklch(100% 0 0);
+  --surface-sunken: oklch(96.8% 0.005 250);
+  --line: oklch(91% 0.008 250);
+  --line-strong: oklch(85% 0.012 250);
+
+  --ink: oklch(24% 0.02 265);
+  --ink-muted: oklch(52% 0.02 265);
+  --ink-subtle: oklch(65% 0.015 265);
+
+  --brand: oklch(52% 0.19 265);
+  --brand-hover: oklch(47% 0.19 265);
+  --brand-soft: oklch(95% 0.03 265);
+  --brand-contrast: oklch(99% 0 0);
+
+  --ok: oklch(55% 0.15 155);
+  --ok-soft: oklch(95% 0.04 155);
+  --warn: oklch(70% 0.15 75);
+  --warn-soft: oklch(96% 0.05 75);
+  --danger: oklch(56% 0.2 25);
+  --danger-soft: oklch(96% 0.04 25);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --surface: oklch(19% 0.012 265);
+  --surface-raised: oklch(23% 0.014 265);
+  --surface-sunken: oklch(16% 0.012 265);
+  --line: oklch(30% 0.016 265);
+  --line-strong: oklch(38% 0.02 265);
+
+  --ink: oklch(95% 0.005 265);
+  --ink-muted: oklch(72% 0.015 265);
+  --ink-subtle: oklch(58% 0.018 265);
+
+  --brand: oklch(70% 0.15 265);
+  --brand-hover: oklch(76% 0.14 265);
+  --brand-soft: oklch(30% 0.06 265);
+  --brand-contrast: oklch(16% 0.012 265);
+
+  --ok: oklch(72% 0.15 155);
+  --ok-soft: oklch(28% 0.05 155);
+  --warn: oklch(80% 0.14 75);
+  --warn-soft: oklch(30% 0.05 75);
+  --danger: oklch(70% 0.16 25);
+  --danger-soft: oklch(30% 0.06 25);
+}
+
+/* Exposed to Tailwind as bg-surface, text-ink, border-line, … */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+
+  --font-sans:
+    ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', 'Noto Sans', 'Noto Sans Arabic',
+    'Segoe UI Historic', sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', Menlo, Consolas, monospace;
+}
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Latin digits stay tabular in every locale, so columns of numbers line up
+     whether a ledger is read left-to-right or right-to-left. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--brand);
+    color: var(--brand-contrast);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

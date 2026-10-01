@@ -1,0 +1,43 @@
+{
+  "name": "easyerp",
+  "version": "0.0.0",
+  "private": true,
+  "description": "easyERP — one independent deployment per subscribing Business",
+  "packageManager": "pnpm@10.18.2",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint -- --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
+    "verify": "turbo run lint typecheck test build",
+    "db:generate": "pnpm --filter @easyerp/api prisma:generate",
+    "db:validate": "pnpm --filter @easyerp/api prisma:validate",
+    "db:migrate": "pnpm --filter @easyerp/api prisma:migrate",
+    "ops:deploy": "pnpm --filter @easyerp/ops deploy",
+    "ops:status": "pnpm --filter @easyerp/ops status",
+    "ops:backup": "pnpm --filter @easyerp/ops backup",
+    "ops:restore-drill": "pnpm --filter @easyerp/ops restore-drill"
+  },
+  "devDependencies": {
+    "prettier": "^3.9.9",
+    "turbo": "^2.11.5",
+    "typescript": "^5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "unrs-resolver"
+    ]
+  }
+}

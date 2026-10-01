@@ -1,0 +1,14 @@
+# One Business per entry: one host, one published port, one database.
+#
+# This file is the deployment inventory. Nothing here is a secret: credentials live
+# in the host's `infra/compose/.env`, which never enters Git.
+#
+# Validate before deploying:  pnpm --filter @easyerp/ops status
+
+clients:
+  - id: demo
+    host: srv-01.easyerp.tn
+    ssh_user: easyerp
+    port: 4081
+    email_domain: demo.easyerp.tn
+    backups_keep: 30
