@@ -45,19 +45,19 @@ model AuthUser {
 }
 
 model AuthAccount {
-  id                String  @id @default(cuid())
-  userId            String
-  providerId        String  @db.VarChar(191)
-  accountId         String  @db.VarChar(191)
-  accessToken       String? @db.Text
-  refreshToken      String? @db.Text
-  idToken           String? @db.Text
-  accessTokenExpiresAt DateTime? @db.Timestamptz(3)
+  id                    String    @id @default(cuid())
+  userId                String
+  providerId            String    @db.VarChar(191)
+  accountId             String    @db.VarChar(191)
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(3)
   refreshTokenExpiresAt DateTime? @db.Timestamptz(3)
-  scope             String? @db.VarChar(500)
-  password          String? @db.VarChar(255)
-  createdAt         DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+  scope                 String?   @db.VarChar(500)
+  password              String?   @db.VarChar(255)
+  createdAt             DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(3)
 
   user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -67,14 +67,14 @@ model AuthAccount {
 }
 
 model AuthSession {
-  id           String   @id @default(cuid())
-  expiresAt    DateTime @db.Timestamptz(3)
-  token        String   @unique @db.VarChar(255)
-  createdAt    DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
-  ipAddress    String?  @db.VarChar(64)
-  userAgent    String?  @db.VarChar(500)
-  userId       String
+  id        String   @id @default(cuid())
+  expiresAt DateTime @db.Timestamptz(3)
+  token     String   @unique @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  ipAddress String?  @db.VarChar(64)
+  userAgent String?  @db.VarChar(500)
+  userId    String
 
   user AuthUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -157,41 +157,64 @@ model AuditEntry {
 // Business settings and reference data
 // ---------------------------------------------------------------------------
 
-/// The single Business this deployment serves, read from the mounted
-/// configuration file and mirrored here for records that must quote it.
+/// The single Business this deployment serves. Every column here is a Setting:
+/// held in the database and edited by an Administrator, never read from a file
+/// mounted into the container (CONTEXT.md, ADR 0013).
 model Business {
-  id                String   @id @default(cuid())
-  legalName         String   @db.VarChar(255)
+  id                 String   @id @default(cuid())
+  legalName          String   @db.VarChar(255)
   /// Brand shown in the interface. Distinct from the legal identity quoted on a document.
-  displayName       String   @db.VarChar(255)
+  displayName        String   @db.VarChar(255)
   /// The legal tax identifier, quoted on every fiscal document (ADR 0011).
-  taxIdentifier     String   @db.VarChar(32)
-  taxIdentifierLabel String? @db.VarChar(120)
-  activityCode      String?  @db.VarChar(32)
-  addressLine1      String?  @db.VarChar(255)
-  addressLine2      String?  @db.VarChar(255)
-  city              String?  @db.VarChar(120)
-  postalCode        String?  @db.VarChar(32)
-  countryCode       String   @db.Char(2)
-  phone             String?  @db.VarChar(32)
-  email             String?  @db.VarChar(320)
-  iban              String?  @db.VarChar(64)
-  bankName          String?  @db.VarChar(255)
-  logoUrl           String?  @db.VarChar(1000)
-  createdAt         DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+  taxIdentifier      String   @db.VarChar(32)
+  taxIdentifierLabel String?  @db.VarChar(120)
+  activityCode       String?  @db.VarChar(32)
+  addressLine1       String?  @db.VarChar(255)
+  addressLine2       String?  @db.VarChar(255)
+  city               String?  @db.VarChar(120)
+  postalCode         String?  @db.VarChar(32)
+  countryCode        String   @db.Char(2)
+  phone              String?  @db.VarChar(32)
+  email              String?  @db.VarChar(320)
+  iban               String?  @db.VarChar(64)
+  bankName           String?  @db.VarChar(255)
+  logoUrl            String?  @db.VarChar(1000)
+  /// The fiscal regime (CONTEXT.md): `STANDARD` prints a per-rate breakdown,
+  /// `EXEMPT` prints a legal mention instead. The default is the regime a
+  /// Business is assumed to be in until an Administrator says otherwise.
+  vatRegime          String   @default("STANDARD") @db.VarChar(16)
+  /// ISO 4217 code every Amount on a Document is presented in. `Char(3)`, like
+  /// `countryCode`, because a code is exactly three letters and padding is a bug.
+  currency           String   @default("TND") @db.Char(3)
+  /// How Sales Order issue treats a shortfall (stories 39–40, ADR 0004):
+  /// STRICT refuses beyond Available, ALLOW books the shortfall as a backorder.
+  backorderPolicy    String   @default("STRICT") @db.VarChar(16)
+  /// Which release's Settings expectations this Business satisfies. Advanced only
+  /// by a Backfill migration, and compared against the API's compiled-in version
+  /// at startup so a half-migrated Business fails readiness with a reason instead
+  /// of issuing documents against Settings it does not have (ADR 0012).
+  provisionedVersion Int      @default(1)
+  createdAt          DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(3)
+
+  documents Document[]
+  payments  Payment[]
 
   @@map("business")
 }
 
 model Unit {
-  id            String   @id @default(cuid())
+  id             String   @id @default(cuid())
   /// Stable code, e.g. `PCS`, `KG`. Never translated: the code is the identity.
-  code          String   @unique @db.VarChar(16)
+  code           String   @unique @db.VarChar(16)
   allowsFraction Boolean  @default(true)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime @updatedAt @db.Timestamptz(3)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+
+  baseUnits     Item[] @relation("ItemBaseUnit")
+  purchaseUnits Item[] @relation("ItemPurchaseUnit")
+  saleUnits     Item[] @relation("ItemSaleUnit")
 
   @@map("unit")
 }
@@ -210,7 +233,8 @@ model TaxRate {
   updatedAt  DateTime  @updatedAt @db.Timestamptz(3)
 
   /// Per-locale label for the term, e.g. "TVA 19 %" / "VAT 19 %" / "ضريبة القيمة المضافة 19٪".
-  labels     Label[]
+  labels Label[]
+  items  Item[]
 
   @@index([activeFrom, activeTo])
   @@map("tax_rate")
@@ -219,17 +243,29 @@ model TaxRate {
 /// A translatable label for a stable code. This is the whole terminology layer:
 /// the code never changes with the client's language.
 model Label {
-  id         String  @id @default(cuid())
-  entityType String  @db.VarChar(32)
-  entityCode String  @db.VarChar(64)
-  locale     String  @db.VarChar(10)
-  value      String  @db.VarChar(255)
+  id         String   @id @default(cuid())
+  entityType String   @db.VarChar(32)
+  entityCode String   @db.VarChar(64)
+  locale     String   @db.VarChar(10)
+  value      String   @db.VarChar(255)
   taxRateId  String?
   taxRate    TaxRate? @relation(fields: [taxRateId], references: [id], onDelete: Cascade)
 
   @@unique([entityType, entityCode, locale])
   @@index([taxRateId])
   @@map("label")
+}
+
+/// Whether a Module is switched on or off (CONTEXT.md, spec 001 story 19). A
+/// row that is absent reads as enabled: a Business restored from a version that
+/// predates the table, or provisioned before it, gets the safe default rather
+/// than a manual migration, which is the ADR 0012 release rule doing its job.
+model ModuleState {
+  module    String   @id @db.VarChar(32)
+  isEnabled Boolean  @default(true)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("module_state")
 }
 
 // ---------------------------------------------------------------------------
@@ -268,19 +304,19 @@ model NumberPattern {
 /// so migrations stay single-sided. `enabled` is set false to retire a field;
 /// stored values outlive the definition.
 model FieldDefinition {
-  id            String    @id @default(cuid())
+  id           String   @id @default(cuid())
   /// The entity this field attaches to, e.g. `ITEM` or `CUSTOMER_INVOICE`.
-  entityType    String    @db.VarChar(32)
-  code          String    @db.VarChar(64)
-  label         String    @db.VarChar(120)
-  fieldType     String    @db.VarChar(16)
-  isRequired    Boolean   @default(false)
+  entityType   String   @db.VarChar(32)
+  code         String   @db.VarChar(64)
+  label        String   @db.VarChar(120)
+  fieldType    String   @db.VarChar(16)
+  isRequired   Boolean  @default(false)
   /// Extra validation, e.g. a minimum length or an enum's allowed values.
-  validation    Json?     @db.JsonB
-  displayOrder  Int       @default(0)
-  enabled       Boolean   @default(true)
-  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
-  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+  validation   Json?    @db.JsonB
+  displayOrder Int      @default(0)
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([entityType, code])
   @@index([entityType, enabled])
@@ -300,4 +336,595 @@ model CustomRecord {
 
   @@index([recordType, createdAt])
   @@map("custom_record")
+}
+
+// ---------------------------------------------------------------------------
+// Catalog (CONTEXT.md: Item, Party)
+// ---------------------------------------------------------------------------
+
+/// Something a Business stocks, buys, sells or produces. A service is an Item
+/// whose Item type is `SERVICE`, not a separate table: a quote, an order, an
+/// invoice and a stock movement all carry a line, and a line that had to switch
+/// shape for services would be two line models to keep in agreement.
+///
+/// `unitPrice` is the Business's own price, resolved server-side. It exists here
+/// and never in a request body (ADR 0005).
+///
+/// Items are deactivated, never deleted, so an issued document keeps the
+/// description that was printed on it.
+model Item {
+  id             String                @id @default(cuid())
+  /// Stable code, e.g. `SAV-001`. Named `code` to match `itemSchema`.
+  code           String                @unique @db.VarChar(64)
+  name           String                @db.VarChar(255)
+  description    String?               @db.VarChar(2000)
+  itemType       String                @db.VarChar(32)
+  /// The unit quantities are held in unless a document says otherwise.
+  baseUnitId     String
+  baseUnit       Unit                  @relation("ItemBaseUnit", fields: [baseUnitId], references: [id])
+  purchaseUnitId String?
+  purchaseUnit   Unit?                 @relation("ItemPurchaseUnit", fields: [purchaseUnitId], references: [id])
+  /// The unit a Customer Invoice quotes. Null falls back to the base unit.
+  saleUnitId     String?
+  saleUnit       Unit?                 @relation("ItemSaleUnit", fields: [saleUnitId], references: [id])
+  taxRateId      String
+  taxRate        TaxRate               @relation(fields: [taxRateId], references: [id])
+  /// Resolved by the server. A request never carries a price (ADR 0005).
+  salePrice      Decimal               @default(0) @db.Decimal(18, 3)
+  purchasePrice  Decimal               @default(0) @db.Decimal(18, 3)
+  /// Drives the reorder alert; a threshold, not a reservation.
+  reorderPoint   Decimal?              @db.Decimal(18, 3)
+  isActive       Boolean               @default(true)
+  /// Custom Field values, keyed by `FieldDefinition.code` for `entityType = ITEM`.
+  customFields   Json                  @default("{}") @db.JsonB
+  createdAt      DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime              @updatedAt @db.Timestamptz(3)
+  documentLines  DocumentLine[]
+  reservations   Reservation[]
+  stockEntries   StockLedgerEntry[]
+  deliveryLines  DeliveryNoteLine[]
+  purchaseOrderLines PurchaseOrderLine[]
+  goodsReceiptLines GoodsReceiptLine[]
+  productionOrderLines ProductionOrderLine[]
+  bomFinishedItems Bom[]            @relation("BomFinishedItems")
+  bomVersionLines BomVersionLine[]
+
+  @@index([itemType, isActive])
+  @@index([taxRateId])
+  /// Search-as-you-type on code and name is served by a trigram GIN index created
+  /// in the migration — Prisma cannot express one, exactly as with the
+  /// custom-record GIN before it.
+  @@map("item")
+}
+
+/// A counterparty. One record may hold both commercial roles; there is no
+/// separate Customer and Supplier table, because a Business that buys from its own
+/// customers would otherwise hold two records for one real entity.
+///
+/// Parties are deactivated, never deleted, for the same reason Items are: an
+/// issued document quotes the name that was printed on it.
+model Party {
+  id            String            @id @default(cuid())
+  code          String            @unique @db.VarChar(64)
+  name          String            @db.VarChar(255)
+  /// `CUSTOMER`, `SUPPLIER`, or both. One schema serves every deployment, so the
+  /// roles are stored as codes rather than a per-deployment enum.
+  roles         String[]          @default([])
+  /// Unique per Business; the schema is single-tenant, so it is unique outright.
+  taxIdentifier String?           @unique @db.VarChar(32)
+  email         String?           @db.VarChar(320)
+  phone         String?           @db.VarChar(32)
+  address       String?           @db.VarChar(500)
+  city          String?           @db.VarChar(120)
+  countryCode   String?           @db.Char(2)
+  /// Parties are deactivated, never deleted: a document that quotes one keeps
+  /// resolving after the counterparty stops trading with us.
+  isActive      Boolean           @default(true)
+  /// Commercial conditions held for a Customer (spec 001 story 30). They are
+  /// null for a supplier-only Party; a Party that drops the CUSTOMER role loses
+  /// them, because terms are a fact about the debts we hold, not the entity.
+  /// Stored against the Party row, not in a separate terms table, because a
+  /// Customer is a role of one composite record, and a second table would
+  /// re-split the entity the Party table exists to keep whole.
+  paymentTermDays Int? 
+  creditLimit   Decimal?          @db.Decimal(18, 3)
+  deliveryAddress String?         @db.VarChar(500)
+  customFields  Json              @default("{}") @db.JsonB
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @db.Timestamptz(3)
+  documents         Document[]
+  payments          Payment[]
+  purchaseOrders    PurchaseOrder[]    @relation("PurchaseOrderParty")
+  goodsReceipts     GoodsReceipt[]     @relation("GoodsReceiptParty")
+
+  @@index([roles])
+  @@index([isActive])
+  /// Search-as-you-type on code and name is served by a trigram GIN index created
+  /// in the migration — Prisma cannot express one, exactly as with the
+  /// custom-record GIN before it.
+  @@map("party")
+}
+
+// ---------------------------------------------------------------------------
+// Document (ADR 0014): every Document type shares one table, one line table and
+// one tax-group table, discriminated by `type`. A type-specific child table of
+// depth exactly one holds the fields only one type has — Delivery Note's link to
+// its Sales Order, Credit Note's link to the invoice it corrects — while
+// identity, status, number, party, locale, currency, totals, lines, tax groups
+// and archive live here once.
+// ---------------------------------------------------------------------------
+
+/// A Document: a signed, numbered, immutable record whose naming follows a
+/// configured pattern (CONTEXT.md). One table for every status rather than a
+/// draft table and an issued table, because the transition is a guarded state
+/// machine (contracts: `canTransition`), not a move between two stores.
+///
+/// The header figures are stored, not derived on read. They are the numbers that
+/// were printed on a document a client may already have filed with a tax
+/// authority, so re-deriving them after an Item's price changes would silently
+/// rewrite history.
+///
+/// `type` is stored on the row, so a reader is never left inferring which child
+/// table happens to be populated (ADR 0014).
+model Document {
+  id                   String              @id @default(cuid())
+  /// One of `DOCUMENT_TYPES`, e.g. `CUSTOMER_INVOICE` or `SALES_ORDER`.
+  type                 String              @db.VarChar(32)
+  status               String              @default("DRAFT") @db.VarChar(16)
+  /// Null while the Document is a Draft; assigned once, never reassigned (ADR 0006).
+  number               String?             @db.VarChar(64)
+  issuedAt             DateTime?           @db.Timestamptz(3)
+  businessId           String
+  business             Business            @relation(fields: [businessId], references: [id])
+  partyId              String
+  party                Party               @relation(fields: [partyId], references: [id])
+  locale               String              @db.VarChar(10)
+  vatRegime            String              @db.VarChar(16)
+  currency             String              @db.Char(3)
+  netAmount            Decimal             @default(0) @db.Decimal(18, 3)
+  taxAmount            Decimal             @default(0) @db.Decimal(18, 3)
+  grossAmount          Decimal             @default(0) @db.Decimal(18, 3)
+  /// Revenus à la source: a legal deduction in some regimes, zero elsewhere.
+  withholdingTaxAmount Decimal             @default(0) @db.Decimal(18, 3)
+  /// Stamp duty, carried separately and never inside the VAT base (ADR 0011).
+  stampDutyAmount      Decimal             @default(0) @db.Decimal(18, 3)
+  /// The three columns below are the only ones an Issued Document may still change,
+  /// because a PDF can only be written after the number exists.
+  archivePath          String?             @db.VarChar(500)
+  archivedAt           DateTime?           @db.Timestamptz(3)
+  archiveSha256        String?             @db.Char(64)
+  createdAt            DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime            @updatedAt @db.Timestamptz(3)
+  lines                DocumentLine[]
+  taxes                DocumentTaxGroup[]
+  reservations         Reservation[]       @relation("ReservationOrder")
+  deliveryNotes        DeliveryNote[]        @relation("DeliveryNoteDocument")
+  linkedDeliveryNotes  DeliveryNote[]        @relation("DeliveryNoteOrder")
+  creditNotes          CreditNote[]          @relation("CreditNoteDocument")
+  correctedCreditNotes CreditNote[]          @relation("CreditNoteCorrects")
+  purchaseOrders       PurchaseOrder[]       @relation("PurchaseOrderDocument")
+  goodsReceipts        GoodsReceipt[]        @relation("GoodsReceiptDocument")
+  productionOrders     ProductionOrder[]     @relation("ProductionOrderDocument")
+  paymentAllocations   PaymentAllocation[]
+
+  @@unique([businessId, number])
+  @@index([businessId, type, status, issuedAt])
+  @@index([type, status])
+  @@index([partyId])
+  @@map("document")
+}
+
+/// One priced line. The Item and quantity came from the request; the unit price
+/// and tax rate were resolved from the Item on the server (ADR 0005). The
+/// resolved figures are stored so the document is reproducible after the Item's
+/// price changes.
+model DocumentLine {
+  id              String          @id @default(cuid())
+  documentId      String
+  document        Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  position        Int
+  itemId          String
+  item            Item            @relation(fields: [itemId], references: [id])
+  /// The unit the quantity was quoted in, snapshotted from the Item.
+  unitOfMeasureId String
+  /// Snapshotted from the Item at issue, so a renamed Item cannot rewrite history.
+  description     String          @db.VarChar(500)
+  quantity        Decimal         @db.Decimal(18, 3)
+  unitPrice       Decimal         @db.Decimal(18, 3)
+  /// The Item's own rate, snapshotted. Numeric, so two lines of the same rate
+  /// aggregate into one printed group.
+  taxRate         Decimal         @db.Decimal(5, 3)
+  netAmount       Decimal         @db.Decimal(18, 3)
+  taxAmount       Decimal         @db.Decimal(18, 3)
+  grossAmount     Decimal         @db.Decimal(18, 3)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+  reservations    Reservation[]   @relation("ReservationLine")
+  deliveryLines   DeliveryNoteLine[]
+  /// Set on a Credit Note line: the Invoice line it reverses (ADR 0006).
+  correctsDocumentLineId String?
+  correctsDocumentLine   DocumentLine?   @relation("CreditNoteCorrects", fields: [correctsDocumentLineId], references: [id], onDelete: Restrict)
+  correctedByLines       DocumentLine[]  @relation("CreditNoteCorrects")
+
+  @@unique([documentId, position])
+  @@index([itemId])
+  @@map("document_line")
+}
+
+/// The per-rate breakdown a `STANDARD` document prints. Stored rather than
+/// recomputed, because the breakdown on a filed document is part of its legal
+/// content and must not move if a Tax Rate row is later edited.
+model DocumentTaxGroup {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  position   Int
+  rate       Decimal  @db.Decimal(5, 3)
+  base       Decimal  @db.Decimal(18, 3)
+  amount     Decimal  @db.Decimal(18, 3)
+
+  @@unique([documentId, position])
+  @@map("document_tax_group")
+}
+
+// ---------------------------------------------------------------------------
+// Sales Order reservations and the Stock Ledger (ADR 0004)
+// ---------------------------------------------------------------------------
+
+/// A quantity promised to an issued Sales Order (spec 001 story 41). Created in
+/// the issuing transaction, decremented as Delivery Notes fulfil it, released
+/// when fulfilled (`releasedAt` set) or when the order is cancelled — all inside
+/// the transaction that changes the order's status. `Available` is derived by
+/// subtracting the open reservations from On-hand; `quantity − deliveredQuantity`
+/// is what is still open. Services are never reserved.
+model Reservation {
+  id                String       @id @default(cuid())
+  itemId            String
+  item              Item         @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  salesOrderId      String
+  salesOrder        Document     @relation("ReservationOrder", fields: [salesOrderId], references: [id], onDelete: Restrict)
+  salesOrderLineId  String
+  salesOrderLine    DocumentLine @relation("ReservationLine", fields: [salesOrderLineId], references: [id], onDelete: Restrict)
+  /// The quantity originally promised; never rewinds.
+  quantity          Decimal      @db.Decimal(18, 3)
+  /// Units already shipped by issued Delivery Notes; only ever grows.
+  deliveredQuantity Decimal      @default(0) @db.Decimal(18, 3)
+  releasedAt        DateTime?    @db.Timestamptz(3)
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@index([itemId, releasedAt])
+  @@index([salesOrderId])
+  @@map("reservation")
+}
+
+/// One append-only Stock Ledger Entry (ADR 0004, spec 001 stories 49–55). This is
+/// the only way stock ever changes: On-hand is the running `balanceAfter` of the
+/// latest entry, there is no balance column anywhere, and an entry is never
+/// updated or deleted — a correction appends a Reversal that references it.
+///
+/// `direction` is stored for reads and indexes, and is *derived* from `reason`
+/// at write time; only a `REVERSAL` may name its own direction, and it is the
+/// opposite of the entry it reverses (CONTEXT.md).
+model StockLedgerEntry {
+  id              String            @id @default(cuid())
+  /// Monotonic per ledger; the ordering a balance is computed in. Kept separate
+  /// from `id` because two entries in one transaction share a clock.
+  seq             BigInt            @default(autoincrement())
+  itemId          String
+  item            Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  reason          String            @db.VarChar(32)
+  direction       String            @db.VarChar(8)
+  /// Always positive; the direction carries the sign.
+  quantity        Decimal           @db.Decimal(18, 3)
+  balanceBefore   Decimal           @db.Decimal(18, 3)
+  balanceAfter    Decimal           @db.Decimal(18, 3)
+  documentType    String?           @db.VarChar(32)
+  documentId      String?           @db.VarChar(191)
+  /// Mandatory on every adjustment and reversal.
+  reasonText      String?           @db.VarChar(500)
+  /// Required whenever this entry is a `REVERSAL`: the entry it undoes (Q13).
+  reversesEntryId String?
+  reversesEntry   StockLedgerEntry? @relation("ReversalPair", fields: [reversesEntryId], references: [id], onDelete: Restrict)
+  reversedBy      StockLedgerEntry[] @relation("ReversalPair")
+  occurredAt      DateTime          @default(now()) @db.Timestamptz(3)
+  createdByUserId String?           @db.VarChar(191)
+
+  @@unique([id, seq])
+  @@index([itemId, seq])
+  @@index([documentType, documentId])
+  @@map("stock_ledger_entry")
+}
+
+// ---------------------------------------------------------------------------
+// Delivery Note (spec 001 stories 46–48)
+// ---------------------------------------------------------------------------
+
+/// The type-specific child of `document` a `DELIVERY_NOTE` is: its advisory link
+/// to the Sales Order it fulfils (ADR 0014 — "depth exactly one"). The link is
+/// optional: a Delivery Note may stand alone (expansion decisions Q11).
+model DeliveryNote {
+  id           String             @id @default(cuid())
+  documentId   String             @unique
+  document     Document           @relation("DeliveryNoteDocument", fields: [documentId], references: [id], onDelete: Cascade)
+  salesOrderId String?
+  salesOrder   Document?          @relation("DeliveryNoteOrder", fields: [salesOrderId], references: [id], onDelete: Restrict)
+  lines        DeliveryNoteLine[]
+
+  @@map("delivery_note")
+}
+
+/// One delivered line. `salesOrderLineId` is present when this line fulfils an
+/// order line, so the Delivery Note can decrement exactly that Reservation.
+model DeliveryNoteLine {
+  id               String         @id @default(cuid())
+  deliveryNoteId   String
+  deliveryNote     DeliveryNote   @relation(fields: [deliveryNoteId], references: [id], onDelete: Cascade)
+  position         Int
+  itemId           String
+  item             Item           @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  /// Snapshotted from the Item or the order line, so a rename cannot rewrite history.
+  description      String         @db.VarChar(500)
+  quantity         Decimal        @db.Decimal(18, 3)
+  unitOfMeasureId  String
+  salesOrderLineId String?
+  salesOrderLine   DocumentLine?  @relation(fields: [salesOrderLineId], references: [id], onDelete: Restrict)
+
+  @@unique([deliveryNoteId, position])
+  @@index([salesOrderLineId])
+  @@map("delivery_note_line")
+}
+
+// ---------------------------------------------------------------------------
+// Credit Note (spec 001 stories 63–69; ADR 0006, ADR 0014, ADR 0016, ADR 0017)
+// ---------------------------------------------------------------------------
+
+/// The type-specific child of `document` a `CREDIT_NOTE` is: which Issued
+/// Invoice it corrects (ADR 0014 — "depth exactly one"), mirroring how a
+/// `DELIVERY_NOTE` links to the order it fulfils. The reversal itself lives on
+/// `document_line`: a Credit Note line IS a priced line, with signed (negative)
+/// quantities and amounts, whose `correctsDocumentLineId` points at the Invoice
+/// line it reverses. The row is immutable once its Document is Issued.
+model CreditNote {
+  id                 String   @id @default(cuid())
+  documentId         String   @unique
+  document           Document @relation("CreditNoteDocument", fields: [documentId], references: [id], onDelete: Cascade)
+  /// The Invoice being corrected; always Issued, always of the same Business.
+  correctsDocumentId String
+  correctsDocument   Document @relation("CreditNoteCorrects", fields: [correctsDocumentId], references: [id], onDelete: Restrict)
+
+  @@index([correctsDocumentId])
+  @@map("credit_note")
+}
+
+// ---------------------------------------------------------------------------
+// Purchase Order (spec 002 stories 77–80)
+// ---------------------------------------------------------------------------
+
+/// The type-specific child of `document` a `PURCHASE_ORDER` is: its optional
+/// link to the Supplier Party, so a draft can be started before the counterparty
+/// is recorded (spec 002 story 79). The ordering itself touches nothing in the
+/// ledger; only receiving moves stock.
+model PurchaseOrder {
+  id              String             @id @default(cuid())
+  documentId      String             @unique
+  document        Document           @relation("PurchaseOrderDocument", fields: [documentId], references: [id], onDelete: Cascade)
+  partyId         String?
+  party           Party?             @relation("PurchaseOrderParty", fields: [partyId], references: [id], onDelete: Restrict)
+  lines           PurchaseOrderLine[]
+  goodsReceipts   GoodsReceipt[]     @relation("GoodsReceiptOrder")
+
+  @@map("purchase_order")
+}
+
+/// One ordered line. Prices are resolved server-side from the Item's purchase
+/// price at draft-pricing time and re-read at issue (spec 002, ADR 0005).
+model PurchaseOrderLine {
+  id                   String               @id @default(cuid())
+  purchaseOrderId      String
+  purchaseOrder        PurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  position             Int
+  itemId               String
+  item                 Item                 @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  description          String               @db.VarChar(500)
+  quantity             Decimal              @db.Decimal(18, 3)
+  unitOfMeasureId      String
+  goodsReceiptLines    GoodsReceiptLine[]
+
+  @@unique([purchaseOrderId, position])
+  @@map("purchase_order_line")
+}
+
+// ---------------------------------------------------------------------------
+// Goods Receipt (spec 002 stories 81–84)
+// ---------------------------------------------------------------------------
+
+/// The type-specific child of `document` a `GOODS_RECEIPT` is: its optional
+/// and advisory link to the Purchase Order it fulfils (spec 002 story 82).
+/// A Goods Receipt may stand alone. Receiving is the act that appends ledger
+/// entries; ordering is a statement of intent.
+model GoodsReceipt {
+  id                String               @id @default(cuid())
+  documentId        String               @unique
+  document          Document             @relation("GoodsReceiptDocument", fields: [documentId], references: [id], onDelete: Cascade)
+  purchaseOrderId   String?
+  purchaseOrder     PurchaseOrder?       @relation("GoodsReceiptOrder", fields: [purchaseOrderId], references: [id], onDelete: Restrict)
+  partyId           String?
+  party             Party?               @relation("GoodsReceiptParty", fields: [partyId], references: [id], onDelete: Restrict)
+  lines             GoodsReceiptLine[]
+  discrepancies     Discrepancy[]
+
+  @@map("goods_receipt")
+}
+
+/// One received line. When `purchaseOrderLineId` is present it names the
+/// order line this receipt fulfils, so a Discrepancy can be recorded.
+model GoodsReceiptLine {
+  id                   String                 @id @default(cuid())
+  goodsReceiptId       String
+  goodsReceipt         GoodsReceipt           @relation(fields: [goodsReceiptId], references: [id], onDelete: Cascade)
+  position             Int
+  itemId               String
+  item                 Item                   @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  description          String                 @db.VarChar(500)
+  quantity             Decimal                @db.Decimal(18, 3)
+  unitOfMeasureId      String
+  purchaseOrderLineId  String?
+  purchaseOrderLine    PurchaseOrderLine?     @relation(fields: [purchaseOrderLineId], references: [id], onDelete: Restrict)
+
+  @@unique([goodsReceiptId, position])
+  @@index([purchaseOrderLineId])
+  @@map("goods_receipt_line")
+}
+
+/// The difference between the quantity ordered and the quantity received,
+/// kept as its own record so the document and the stock never disagree (spec 002
+/// story 84, ADR 0004). One row per line.
+model Discrepancy {
+  id                  String          @id @default(cuid())
+  documentType        String          @db.VarChar(32)
+  documentId          String
+  lineId              String
+  expectedQuantity    Decimal         @db.Decimal(18, 3)
+  actualQuantity      Decimal         @db.Decimal(18, 3)
+  direction           String          @db.VarChar(16)
+  createdAt           DateTime        @default(now()) @db.Timestamptz(3)
+  goodsReceipt        GoodsReceipt?   @relation(fields: [documentId], references: [id], onDelete: Restrict)
+
+  @@unique([documentType, documentId, lineId])
+  @@index([documentType, documentId])
+  @@map("discrepancy")
+}
+
+// ---------------------------------------------------------------------------
+// Bill of Materials (spec 002 stories 85–86)
+// ---------------------------------------------------------------------------
+
+/// A Bill of Materials naming the component Items and their quantities for one
+/// unit of a finished Item (spec 002 story 85). Data, not a document.
+model Bom {
+  id              String           @id @default(cuid())
+  finishedItemId  String
+  finishedItem    Item             @relation("BomFinishedItems", fields: [finishedItemId], references: [id], onDelete: Restrict)
+  versions        BomVersion[]
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(3)
+
+  @@unique([finishedItemId])
+  @@map("bom")
+}
+
+/// An immutable, dated revision of a Bill of Materials (spec 002 story 86).
+/// A Production Order holds a `bomVersionId` and never joins to "the latest".
+model BomVersion {
+  id                String                @id @default(cuid())
+  bomId             String
+  bom               Bom                   @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  version           Int
+  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
+  lines             BomVersionLine[]
+  productionOrders  ProductionOrder[]
+
+  @@unique([bomId, version])
+  @@map("bom_version")
+}
+
+/// One component line of a BOM version.
+model BomVersionLine {
+  id               String            @id @default(cuid())
+  bomVersionId     String
+  bomVersion       BomVersion        @relation(fields: [bomVersionId], references: [id], onDelete: Cascade)
+  position         Int
+  itemId           String
+  item             Item              @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  quantity         Decimal           @db.Decimal(18, 3)
+  unitOfMeasureId  String
+
+  @@unique([bomVersionId, position])
+  @@map("bom_version_line")
+}
+
+// ---------------------------------------------------------------------------
+// Production Order (spec 002 stories 87–91)
+// ---------------------------------------------------------------------------
+
+/// The type-specific child of `document` a `PRODUCTION_ORDER` is: its link to
+/// the BOM version it consumes (spec 002 story 87), so an order issued last
+/// month still produces what it said it would produce. Component requirements
+/// are snapshotted on the document when issued (spec 002 story 88).
+model ProductionOrder {
+  id           String             @id @default(cuid())
+  documentId   String             @unique
+  document     Document           @relation("ProductionOrderDocument", fields: [documentId], references: [id], onDelete: Cascade)
+  bomVersionId String
+  bomVersion   BomVersion         @relation(fields: [bomVersionId], references: [id], onDelete: Restrict)
+  lines        ProductionOrderLine[]
+
+  @@map("production_order")
+}
+
+/// One line of the component requirements, snapshotted from the BOM version
+/// at issue time (spec 002 story 88).
+model ProductionOrderLine {
+  id                String             @id @default(cuid())
+  productionOrderId String
+  productionOrder   ProductionOrder    @relation(fields: [productionOrderId], references: [id], onDelete: Cascade)
+  position          Int
+  itemId            String
+  item              Item               @relation(fields: [itemId], references: [id], onDelete: Restrict)
+  description       String             @db.VarChar(500)
+  quantity          Decimal            @db.Decimal(18, 3)
+  unitOfMeasureId   String
+
+  @@unique([productionOrderId, position])
+  @@map("production_order_line")
+}
+
+// ---------------------------------------------------------------------------
+// Payments (spec 001 stories 63–69; ADR 0016)
+// ---------------------------------------------------------------------------
+
+/// Money received from a Customer. A Payment is not a Document: no number, no
+/// status, no archive. Its `amount` is the money that arrived; the difference
+/// between it and the sum of its allocations is unallocated credit, and an
+/// allocation to a Credit Note is a refund paid out. Deletion removes both the
+/// Payment and its allocations, which is the only path backwards.
+model Payment {
+  id              String              @id @default(cuid())
+  businessId      String
+  business        Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  partyId         String
+  party           Party               @relation(fields: [partyId], references: [id], onDelete: Restrict)
+  amount          Decimal             @db.Decimal(18, 3)
+  receivedAt      DateTime            @db.Timestamptz(3)
+  method          String?             @db.VarChar(32)
+  reference       String?             @db.VarChar(100)
+  note            String?             @db.VarChar(500)
+  unallocatedCredit Decimal           @db.Decimal(18, 3)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
+  allocations     PaymentAllocation[]
+
+  @@index([partyId])
+  @@index([businessId])
+  @@map("payment")
+}
+
+/// One Document a Payment's amount is assigned to: an issued Customer Invoice
+/// (settling part of it) or an issued Credit Note (a refund). The sum of a
+/// Payment's allocations never exceeds its `amount`, and an allocation never
+/// exceeds what the Document has left to absorb — both checked in the issuing
+/// transaction under row locks on the Documents, so two concurrent allocations
+/// cannot both claim the same remaining value.
+model PaymentAllocation {
+  id         String   @id @default(cuid())
+  paymentId  String
+  payment    Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  amount     Decimal  @db.Decimal(18, 3)
+  position   Int
+
+  @@unique([paymentId, documentId])
+  @@index([documentId])
+  @@map("payment_allocation")
 }

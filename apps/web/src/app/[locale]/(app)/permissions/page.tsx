@@ -9,7 +9,7 @@ export async function generateMetadata({
   params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
   const { locale } = await params;
-  return { title: isLocale(locale) ? translatorFor(locale)('permissionsTitle') : 'Permissions' };
+  return { title: isLocale(locale) ? translatorFor(locale)('navPermissions') : 'Permissions' };
 }
 
 export default async function PermissionsPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -19,7 +19,7 @@ export default async function PermissionsPage({ params }: { params: Promise<{ lo
 
   return (
     <div className="space-y-6">
-      <PageHeader title={t('permissionsTitle')} description={t('permissionsDescription')} />
+      <PageHeader title={t('navPermissions')} description={t('navPermissions')} />
       <PermissionCatalogue locale={typedLocale} />
     </div>
   );

@@ -1,0 +1,24 @@
+{
+  "id": "bd10b0c49",
+  "name": "cv-builder dev server",
+  "command": "cd /home/medo/Desktop/cv-builder && (pnpm dev 2>&1 | tail -20)",
+  "status": "running",
+  "outputPath": ".pi/tasks/01a1186c-b949-7389-8eee-6e2ff2d2ed89-522606/bd10b0c49.output",
+  "cwd": "/home/medo/Desktop/easyerp",
+  "startTime": 1791458116984,
+  "pid": 1000385,
+  "bytesWritten": 0,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": false,
+  "notifyOnCompletion": false,
+  "triggerOnCompletion": false,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

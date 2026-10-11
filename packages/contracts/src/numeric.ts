@@ -73,6 +73,23 @@ export const moneySchema = z
   })
   .describe('An exact monetary amount as a decimal string, at most 18 digits with 3 decimals.');
 
+/** Money, strictly above zero. A Payment and a Payment Allocation are never zero. */
+export const positiveMoneySchema = moneySchema.refine(
+  (value) => !value.startsWith('-') && /[1-9]/.test(value),
+  { message: 'expected a strictly positive money amount' },
+);
+
+/**
+ * A strictly negative quantity: a Credit Note line reverses the Invoice line it
+ * corrects, and the reversal is printed as a subtraction. A positive quantity
+ * here would be a line that adds what was billed again.
+ */
+export const signedQuantitySchema = z
+  .custom<Quantity>((value) => typeof value === 'string' && /^-\d{1,15}(\.\d{1,3})?$/.test(value), {
+    message: 'expected a strictly negative decimal quantity',
+  })
+  .describe('A negative exact decimal string, at most 18 digits with 3 decimals.');
+
 export const quantitySchema = z
   .custom<Quantity>(
     (value) => typeof value === 'string' && positiveDecimalSchema.safeParse(value).success,

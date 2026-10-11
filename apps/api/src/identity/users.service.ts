@@ -8,7 +8,8 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import type { SessionUser } from '@easyerp/contracts';
+import { randomUUID } from 'node:crypto';
+import type { SessionUser, UserInput } from '@easyerp/contracts';
 import { conflict, notFound } from '../common/errors.js';
 import { Prisma } from '../generated/prisma/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -63,6 +64,62 @@ export class UsersService {
     }));
   }
 
+  /**
+   * Create a user with credential login. The hashing lives here because creating
+   * an account IS hashing a password in this system — there is no other way to
+   * become a user, and a password is never stored raw anywhere on the way in.
+   */
+  async create(input: UserInput): Promise<UserSummary> {
+    const parsed = input;
+    const existing = await this.prisma.authUser.findUnique({
+      where: { email: parsed.email },
+    });
+    if (existing && !existing.deletedAt) throw conflict('A user with this email already exists');
+
+    const roles = await this.prisma.role.findMany({ where: { id: { in: parsed.roleIds } } });
+    const missing = parsed.roleIds.filter((id) => !roles.some((role) => role.id === id));
+    if (missing.length > 0) throw notFound('Role', missing[0] ?? '');
+
+    const { hashPassword } = await import('better-auth/crypto');
+    const userId = randomUUID();
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      await tx.authUser.create({
+        data: {
+          id: userId,
+          email: parsed.email,
+          name: parsed.displayName,
+          emailVerified: true,
+          isActive: parsed.isActive,
+        },
+      });
+      await tx.authAccount.create({
+        data: {
+          id: randomUUID(),
+          userId,
+          providerId: 'credential',
+          accountId: userId,
+          password: await hashPassword(parsed.password),
+        },
+      });
+      await tx.userRole.createMany({
+        data: parsed.roleIds.map((roleId) => ({ userId, roleId })),
+      });
+      return await tx.authUser.findUniqueOrThrow({
+        where: { id: userId },
+        include: { roles: { include: { role: { select: { id: true, code: true, name: true } } } } },
+      });
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      displayName: user.name,
+      isActive: user.isActive,
+      roles: user.roles.map((assignment) => assignment.role),
+    };
+  }
+
   async setRoles(userId: string, roleIds: readonly string[]): Promise<UserSummary> {
     if (roleIds.length === 0) {
       throw conflict('A user must keep at least one role');
@@ -71,8 +128,8 @@ export class UsersService {
     return this.prisma.$transaction(async (tx) => {
       await lockAdministratorInvariant(tx);
 
-      const user = await tx.authUser.findUnique({ where: { id: userId } });
-      if (!user || user.deletedAt) throw notFound('User', userId);
+      const user = await tx.authUser.findUniqueOrThrow({ where: { id: userId } });
+      if (user.deletedAt) throw notFound('User', userId);
 
       const roles = await tx.role.findMany({ where: { id: { in: [...roleIds] } } });
       const missing = roleIds.filter((id) => !roles.some((role) => role.id === id));

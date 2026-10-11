@@ -1,0 +1,30 @@
+# easyERP Web systemd service
+# Install: sudo cp ops/systemd/easyerp-web.service /etc/systemd/system/
+# Enable: sudo systemctl enable easyerp-web
+# Start:  sudo systemctl start easyerp-web
+
+[Unit]
+Description=easyERP Web
+After=network.target easyerp-api.service
+Requires=easyerp-api.service
+
+[Service]
+Type=simple
+User=easyerp
+Group=easyerp
+WorkingDirectory=/home/easyerp/easyerp-web
+EnvironmentFile=/home/easyerp/easyerp-web/.env
+ExecStart=/home/easyerp/.nvm/versions/node/v24.21.0/bin/node node_modules/next/dist/bin/next start --port 3003
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

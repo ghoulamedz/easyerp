@@ -5,7 +5,7 @@
   "description": "easyERP web — Next.js App Router",
   "scripts": {
     "build": "next build",
-    "dev": "next dev --port 3000",
+    "dev": "next dev --port 3003",
     "start": "next start",
     "lint": "eslint src",
     "typecheck": "tsc -p tsconfig.json --noEmit",

@@ -125,6 +125,40 @@ describe('sumLines', () => {
     expect(totals.taxByRate[0]?.amount.toString()).toBe('5.700');
   });
 
+  it('groups the net base alongside the tax, because 19% of what is not answerable from the tax alone', () => {
+    const totals = sumLines([
+      { ...priceLine({ quantity: '2', unitPrice: '100.000', taxRate: '19' }), taxRate: '19' },
+      { ...priceLine({ quantity: '1', unitPrice: '100.000', taxRate: '7' }), taxRate: '7' },
+    ]);
+
+    expect(
+      totals.taxByRate.map((group) => [group.rate, group.base.toString(), group.amount.toString()]),
+    ).toEqual([
+      ['19', '200.000', '38.000'],
+      ['7', '100.000', '7.000'],
+    ]);
+  });
+
+  it('makes the bases sum to the net, so no line is missing from the breakdown', () => {
+    const totals = sumLines([
+      { ...priceLine({ quantity: '2', unitPrice: '100.000', taxRate: '19' }), taxRate: '19' },
+      { ...priceLine({ quantity: '1', unitPrice: '50.000', taxRate: '13' }), taxRate: '13' },
+      { ...priceLine({ quantity: '1', unitPrice: '20.000', taxRate: '7' }), taxRate: '7' },
+    ]);
+
+    const baseTotal = totals.taxByRate.reduce<Amount>(
+      (total, group) => total.plus(group.base),
+      Amount.zero(),
+    );
+    const taxTotal = totals.taxByRate.reduce<Amount>(
+      (total, group) => total.plus(group.amount),
+      Amount.zero(),
+    );
+
+    expect(baseTotal.toString()).toBe(totals.net.toString());
+    expect(taxTotal.toString()).toBe(totals.tax.toString());
+  });
+
   it('returns zeros for an empty document rather than throwing', () => {
     const totals = sumLines([]);
     expect(totals.net.toString()).toBe('0.000');

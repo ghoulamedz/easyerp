@@ -1,0 +1,2 @@
+Warning: No project session found with id 'delegate-64406b5580dd1cb06ca3ab94375bd479'; creating a new session with that id.
+Error: Unknown provider "llama.cpp". Use --list-models to see available providers/models.

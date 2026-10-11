@@ -64,6 +64,17 @@ async function createBetterAuth(prisma: PrismaService): Promise<BetterAuthInstan
         emailVerified: 'emailVerified',
         image: 'image',
       },
+      // `isActive` is ours, not Better Auth's (a bare account has no such thing
+      // in the framework). Until it is read back into the session output, the
+      // resolve path in `session-user.ts` sees an undefined `isActive` and turns
+      // every account into a session that does not exist — the guards then 401
+      // everyone, which is indistinguishable from "no authentication here" and
+      // therefore an easy thing for an integration suite to never catch. Declaring
+      // it `input: false` keeps clients from writing it through Better Auth; the
+      // role table and an administrator own activation, not the sign-up form.
+      additionalFields: {
+        isActive: { type: 'boolean', required: false, defaultValue: true, input: false },
+      },
     },
     account: { modelName: 'AuthAccount' },
     /// Better Auth verifies this table exists before serving any request, so it

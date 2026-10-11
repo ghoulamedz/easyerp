@@ -1,0 +1,279 @@
+name: Deploy Demo (Vercel + Neon)
+
+# Deploys the demo stack on every push to master:
+#   - API → Vercel Serverless Functions (Node.js)
+#   - Web → Vercel (Next.js static + SSR)
+#   - DB  → Neon serverless Postgres (free tier)
+#
+# The demo is a real, working instance of easyERP that clients can
+# sign into and explore. It costs nothing on the free tiers.
+#
+# Prerequisites (one-time, in GitHub repo Settings → Secrets):
+#   VERCEL_TOKEN          from vercel.com/account/tokens
+#   VERCEL_ORG_ID         from `vercel inspect <deployment>` or project settings
+#   VERCEL_PROJECT_ID_API from API project settings
+#   VERCEL_PROJECT_ID_WEB from Web project settings
+#   NEON_API_KEY          from console.neon.tech → API Keys
+#   NEON_PROJECT_ID       from Neon project dashboard
+#   DEMO_FIRST_SETUP_TOKEN `openssl rand -base64 32`
+#   DEMO_BETTER_AUTH_SECRET `openssl rand -base64 48`
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-demo-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  # 1. Create/verify Neon database branch for this deployment
+  neon-db:
+    name: Neon DB (branch + migrations)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      database_url: ${{ steps.neon.outputs.database_url }}
+      database_url_unpooled: ${{ steps.neon.outputs.database_url_unpooled }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Authenticate to Neon
+        uses: neondatabase/neonctl-action@v1
+        with:
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Create/update demo branch
+        id: neon
+        run: |
+          # Use a predictable branch name for the demo
+          BRANCH="demo"
+          
+          # Check if branch exists
+          if neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json | jq -e ".branches[] | select(.name == \"$BRANCH\")" >/dev/null; then
+            echo "Branch $BRANCH exists, ensuring it's up to date..."
+          else
+            echo "Creating branch $BRANCH from main..."
+            neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent main
+          fi
+
+          # Get connection strings
+          POOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp --pooled)
+          UNPOOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp)
+
+          echo "database_url=$POOLED" >> $GITHUB_OUTPUT
+          echo "database_url_unpooled=$UNPOOLED" >> $GITHUB_OUTPUT
+
+      - name: Apply migrations to demo branch
+        run: |
+          export DATABASE_URL="${{ steps.neon.outputs.database_url_unpooled }}"
+          pnpm --filter @easyerp/api prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.database_url_unpooled }}
+
+  # 2. Deploy API to Vercel (serverless functions)
+  deploy-api:
+    name: Deploy API → Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: neon-db
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
+      # API needs these at build time for Prisma generate
+      DATABASE_URL: ${{ needs.neon-db.outputs.database_url }}
+      DATABASE_URL_UNPOOLED: ${{ needs.neon-db.outputs.database_url_unpooled }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install deps (including dev for build)
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @easyerp/api prisma:generate
+
+      - name: Build API
+        run: pnpm --filter @easyerp/api build
+
+      - name: Deploy API to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_API }}
+          vercel-args: '--prod'
+          working-directory: ./apps/api
+
+      - name: Save API deployment URL
+        run: |
+          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          echo "api_url=https://$URL" >> $GITHUB_ENV
+          echo "API deployed to: https://$URL"
+
+  # 3. Deploy Web to Vercel (Next.js)
+  deploy-web:
+    name: Deploy Web → Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [neon-db, deploy-api]
+    env:
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+      # Web build needs API URL for proxy
+      API_INTERNAL_URL: ${{ env.api_url }}
+      # Runtime env for Better Auth
+      BETTER_AUTH_URL: ${{ env.api_url }}  # Will be updated after web deploy
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Web
+        run: pnpm --filter @easyerp/web build
+        env:
+          API_INTERNAL_URL: ${{ env.api_url }}
+
+      - name: Deploy Web to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+          vercel-args: '--prod'
+          working-directory: ./apps/web
+
+      - name: Get Web deployment URL
+        id: web_url
+        run: |
+          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          echo "web_url=https://$URL" >> $GITHUB_OUTPUT
+          echo "Web deployed to: https://$URL"
+
+  # 4. Configure Neon branch env vars (Better Auth, etc.)
+  neon-config:
+    name: Configure Demo Env Vars
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy-api, deploy-web]
+    steps:
+      - uses: actions/checkout@v5
+      - name: Authenticate to Neon
+        uses: neondatabase/neonctl-action@v1
+        with:
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Set branch environment variables
+        run: |
+          # Neon branch environment variables for the API
+          # Note: Vercel handles runtime env separately, but we can set
+          # the DATABASE_URL in Neon's branch settings for reference
+          echo "Demo stack deployed:"
+          echo "  API: ${{ env.api_url }}"
+          echo "  Web: ${{ needs.deploy-web.outputs.web_url }}"
+
+  # 5. Update Vercel project env vars with production values
+  vercel-env:
+    name: Set Vercel Production Env Vars
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [deploy-api, deploy-web]
+    steps:
+      - name: Set API project environment variables
+        run: |
+          vercel env add DATABASE_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.neon-db.outputs.database_url }}"
+          vercel env add BETTER_AUTH_SECRET production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_BETTER_AUTH_SECRET }}"
+          vercel env add BETTER_AUTH_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-web.outputs.web_url }}"
+          vercel env add CORS_ORIGINS production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-web.outputs.web_url }}"
+          vercel env add FIRST_SETUP_TOKEN production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_FIRST_SETUP_TOKEN }}"
+          vercel env add NODE_ENV production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "production"
+          vercel env add API_PORT production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "3000"
+          vercel env add API_HOST production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "0.0.0.0"
+          vercel env add LOG_LEVEL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "info"
+
+      - name: Set Web project environment variables
+        run: |
+          vercel env add API_INTERNAL_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "${{ env.api_url }}"
+          vercel env add NODE_ENV production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "production"
+
+  # 6. Run demo smoke tests
+  demo-smoke:
+    name: Demo Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [deploy-api, deploy-web, vercel-env]
+    steps:
+      - name: Wait for deployments to be ready
+        run: sleep 30
+
+      - name: Test API health
+        run: |
+          curl -sf "${{ env.api_url }}/api/health" | jq -e '.status == "ok"'
+
+      - name: Test API ready
+        run: |
+          curl -sf "${{ env.api_url }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
+
+      - name: Test Web loads
+        run: |
+          curl -sf "${{ needs.deploy-web.outputs.web_url }}/fr/setup" | grep -q "Premier démarrage"
+
+      - name: Test Setup flow (API)
+        run: |
+          curl -sf -X POST "${{ env.api_url }}/api/setup/complete" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "token": "'${{ secrets.DEMO_FIRST_SETUP_TOKEN }}'",
+              "business": {
+                "legalName": "Demo Business SARL",
+                "displayName": "Demo Business",
+                "taxIdentifier": "123456789",
+                "countryCode": "TN",
+                "vatRegime": "STANDARD",
+                "currency": "TND"
+              },
+              "administrator": {
+                "email": "admin@demo.easyerp.tn",
+                "name": "Demo Admin",
+                "password": "demo-password-123"
+              },
+              "units": [{"code": "PCS", "allowsFraction": false}],
+              "taxRates": [{"code": "TVA19", "rate": "0.19"}]
+            }' | jq -e '.businessId'
+
+      - name: Test Sign-in flow
+        run: |
+          curl -sf -X POST "${{ env.api_url }}/api/auth/sign-in/email" \
+            -H "Content-Type: application/json" \
+            -d '{"email":"admin@demo.easyerp.tn","password":"demo-password-123"}' | jq -e '.user.email == "admin@demo.easyerp.tn"'
+
+      - name: Post deployment summary
+        if: always()
+        run: |
+          echo "## Demo Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | URL |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Web App** | ${{ needs.deploy-web.outputs.web_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **API** | ${{ env.api_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Setup Token** | \`${{ secrets.DEMO_FIRST_SETUP_TOKEN }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Demo Credentials" >> $GITHUB_STEP_SUMMARY
+          echo "- **Email:** admin@demo.easyerp.tn" >> $GITHUB_STEP_SUMMARY
+          echo "- **Password:** demo-password-123" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "The demo is now live and ready for clients!" >> $GITHUB_STEP_SUMMARY

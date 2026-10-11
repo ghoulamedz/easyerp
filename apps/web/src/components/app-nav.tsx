@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { IconGrid, IconShield, IconGear } from './icons';
+import { IconCart, IconBox, IconTruck, IconFileText, IconDollar, IconFactory, IconPackage, IconUser, IconUsers, IconKey, IconServer, IconReceipt } from './icons';
 import { cx } from './ui';
 import type { MessageKey, Translator } from '../i18n/config';
 
@@ -10,16 +11,9 @@ export interface NavItem {
   readonly icon: typeof IconGrid;
 }
 
-/**
- * Navigation is derived from the locale, not stored. One list, translated once,
- * so a new page cannot appear in one language and be missing from another.
- */
 export function navItemsFor(t: Translator, locale: string): NavItem[] {
   const root = `/${locale}`;
   return [
-    // The dashboard links to its canonical path, not to the locale root. Linking
-    // to the root makes it a prefix of every other route, so "is this active?"
-    // answers yes on every page and the navigation stops meaning anything.
     { key: 'dashboard', label: t('navDashboard'), href: `${root}/dashboard`, icon: IconGrid },
     {
       key: 'permissions',
@@ -28,6 +22,21 @@ export function navItemsFor(t: Translator, locale: string): NavItem[] {
       icon: IconShield,
     },
     { key: 'settings', label: t('navSettings'), href: `${root}/settings`, icon: IconGear },
+    // Sales & Documents
+    { key: 'sales-orders', label: t('navSalesOrders'), href: `${root}/sales-orders`, icon: IconCart },
+    { key: 'delivery-notes', label: t('navDeliveryNotes'), href: `${root}/delivery-notes`, icon: IconTruck },
+    { key: 'customer-invoices', label: t('navCustomerInvoices'), href: `${root}/customer-invoices`, icon: IconFileText },
+    { key: 'credit-notes', label: t('navCreditNotes'), href: `${root}/credit-notes`, icon: IconReceipt },
+    // Stock & Catalog
+    { key: 'items', label: t('navItems'), href: `${root}/items`, icon: IconBox },
+    { key: 'parties', label: t('navParties'), href: `${root}/parties`, icon: IconUsers },
+    { key: 'stock', label: t('navStock'), href: `${root}/stock`, icon: IconServer },
+    // Purchasing & Production
+    { key: 'purchasing', label: t('navPurchasing'), href: `${root}/purchasing`, icon: IconPackage },
+    { key: 'production', label: t('navProduction'), href: `${root}/production`, icon: IconFactory },
+    { key: 'boms', label: t('navBoms'), href: `${root}/boms`, icon: IconServer },
+    // Finance
+    { key: 'payments', label: t('navPayments'), href: `${root}/payments`, icon: IconDollar },
   ];
 }
 
@@ -40,7 +49,6 @@ export function AppNav({
   items: NavItem[];
   currentPath: string;
   label: string;
-  /** Absent means "no drawer to close"; `undefined` means the same thing. */
   onNavigate?: (() => void) | undefined;
 }) {
   return (
@@ -69,5 +77,4 @@ export function AppNav({
   );
 }
 
-/** Re-exported so a page can add its own entry without importing the icon file. */
 export type { MessageKey };

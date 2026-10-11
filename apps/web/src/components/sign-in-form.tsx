@@ -4,7 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Card, CardBody } from './ui';
-import { IconAlert, IconShield } from './icons';
+import { IconAlert, IconShield, IconEye, IconEyeOff } from './icons';
 import { translatorFor, type Locale } from '../i18n/config';
 
 /**
@@ -24,6 +24,7 @@ export function SignInForm({ locale }: { locale: Locale }) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,17 +92,27 @@ export function SignInForm({ locale }: { locale: Locale }) {
             <label htmlFor="password" className="mb-1.5 block text-xs font-medium text-ink-muted">
               {t('signInPassword')}
             </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              dir="ltr"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              className={field}
-            />
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                required
+                dir="ltr"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className={field + ' pr-10'}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute inset-y-0 me-3 flex items-center text-ink-subtle hover:text-ink"
+                aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+              >
+                {showPassword ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
+              </button>
+            </div>
           </div>
 
           {error ? (

@@ -2,8 +2,20 @@
  * Shared plumbing for the operations commands.
  *
  * Every remote action goes through `ssh` to the host named in the manifest. There
- * is no orchestrator: one Business, one host, one port, one `docker compose`
- * project. Nothing here decides policy — it only executes what the manifest says.
+ * is no orchestrator: one Business, one host, one systemd pair, one native
+ * PostgreSQL (ADR 0013). Nothing here decides policy — it only executes what the
+ * manifest says.
+ *
+ * The host layout this assumes, and the layout the provisioning script creates:
+ *
+ *   /opt/easyerp/app/            a release: the repository at one commit, built
+ *   /opt/easyerp/shared/.env     the environment for both units, outside the
+ *                                release so replacing a release never touches it
+ *   /opt/easyerp/backups/<id>/   pg_dump output
+ *
+ * Nothing here shells out to Docker. That was the old deployment mechanism and
+ * `composeCommand` was its single point of contact; it is gone, and PostgreSQL is
+ * now the distribution's own package under systemd.
  */
 
 import { spawn } from 'node:child_process';
@@ -18,8 +30,14 @@ export const REPO_ROOT = resolve(here, '..', '..');
 export const MANIFEST_PATH =
   process.env.EASYERP_CLIENTS ?? resolve(REPO_ROOT, 'ops', 'clients.yaml');
 
-/** The compose project directory on the remote host. */
-export const REMOTE_COMPOSE_DIR = process.env.EASYERP_REMOTE_DIR ?? '/opt/easyerp';
+/** Where a release is built on the host. */
+export const REMOTE_APP_DIR = process.env.EASYERP_REMOTE_APP_DIR ?? '/opt/easyerp/app';
+/** Per-Business configuration. Deliberately outside the release directory. */
+export const REMOTE_SHARED_DIR = process.env.EASYERP_REMOTE_SHARED_DIR ?? '/opt/easyerp/shared';
+/** The environment file both units read. */
+export const REMOTE_ENV_FILE = `${REMOTE_SHARED_DIR}/.env`;
+/** `pg_dump` output, one directory per Business. */
+export const REMOTE_BACKUP_ROOT = process.env.EASYERP_BACKUP_ROOT ?? '/opt/easyerp/backups';
 
 export async function clients(): Promise<readonly Client[]> {
   return (await loadManifest(MANIFEST_PATH)).clients;
@@ -64,31 +82,64 @@ export function ssh(client: Client, command: string): Promise<RunResult> {
   ]);
 }
 
-/**
- * The compose invocation for one Business.
- *
- * The client's identity and published port are passed on the command line rather
- * than read from the host's `.env`, so this manifest is the single source of
- * truth and a host cannot drift away from it unnoticed.
- */
-export function composeCommand(
-  client: Client,
+/** The systemd unit for one half of this Business. */
+export function unitOf(client: Client, half: 'api' | 'web'): string {
+  return `easyerp-${half}.service`;
+}
+
+/** A `systemctl` invocation against one unit. */
+export function systemctlCommand(
+  unit: string,
   verb: string,
   extra: readonly string[] = [],
 ): string {
-  const project = `easyerp_${client.id}`;
+  return ['sudo', 'systemctl', verb, unit, ...extra].join(' ');
+}
+
+/**
+ * The `rsync` arguments that copy the working tree to one host.
+ *
+ * `node_modules` and `.git` are excluded because the host runs
+ * `pnpm install --frozen-lockfile` itself: shipping a `node_modules` built on a
+ * different platform is how a deploy works locally and fails on the host.
+ *
+ * Returned as an argv array rather than a command string because a command string
+ * has to be re-split on whitespace to be executed, and a repository path
+ * containing a space would silently become two arguments.
+ */
+export function rsyncArgs(client: Client): readonly string[] {
   return [
-    `EASYERP_CLIENT_ID=${client.id}`,
-    `EASYERP_PORT=${client.port}`,
-    `EASYERP_EMAIL_DOMAIN=${client.emailDomain}`,
-    'docker compose',
-    '--project-name',
-    project,
-    '--file',
-    `${REMOTE_COMPOSE_DIR}/infra/compose/compose.yaml`,
-    ...(verb ? [verb] : []),
-    ...extra,
-  ].join(' ');
+    '--archive',
+    '--delete',
+    '--compress',
+    '--exclude=node_modules',
+    '--exclude=.git',
+    '--exclude=.next',
+    '--exclude=dist',
+    '--exclude=coverage',
+    '--exclude=.turbo',
+    // The host's own environment, never ours.
+    '--exclude=apps/api/.env',
+    '--exclude=apps/api/.env.test',
+    // Generated on the host by `prisma generate`, and gitignored so rsync would
+    // otherwise carry a client directory full of stale generated code.
+    '--exclude=apps/api/src/generated',
+    `${REPO_ROOT}/`,
+    `${client.sshUser}@${client.host}:${REMOTE_APP_DIR}/`,
+  ];
+}
+
+/**
+ * A shell prefix that exports the host's environment file.
+ *
+ * `set -a` turns on automatic export, so every variable in the file lands in the
+ * environment of the command that follows. `prisma.config.ts` reads
+ * `DATABASE_URL` from the environment and its own `dotenv/config` will not
+ * overwrite a variable that is already defined — which is what makes this work
+ * for a database whose credentials exist only on the host.
+ */
+export function withHostEnv(command: string): string {
+  return `set -a; . ${REMOTE_ENV_FILE}; set +a; ${command}`;
 }
 
 export function report(label: string, result: RunResult): boolean {

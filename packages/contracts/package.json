@@ -9,10 +9,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./openapi": {
-      "types": "./dist/openapi.d.ts",
-      "default": "./dist/openapi.js"
     }
   },
   "files": [
@@ -28,7 +24,6 @@
     "clean": "rm -rf dist coverage"
   },
   "dependencies": {
-    "@asteasolutions/zod-to-openapi": "^9.1.0",
     "zod": "^4.6.5"
   },
   "devDependencies": {

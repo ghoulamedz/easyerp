@@ -27,9 +27,21 @@ export interface LineAmounts {
   readonly gross: Amount;
 }
 
+/**
+ * One group of the tax breakdown: the rate, the net it was applied to, and the
+ * tax it produced. The base is carried alongside the amount because a breakdown
+ * without a base is not a breakdown — `19% of what` is not answerable from the
+ * tax figure alone.
+ */
+export interface TaxRateGroup {
+  readonly rate: string;
+  readonly base: Amount;
+  readonly amount: Amount;
+}
+
 export interface DocumentAmounts extends LineAmounts {
   /** Per tax rate, in the order the rates were encountered. */
-  readonly taxByRate: readonly { readonly rate: string; readonly amount: Amount }[];
+  readonly taxByRate: readonly TaxRateGroup[];
 }
 
 export function priceLine(input: PricedLineInput): LineAmounts {
@@ -46,21 +58,27 @@ export function priceLine(input: PricedLineInput): LineAmounts {
 export function sumLines(
   lines: readonly (LineAmounts & { readonly taxRate: string })[],
 ): DocumentAmounts {
-  const taxByRate = new Map<string, Amount>();
+  const taxByRate = new Map<string, { base: Amount; amount: Amount }>();
 
   const net = lines.reduce<Amount>((total, line) => total.plus(line.net), Amount.zero());
   const tax = lines.reduce<Amount>((total, line) => total.plus(line.tax), Amount.zero());
   const gross = lines.reduce<Amount>((total, line) => total.plus(line.gross), Amount.zero());
 
   for (const line of lines) {
-    const current = taxByRate.get(line.taxRate) ?? Amount.zero();
-    taxByRate.set(line.taxRate, current.plus(line.tax));
+    const current = taxByRate.get(line.taxRate) ?? {
+      base: Amount.zero(),
+      amount: Amount.zero(),
+    };
+    taxByRate.set(line.taxRate, {
+      base: current.base.plus(line.net),
+      amount: current.amount.plus(line.tax),
+    });
   }
 
   return {
     net,
     tax,
     gross,
-    taxByRate: [...taxByRate.entries()].map(([rate, value]) => ({ rate, amount: value })),
+    taxByRate: [...taxByRate.entries()].map(([rate, group]) => ({ rate, ...group })),
   };
 }

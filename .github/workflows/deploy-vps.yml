@@ -1,0 +1,228 @@
+name: Deploy VPS (Production)
+
+# Production deployment to a single VPS running native PostgreSQL,
+# the API under systemd, the web app under systemd, and Caddy
+# terminating TLS. This is the real production path (ADR 0013).
+#
+# Prerequisites on target VPS (one-time, via ops/src/deploy.ts or manually):
+#   - Ubuntu 24.04 LTS
+#   - PostgreSQL 17 installed natively
+#   - Caddy installed natively
+#   - Node.js 24+ (via nvm or distro)
+#   - pnpm 10+
+#   - easyerp system user with sudo for systemd/Caddy
+#   - SSH key for GitHub Actions runner
+#
+# GitHub Secrets required:
+#   VPS_HOST            VPS IP or hostname
+#   VPS_USER            SSH user (e.g., easyerp)
+#   VPS_SSH_KEY         Private key for SSH
+#   PROD_DATABASE_URL   postgresql://user:pass@localhost/easyerp?schema=public
+#   PROD_BETTER_AUTH_SECRET  `openssl rand -base64 48`
+#   PROD_BETTER_AUTH_URL  https://client-domain.tn
+#   PROD_CORS_ORIGINS   https://client-domain.tn
+#   PROD_FIRST_SETUP_TOKEN `openssl rand -base64 32`
+#   PROD_ACME_EMAIL     admin@client-domain.tn
+
+on:
+  push:
+    branches: [release/*]
+  workflow_dispatch:
+    inputs:
+      domain:
+        description: 'Client domain (e.g., client.easyerp.tn)'
+        required: true
+        type: string
+      skip_db_migrate:
+        description: 'Skip database migration (for hotfixes)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-vps-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CI: 'true'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  build:
+    name: Build Artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install deps
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm db:generate
+
+      - name: Build all packages
+        run: pnpm build
+
+      - name: Upload API artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-dist
+          path: apps/api/dist/
+          retention-days: 1
+
+      - name: Upload Web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/.next/
+          retention-days: 1
+
+      - name: Upload Prisma artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prisma
+          path: apps/api/prisma/
+          retention-days: 1
+
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build
+    if: github.ref_type == 'branch' && startsWith(github.ref_name, 'release/')
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download API artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api-dist
+          path: apps/api/dist/
+
+      - name: Download Web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: apps/web/.next/
+
+      - name: Download Prisma
+        uses: actions/download-artifact@v4
+        with:
+          name: prisma
+          path: apps/api/prisma/
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          script: |
+            set -euo pipefail
+            cd /home/easyerp/easyerp
+
+            # 1. Stop services
+            sudo systemctl stop easyerp-api easyerp-web
+
+            # 2. Backup current database (ops script)
+            /home/easyerp/ops/src/backup.sh
+
+            # 3. Apply database migrations
+            if [ "${{ github.event.inputs.skip_db_migrate }}" != "true" ]; then
+              export DATABASE_URL="${{ secrets.PROD_DATABASE_URL }}"
+              pnpm --filter @easyerp/api prisma:migrate:deploy
+            fi
+
+            # 4. Update API
+            rsync -a --delete /home/easyerp/easyerp/apps/api/dist/ /home/easyerp/easyerp-api/
+            rsync -a /home/easyerp/easyerp/apps/api/prisma/ /home/easyerp/easyerp-api/prisma/
+            cp /home/easyerp/easyerp/apps/api/package.json /home/easyerp/easyerp-api/
+            cd /home/easyerp/easyerp-api && pnpm install --prod --frozen-lockfile
+
+            # 5. Update Web
+            rsync -a --delete /home/easyerp/easyerp/apps/web/.next/ /home/easyerp/easyerp-web/.next/
+            rsync -a /home/easyerp/easyerp/apps/web/public/ /home/easyerp/easyerp-web/public/
+            cp /home/easyerp/easyerp/apps/web/package.json /home/easyerp/easyerp-web/
+            cp /home/easyerp/easyerp/apps/web/next.config.ts /home/easyerp/easyerp-web/
+            cd /home/easyerp/easyerp-web && pnpm install --prod --frozen-lockfile
+
+            # 6. Update Caddy config
+            sudo cp /home/easyerp/easyerp/infra/caddy/Caddyfile /etc/caddy/Caddyfile
+            sudo sed -i "s/{$EASYERP_EMAIL_DOMAIN}/${{ github.event.inputs.domain }}/" /etc/caddy/Caddyfile
+            sudo sed -i "s/{$ACME_EMAIL}/${{ secrets.PROD_ACME_EMAIL }}/" /etc/caddy/Caddyfile
+            sudo sed -i "s/{$API_PORT}/3002/" /etc/caddy/Caddyfile
+            sudo sed -i "s/{$WEB_PORT}/3003/" /etc/caddy/Caddyfile
+
+            # 7. Update systemd environment files
+            cat > /home/easyerp/easyerp-api/.env << 'ENVEOF'
+    NODE_ENV=production
+    API_PORT=3002
+    API_HOST=0.0.0.0
+    LOG_LEVEL=info
+    DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
+    DATABASE_POOL_MAX=10
+    DOCUMENT_ARCHIVE_ROOT=/var/lib/easyerp/documents
+    BETTER_AUTH_SECRET=${{ secrets.PROD_BETTER_AUTH_SECRET }}
+    BETTER_AUTH_URL=https://${{ github.event.inputs.domain }}
+    CORS_ORIGINS=https://${{ github.event.inputs.domain }}
+    FIRST_SETUP_TOKEN=${{ secrets.PROD_FIRST_SETUP_TOKEN }}
+    ENVEOF
+
+            cat > /home/easyerp/easyerp-web/.env << 'ENVEOF'
+    NODE_ENV=production
+    API_INTERNAL_URL=http://127.0.0.1:3002
+    ENVEOF
+
+            # 8. Restart services
+            sudo systemctl daemon-reload
+            sudo systemctl restart easyerp-api easyerp-web caddy
+
+            # 9. Health check
+            sleep 5
+            curl -sf http://127.0.0.1:3002/api/health | jq -e '.status == "ok"'
+            curl -sf http://127.0.0.1:3002/api/ready | jq -e '.status == "ok"'
+            curl -sf https://${{ github.event.inputs.domain }}/fr/setup | grep -q "Premier démarrage"
+
+            echo "Deployment successful!"
+
+  verify:
+    name: Post-Deploy Verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: deploy
+    steps:
+      - name: Verify API health
+        run: |
+          curl -sf "https://${{ github.event.inputs.domain }}/api/health" | jq -e '.status == "ok"'
+
+      - name: Verify API ready
+        run: |
+          curl -sf "https://${{ github.event.inputs.domain }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
+
+      - name: Verify Web loads
+        run: |
+          curl -sf "https://${{ github.event.inputs.domain }}/fr/setup" | grep -q "Premier démarrage"
+
+      - name: Verify TLS
+        run: |
+          curl -sfI "https://${{ github.event.inputs.domain }}" | grep -q "HTTP/2 200"
+
+      - name: Post verification summary
+        run: |
+          echo "## Production Deployment Verified" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API Health | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| API Ready (DB) | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| Web App | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "| TLS/HTTPS | ✅ |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Domain: https://${{ github.event.inputs.domain }}" >> $GITHUB_STEP_SUMMARY
+          echo "Setup Token: (stored in server env, not exposed)" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,42 @@
+# PostgreSQL for local development and integration tests. Never a client deployment.
+#
+#   pnpm db:up
+#
+# ...which is this file. Two databases, one container:
+#
+#   easyerp        development.  `pnpm dev` runs against it. Your rows survive.
+#   easyerp_test   integration.   `pnpm test:integration` TRUNCATEs every table
+#                                between tests, so it is never the same database.
+#
+# Both are reachable at localhost:55432. The port is published so the host can
+# reach them; a real deployment publishes nothing, because its database is
+# reachable only from its own network.
+#
+# `--locale=C` is deliberate: deterministic collation, so ORDER BY does not change
+# under a Postgres upgrade and a document listing does not silently reorder.
+
+name: easyerp_local
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: easyerp
+      POSTGRES_PASSWORD: easyerp
+      POSTGRES_DB: easyerp
+      POSTGRES_INITDB_ARGS: '--locale=C --encoding=UTF8'
+    ports:
+      - '55432:5432'
+    volumes:
+      - ./init:/docker-entrypoint-initdb.d:ro
+      - local_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U easyerp -d easyerp']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  local_postgres_data:

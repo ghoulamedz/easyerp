@@ -1,0 +1,388 @@
+/**
+ * The Goods Receipt flow (spec 002 stories 81–84, ADR 0004, ADR 0005, ADR 0014).
+ *
+ * A Goods Receipt records what actually arrived. It moves stock by appending
+ * `GOODS_RECEIPT` entries to the Stock Ledger inside one transaction under a
+ * row lock. The difference between the quantity ordered and the quantity
+ * received is kept as a Discrepancy record.
+ */
+
+import { Injectable } from '@nestjs/common';
+import { Prisma } from '../generated/prisma';
+
+import {
+  draftGoodsReceiptSchema,
+  money,
+  quantity,
+  type GoodsReceipt as GoodsReceiptResponse,
+} from '@easyerp/contracts';
+
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
+import { notFound, validationFailed } from '../common/errors.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { StockLedgerService } from '../inventory/stock-ledger.service.js';
+import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
+import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
+
+export const GOODS_RECEIPT = 'GOODS_RECEIPT';
+export const GOODS_RECEIPT_REASON = 'GOODS_RECEIPT';
+
+@Injectable()
+export class GoodsReceiptService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: DocumentNumberingService,
+    private readonly stock: StockLedgerService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /**
+   * Create and issue a Goods Receipt. A receipt is issued immediately — it
+   * moves stock and is immutable once created.
+   */
+  async createAndIssue(
+    payload: unknown,
+    actor: AuditActor = {},
+    ipAddress?: string | null,
+  ): Promise<GoodsReceiptResponse> {
+    const input = draftGoodsReceiptSchema.parse(payload);
+
+    const [business, party] = await Promise.all([
+      this.prisma.business.findUnique({ where: { id: input.businessId } }),
+      input.partyId
+        ? this.prisma.party.findFirst({
+            where: { id: input.partyId, isActive: true, roles: { has: 'SUPPLIER' } },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (!business) throw notFound('Business', input.businessId);
+
+    // Determine the party to use for the Document
+    let documentPartyId: string | null = null;
+    let validatedParty = null;
+
+    if (input.partyId) {
+      // Validate the provided party
+      if (!party) {
+        throw validationFailed(
+          `No active Party ${input.partyId} holding the SUPPLIER role.`,
+          { partyId: input.partyId },
+        );
+      }
+      validatedParty = party;
+      documentPartyId = party.id;
+    } else if (input.purchaseOrderId) {
+      // Use the party from the purchase order
+      const purchaseOrder = await this.prisma.document.findFirst({
+        where: { id: input.purchaseOrderId, type: 'PURCHASE_ORDER' },
+        include: { lines: { orderBy: { position: 'asc' } }, purchaseOrders: { include: { lines: { orderBy: { position: 'asc' } } } } },
+      });
+      if (!purchaseOrder) throw notFound('Purchase Order', input.purchaseOrderId);
+      if (purchaseOrder.status !== 'ISSUED') {
+        throw validationFailed('A Goods Receipt can only be created against an issued Purchase Order.', { purchaseOrderId: input.purchaseOrderId });
+      }
+      // Get the purchase order details to access its party
+      const purchaseOrderWithParty = await this.prisma.purchaseOrder.findUnique({
+        where: { id: purchaseOrder.id },
+        include: { party: true },
+      });
+      if (!purchaseOrderWithParty?.party) {
+        throw validationFailed(
+          `Purchase Order ${input.purchaseOrderId} has no associated party.`,
+          { purchaseOrderId: input.purchaseOrderId },
+        );
+      }
+      validatedParty = purchaseOrderWithParty.party;
+      documentPartyId = purchaseOrderWithParty.party.id;
+    } else {
+      // Neither partyId nor purchaseOrderId provided
+      throw validationFailed(
+        'Either partyId or purchaseOrderId must be provided for a Goods Receipt.',
+        { },
+      );
+    }
+
+    let purchaseOrder = null;
+    if (input.purchaseOrderId) {
+      purchaseOrder = await this.prisma.document.findFirst({
+        where: { id: input.purchaseOrderId, type: 'PURCHASE_ORDER' },
+        include: { lines: { orderBy: { position: 'asc' } }, purchaseOrders: { include: { lines: { orderBy: { position: 'asc' } } } } },
+      });
+      if (!purchaseOrder) throw notFound('Purchase Order', input.purchaseOrderId);
+      if (purchaseOrder.status !== 'ISSUED') {
+        throw validationFailed('A Goods Receipt can only be created against an issued Purchase Order.', { purchaseOrderId: input.purchaseOrderId });
+      }
+    }
+
+    const priced = await priceItems(this.prisma, input.lines);
+    const totals = documentTotals(priced);
+
+    const issued = await this.prisma.$transaction(async (tx) => {
+      const now = new Date();
+      const year = now.getUTCFullYear();
+      const sequence = await this.numbering.allocate(tx, GOODS_RECEIPT, year);
+      const allocated = await this.numbering.render(tx, GOODS_RECEIPT, sequence, year);
+
+      const receipt = await tx.document.create({
+        data: {
+          type: GOODS_RECEIPT,
+          status: 'ISSUED',
+          businessId: business.id,
+          partyId: documentPartyId,
+          locale: 'fr',
+          vatRegime: business.vatRegime,
+          currency: business.currency,
+          netAmount: totals.netAmount,
+          taxAmount: totals.taxAmount,
+          grossAmount: totals.grossAmount,
+          number: allocated.number,
+          issuedAt: now,
+          lines: {
+            create: priced.map((line, position) => lineRow(line, position)),
+          },
+          taxes: {
+            create: totals.taxGroups.map((group, position) => ({
+              position,
+              rate: group.rate,
+              base: group.base,
+              amount: group.amount,
+            })),
+          },
+          goodsReceipts: {
+            create: {
+              purchaseOrderId: purchaseOrder?.id ?? null,
+              partyId: validatedParty?.id ?? null,
+              lines: {
+                create: input.lines.map((line, index) => ({
+                  position: index,
+                  itemId: line.itemId,
+                  description: line.description ?? '',
+                  quantity: line.quantity,
+                  unitOfMeasureId: line.unitOfMeasureId ?? '',
+                  purchaseOrderLineId: line.purchaseOrderLineId ?? null,
+                })),
+              },
+            },
+          },
+        },
+        include: {
+          lines: { orderBy: { position: 'asc' } },
+          taxes: { orderBy: { position: 'asc' } },
+          goodsReceipts: { include: { lines: { orderBy: { position: 'asc' } } } },
+          party: true,
+        },
+      });
+
+      // Create stock ledger entries and discrepancies
+      if (purchaseOrder) {
+        await this.appendLedgerEntriesAndDiscrepancies(
+          tx,
+          receipt.id!,
+          receipt.goodsReceipts[0]!.lines!,
+          purchaseOrder,
+        );
+      } else {
+        // Standalone receipt: just append ledger entries
+        for (const line of receipt.goodsReceipts[0]!.lines!) {
+          await this.stock.appendEntry(
+            tx,
+            {
+              itemId: line.itemId,
+              quantity: new Prisma.Decimal(line.quantity.toString()),
+              reason: GOODS_RECEIPT_REASON,
+              documentType: GOODS_RECEIPT,
+              documentId: receipt.id!,
+              reasonText: `Goods Receipt ${allocated.number}`,
+            },
+          );
+        }
+      }
+
+      await this.audit.record(
+        tx,
+        {
+          action: 'goods-receipt.issued',
+          entityType: GOODS_RECEIPT,
+          entityId: receipt.id,
+          after: { number: allocated.number, grossAmount: totals.grossAmount },
+        },
+        { ...actor, ipAddress: ipAddress ?? null },
+      );
+
+      return { receiptId: receipt.id, allocatedNumber: allocated.number };
+    });
+
+    const found = await this.findById(issued.receiptId);
+    if (!found) throw new Error(`Goods Receipt ${issued.receiptId} vanished immediately after issuing.`);
+    return found;
+  }
+
+  private async appendLedgerEntriesAndDiscrepancies(
+    tx: Prisma.TransactionClient,
+    receiptId: string,
+    receiptLines: { itemId: string; quantity: Prisma.Decimal; unitOfMeasureId: string; description: string; purchaseOrderLineId: string | null; position: number; id: string }[],
+    purchaseOrder: { purchaseOrders: { id: string; lines: { id: string; quantity: Prisma.Decimal; unitOfMeasureId: string }[] }[] } | null,
+  ): Promise<void> {
+    // Map purchase order lines by position for discrepancy comparison
+    const poLinesByPosition = new Map();
+    if (purchaseOrder?.purchaseOrders?.[0]) {
+      const purchaseOrderLines = await this.prisma.purchaseOrderLine.findMany({
+        where: { purchaseOrderId: purchaseOrder.purchaseOrders[0].id },
+        orderBy: { position: 'asc' },
+      });
+      for (const line of purchaseOrderLines) {
+        poLinesByPosition.set(line.position, line);
+      }
+    }
+
+    for (const receiptLine of receiptLines) {
+      const poLine = poLinesByPosition.get(receiptLine.position);
+
+      // Append stock ledger entry
+      await this.stock.appendEntry(
+        tx,
+        {
+          itemId: receiptLine.itemId,
+          quantity: new Prisma.Decimal(receiptLine.quantity.toString()),
+          reason: GOODS_RECEIPT_REASON,
+          documentType: GOODS_RECEIPT,
+          documentId: receiptId,
+          reasonText: `Goods Receipt line ${receiptLine.position + 1}`,
+        },
+      );
+
+      // Create discrepancy if linked to a purchase order line
+      if (poLine) {
+        const expected = Number(poLine.quantity);
+        const actual = Number(receiptLine.quantity);
+        if (expected !== actual) {
+          const direction = actual > expected ? 'OVER' : 'SHORT';
+          await tx.discrepancy.create({
+            data: {
+              documentType: GOODS_RECEIPT,
+              documentId: receiptId,
+              lineId: receiptLine.id,
+              expectedQuantity: expected.toFixed(3),
+              actualQuantity: actual.toFixed(3),
+              direction,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  async findById(id: string): Promise<GoodsReceiptResponse | null> {
+    const receipt = await this.prisma.document.findFirst({
+      where: { id, type: GOODS_RECEIPT },
+      include: {
+        lines: { orderBy: { position: 'asc' } },
+        taxes: { orderBy: { position: 'asc' } },
+        party: true,
+        goodsReceipts: {
+          include: {
+            lines: { orderBy: { position: 'asc' } },
+            purchaseOrder: {
+              include: {
+                lines: { orderBy: { position: 'asc' } },
+                document: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!receipt) return null;
+
+    const gr = receipt.goodsReceipts[0];
+    if (!gr) throw new Error(`Goods Receipt ${id} has no goodsReceipt relation`);
+
+    return {
+      id: receipt.id,
+      type: 'GOODS_RECEIPT',
+      status: receipt.status as GoodsReceiptResponse['status'],
+      number: receipt.number,
+      partyId: receipt.partyId,
+      issuedAt: receipt.issuedAt?.toISOString() ?? null,
+      totals: {
+        netAmount: money(receipt.netAmount.toString()),
+        taxAmount: money(receipt.taxAmount.toString()),
+        grossAmount: money(receipt.grossAmount.toString()),
+        withholdingTaxAmount: money(receipt.withholdingTaxAmount.toString()),
+        stampDutyAmount: money(receipt.stampDutyAmount.toString()),
+      },
+      businessId: receipt.businessId,
+      party: receipt.party
+        ? {
+            id: receipt.party.id,
+            code: receipt.party.code,
+            name: receipt.party.name,
+            address: receipt.party.address,
+            city: receipt.party.city,
+            countryCode: receipt.party.countryCode,
+          }
+        : null,
+      purchaseOrderId: gr.purchaseOrderId,
+      purchaseOrderNumber: gr.purchaseOrder?.document?.number ?? null,
+      lines: gr.lines.map((line) => ({
+        id: line.id,
+        itemId: line.itemId,
+        description: line.description,
+        quantity: quantity(line.quantity.toString()),
+        unitOfMeasureId: line.unitOfMeasureId,
+        purchaseOrderLineId: line.purchaseOrderLineId,
+      })),
+    };
+  }
+}
+
+/** The totals of a set of priced lines. */
+function documentTotals(priced: readonly DocumentPricedLine[]): {
+  netAmount: string;
+  taxAmount: string;
+  grossAmount: string;
+  taxGroups: { rate: string; base: string; amount: string }[];
+} {
+  const groups = repriceTotals(priced);
+  return {
+    netAmount: groups.net.toString(),
+    taxAmount: groups.tax.toString(),
+    grossAmount: groups.gross.toString(),
+    taxGroups: groups.taxByRate.map((group) => ({
+      rate: group.rate,
+      base: group.base.toString(),
+      amount: group.amount.toString(),
+    })),
+  };
+}
+
+/** The priced figure columns of a line, for the storage row. */
+interface LineRow {
+  readonly position: number;
+  readonly itemId: string;
+  readonly unitOfMeasureId: string;
+  readonly description: string;
+  readonly quantity: string;
+  readonly unitPrice: string;
+  readonly taxRate: string;
+  readonly netAmount: string;
+  readonly taxAmount: string;
+  readonly grossAmount: string;
+}
+
+function lineRow(line: DocumentPricedLine, position: number): LineRow {
+  return {
+    position,
+    itemId: line.itemId,
+    unitOfMeasureId: line.unitOfMeasureId,
+    description: line.description,
+    quantity: line.quantity,
+    unitPrice: line.unitPrice,
+    taxRate: line.taxRate,
+    netAmount: line.netAmount,
+    taxAmount: line.taxAmount,
+    grossAmount: line.grossAmount,
+  };
+}

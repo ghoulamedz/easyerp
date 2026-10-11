@@ -1,0 +1,9 @@
+running fmtutil-sys --byhyphen "/home/medo/texlive/texmf-var/tex/generic/config/language.def" --no-error-if-no-engine=luametatex,luajithbtex,luajittex,mfluajit,xetex --status-file=/tmp/PrNEk8fF9W/mlALDvcOFt ...
+  OK: pdftex.fmt/pdftex luahbtex.fmt/luahbtex luatex.fmt/luatex dviluatex.fmt/luatex etex.fmt/pdftex pdfetex.fmt/pdftex
+running fmtutil-sys --byhyphen "/home/medo/texlive/texmf-var/tex/generic/config/language.dat.lua" --no-error-if-no-engine=luametatex,luajithbtex,luajittex,mfluajit,xetex --status-file=/tmp/PrNEk8fF9W/mlALDvcOFt ...
+tlmgr: package log updated: /home/medo/texlive/texmf-var/web2c/tlmgr.log
+tlmgr: command log updated: /home/medo/texlive/texmf-var/web2c/tlmgr-commands.log
+EXIT:0
+latexmk
+lualatex
+pdflatex

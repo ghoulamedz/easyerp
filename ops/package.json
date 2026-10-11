@@ -2,7 +2,7 @@
   "name": "@easyerp/ops",
   "version": "0.0.0",
   "private": true,
-  "description": "easyERP operations \u2014 deploy, status, backup and restore drill",
+  "description": "easyERP operations — deploy, status, backup and restore drill",
   "type": "module",
   "scripts": {
     "dev": "echo \"@easyerp/ops has no dev server\"",
@@ -17,7 +17,8 @@
     "clean": "echo \"nothing to clean\""
   },
   "dependencies": {
-    "yaml": "^2.8.1"
+    "yaml": "^2.8.1",
+    "zx": "^8.8.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.2",

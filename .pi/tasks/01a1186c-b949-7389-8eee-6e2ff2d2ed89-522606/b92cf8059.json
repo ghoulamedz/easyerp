@@ -1,0 +1,27 @@
+{
+  "id": "b92cf8059",
+  "name": "texlive latex collections install",
+  "command": "export PATH=\"$HOME/texlive/bin/x86_64-linux:$PATH\" && tlmgr install collection-latex collection-latexrecommended collection-latexextra collection-fontsrecommended latexmk 2>&1 | tail -5; echo \"EXIT:$?\"; ls $HOME/texlive/bin/x86_64-linux/ | grep -E '^(pdflatex|xelatex|lualatex|latexmk)$'",
+  "status": "completed",
+  "outputPath": ".pi/tasks/01a1186c-b949-7389-8eee-6e2ff2d2ed89-522606/b92cf8059.output",
+  "cwd": "/home/medo/Desktop/easyerp",
+  "startTime": 1791451422035,
+  "endTime": 1791458088219,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 899135,
+  "bytesWritten": 734,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

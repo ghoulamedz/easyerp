@@ -1,0 +1,24 @@
+name: Setup
+description: >-
+  Checkout, pnpm, Node and a frozen-lockfile install. Identical in every job on
+  purpose: four copies of this is four places for the Node version to drift.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/checkout@v5
+
+    # Before setup-node, so the pnpm store is on PATH and can be cached.
+    - uses: pnpm/action-setup@v4
+
+    - uses: actions/setup-node@v5
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+
+    - name: Install
+      # The lockfile is the contract. `--frozen-lockfile` fails rather than
+      # silently resolving something new, so a PR cannot merge with a lockfile
+      # nobody re-generated.
+      run: pnpm install --frozen-lockfile
+      shell: bash

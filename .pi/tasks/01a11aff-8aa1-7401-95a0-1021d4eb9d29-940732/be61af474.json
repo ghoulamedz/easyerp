@@ -1,0 +1,27 @@
+{
+  "id": "be61af474",
+  "name": "Start easyERP dev server",
+  "command": "cd /home/medo/Desktop/easyerp && pnpm dev 2>&1",
+  "status": "killed",
+  "outputPath": ".pi/tasks/01a11aff-8aa1-7401-95a0-1021d4eb9d29-940732/be61af474.output",
+  "cwd": "/home/medo/Desktop/easyerp",
+  "startTime": 1791454942743,
+  "endTime": 1791455365063,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 950004,
+  "bytesWritten": 35389,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

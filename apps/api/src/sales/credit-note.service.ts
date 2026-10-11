@@ -1,0 +1,555 @@
+/**
+ * The Credit Note flow (spec 001 stories 63–69; ADR 0006, ADR 0016, ADR 0017).
+ *
+ * A Credit Note corrects an Issued Customer Invoice, in whole or in part. The
+ * client says *what and how much* of an Invoice line to reverse
+ * (`invoiceLineId` + a strictly positive quantity); the price, the tax rate and
+ * every amount are the Invoice line's stored figures, never the Item's current
+ * ones — a price changed after billing must not alter the correction of what
+ * was billed. All arithmetic is exact `Amount` math (ADR 0005), then negated:
+ * a Credit Note line is printed as a subtraction.
+ *
+ * Two guards shape the flow. *No overdraw*: the corrected quantity of an
+ * Invoice line across every Credit Note — drafts included, since a draft
+ * becomes issued — never exceeds what the Invoice billed. *No stock*: issuing
+ * appends nothing to the Stock Ledger (ADR 0017); a return of goods is its own
+ * stock act with `reason: RETURN_IN`.
+ */
+
+import { Injectable } from '@nestjs/common';
+import { readFile } from 'node:fs/promises';
+
+import {
+  documentStatusSchema,
+  draftCreditNoteSchema,
+  localeSchema,
+  money,
+  rate,
+  signedQuantitySchema,
+  vatRegimeSchema,
+  type CreditNote as CreditNoteResponse,
+} from '@easyerp/contracts';
+
+import { AuditService, type AuditActor } from '../audit/audit.service.js';
+import { conflict, invariant, notFound, validationFailed } from '../common/errors.js';
+import { Amount } from '../finance/amount.js';
+import { buildCustomerInvoice } from '../finance/invoice-document.js';
+import { renderInvoiceHtml } from '../finance/invoice-template.js';
+import { terminologyFor } from '../finance/terminology.js';
+import { sharedPdfRenderer } from '../finance/pdf.js';
+import { PrismaService } from '../prisma/prisma.service.js';
+import { LabelService } from '../settings/label.service.js';
+import { DocumentArchive } from './document-archive.js';
+import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
+
+export const CREDIT_NOTE = 'CREDIT_NOTE';
+
+interface ReversalRow {
+  readonly itemId: string;
+  readonly unitOfMeasureId: string;
+  readonly description: string;
+  readonly quantity: string;
+  readonly unitPrice: string;
+  readonly taxRate: string;
+  readonly netAmount: string;
+  readonly taxAmount: string;
+  readonly grossAmount: string;
+  readonly correctsDocumentLineId: string;
+}
+
+/**
+ * Pro-rata reversal figures for one requested correction. The unit price and
+ * the tax rate are the Invoice line's stored figures; only the quantity is new.
+ * Everything is negated before it is stored.
+ */
+function reversalOf(
+  invoiceLine: { unitPrice: string; taxRate: string },
+  reverseQuantity: string,
+): Omit<ReversalRow, 'itemId' | 'unitOfMeasureId' | 'description' | 'correctsDocumentLineId'> {
+  const net = Amount.parse(invoiceLine.unitPrice).timesQuantity(reverseQuantity);
+  const tax = net.timesRate(invoiceLine.taxRate);
+  const gross = net.plus(tax);
+  return {
+    quantity: Amount.parse(reverseQuantity).negated().toString(),
+    unitPrice: invoiceLine.unitPrice,
+    taxRate: invoiceLine.taxRate,
+    netAmount: net.negated().toString(),
+    taxAmount: tax.negated().toString(),
+    grossAmount: gross.negated().toString(),
+  };
+}
+
+type PrismaClient = Pick<PrismaService, 'document' | 'documentLine' | '$executeRaw'>;
+
+/** Quantities already corrected per Invoice line, as positive magnitudes. */
+async function creditedByLine(
+  client: Pick<PrismaService, 'documentLine'>,
+  invoiceLineIds: readonly string[],
+): Promise<Map<string, Amount>> {
+  const rows = await client.documentLine.findMany({
+    where: { correctsDocumentLineId: { in: [...invoiceLineIds] } },
+    select: { correctsDocumentLineId: true, quantity: true },
+  });
+  const credited = new Map<string, Amount>();
+  for (const row of rows) {
+    if (!row.correctsDocumentLineId) continue;
+    // Stored negated; the magnitude is what was already corrected.
+    const magnitude = Amount.parse(row.quantity.toString()).negated();
+    const previous = credited.get(row.correctsDocumentLineId) ?? Amount.zero();
+    credited.set(row.correctsDocumentLineId, previous.plus(magnitude));
+  }
+  return credited;
+}
+
+@Injectable()
+export class CreditNoteService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly numbering: DocumentNumberingService,
+    private readonly archive: DocumentArchive,
+    private readonly labels: LabelService,
+    private readonly audit: AuditService,
+  ) {}
+
+  /**
+   * Draft a correction. No number — a number exists only once the document is
+   * Issued (ADR 0006) — but real (negative) prices, so it can be reviewed.
+   */
+  async createDraft(
+    payload: unknown,
+    actor: AuditActor = {},
+    ipAddress?: string | null,
+  ): Promise<{ id: string; status: string }> {
+    // `.parse`, not `.safeParse`: the schema is a `strictObject`, so a request
+    // carrying money is rejected with the field named (ADR 0005).
+    const input = draftCreditNoteSchema.parse(payload);
+
+    const invoice = await this.prisma.document.findFirst({
+      where: { id: input.invoiceId, type: 'CUSTOMER_INVOICE' },
+      include: { lines: { orderBy: { position: 'asc' } } },
+    });
+    if (!invoice) throw notFound('Customer Invoice', input.invoiceId);
+    if (invoice.status !== 'ISSUED') {
+      throw validationFailed('A Credit Note must correct an Issued Invoice.', {
+        invoiceId: input.invoiceId,
+      });
+    }
+
+    const business = await this.prisma.business.findUnique({ where: { id: input.businessId } });
+    if (!business) throw notFound('Business', input.businessId);
+
+    const customerParty = await this.prisma.party.findFirst({
+      where: { id: invoice.partyId, isActive: true, roles: { has: 'CUSTOMER' } },
+    });
+    if (!customerParty) {
+      throw validationFailed(`No active Party ${invoice.partyId} holding the CUSTOMER role.`, {
+        partyId: invoice.partyId,
+      });
+    }
+
+    const rows = await this.reversalRows(input.invoiceId, input.lines);
+
+    const taxGroups = new Map<string, { base: Amount; amount: Amount }>();
+    for (const row of rows) {
+      const group = taxGroups.get(row.taxRate) ?? { base: Amount.zero(), amount: Amount.zero() };
+      group.base = group.base.plus(Amount.parse(row.netAmount));
+      group.amount = group.amount.plus(Amount.parse(row.taxAmount));
+      taxGroups.set(row.taxRate, group);
+    }
+
+    const created = await this.prisma.document.create({
+      data: {
+        type: CREDIT_NOTE,
+        status: 'DRAFT',
+        businessId: business.id,
+        partyId: customerParty.id,
+        locale: invoice.locale,
+        vatRegime: business.vatRegime,
+        currency: business.currency,
+        netAmount: sumOf(rows.map((row) => row.netAmount)),
+        taxAmount: sumOf(rows.map((row) => row.taxAmount)),
+        grossAmount: sumOf(rows.map((row) => row.grossAmount)),
+        lines: {
+          create: rows.map((row, position) => ({
+            position,
+            itemId: row.itemId,
+            unitOfMeasureId: row.unitOfMeasureId,
+            description: row.description,
+            quantity: row.quantity,
+            unitPrice: row.unitPrice,
+            taxRate: row.taxRate,
+            netAmount: row.netAmount,
+            taxAmount: row.taxAmount,
+            grossAmount: row.grossAmount,
+            correctsDocumentLineId: row.correctsDocumentLineId,
+          })),
+        },
+        taxes: {
+          create: [...taxGroups].map(([rateValue, group], position) => ({
+            position,
+            rate: rateValue,
+            base: group.base.toString(),
+            amount: group.amount.toString(),
+          })),
+        },
+        creditNotes: {
+          create: { correctsDocumentId: invoice.id },
+        },
+      },
+      select: { id: true, status: true },
+    });
+
+    await this.audit.record(
+      this.prisma,
+      {
+        action: 'credit-note.drafted',
+        entityType: CREDIT_NOTE,
+        entityId: created.id,
+        after: { status: created.status, correctsDocumentId: invoice.id },
+      },
+      { ...actor, ipAddress: ipAddress ?? null },
+    );
+
+    return { id: created.id, status: created.status };
+  }
+
+  /**
+   * Issue a Draft Credit Note: number it in its own series, archive the PDF,
+   * make it immutable. No stock moves here — ever (ADR 0017).
+   */
+  async issue(
+    creditNoteId: string,
+    actor: AuditActor = {},
+    ipAddress?: string | null,
+  ): Promise<CreditNoteResponse> {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+
+    const issued = await this.prisma.$transaction(async (tx) => {
+      const creditNote = await tx.document.findFirst({
+        where: { id: creditNoteId, type: CREDIT_NOTE },
+        include: {
+          lines: { orderBy: { position: 'asc' } },
+          creditNotes: true,
+        },
+      });
+
+      if (!creditNote) throw notFound('Credit Note', creditNoteId);
+      if (creditNote.status === 'ISSUED') {
+        throw conflict(`Credit Note ${creditNoteId} is already issued as ${creditNote.number}.`, {
+          id: creditNoteId,
+          number: creditNote.number,
+        });
+      }
+      if (creditNote.lines.length === 0) {
+        throw validationFailed('A Draft with no lines cannot be issued.', { id: creditNoteId });
+      }
+      const correctsDocumentId = creditNote.creditNotes[0]?.correctsDocumentId;
+      if (!correctsDocumentId) {
+        throw validationFailed('A Credit Note must correct an Issued Invoice.', {
+          id: creditNoteId,
+        });
+      }
+
+      // Lock the Invoice so two simultaneous issues cannot both correct the
+      // same remaining quantity.
+      await tx.$executeRaw`SELECT id FROM document WHERE id = ${correctsDocumentId} FOR UPDATE`;
+      await this.assertNoOverdraw(tx, correctsDocumentId);
+
+      const sequence = await this.numbering.allocate(tx, CREDIT_NOTE, year);
+      const allocated = await this.numbering.render(tx, CREDIT_NOTE, sequence, year);
+
+      await tx.document.update({
+        where: { id: creditNoteId },
+        data: { status: 'ISSUED', number: allocated.number, issuedAt: now },
+      });
+
+      await this.audit.record(
+        tx,
+        {
+          action: 'credit-note.issued',
+          entityType: CREDIT_NOTE,
+          entityId: creditNoteId,
+          before: { status: 'DRAFT', number: null },
+          after: { status: 'ISSUED', number: allocated.number },
+        },
+        { ...actor, ipAddress: ipAddress ?? null },
+      );
+
+      return { allocated, correctsDocumentId };
+    });
+
+    await this.archiveIssued(creditNoteId, issued.correctsDocumentId, issued.allocated, now);
+
+    const found = await this.findById(creditNoteId);
+    invariant(found, `Credit Note ${creditNoteId} vanished immediately after issuing.`);
+    return found;
+  }
+
+  async readArchive(creditNoteId: string): Promise<{ pdf: Buffer; sha256: string }> {
+    const creditNote = await this.prisma.document.findFirst({
+      where: { id: creditNoteId, type: CREDIT_NOTE },
+    });
+    if (!creditNote) throw notFound('Credit Note', creditNoteId);
+    if (creditNote.status !== 'ISSUED' || creditNote.archivePath === null) {
+      throw notFound('Archived document', creditNoteId);
+    }
+    try {
+      const pdf = await readFile(creditNote.archivePath);
+      return { pdf, sha256: creditNote.archiveSha256 ?? '' };
+    } catch {
+      invariant(false, `The archived document for ${creditNote.number} is missing from disk.`);
+    }
+  }
+
+  async findById(id: string): Promise<CreditNoteResponse | null> {
+    const creditNote = await this.prisma.document.findFirst({
+      where: { id, type: CREDIT_NOTE },
+      include: {
+        lines: { orderBy: { position: 'asc' } },
+        taxes: { orderBy: { position: 'asc' } },
+        party: true,
+        creditNotes: true,
+      },
+    });
+    if (!creditNote) return null;
+
+    const byteLength =
+      creditNote.archivePath === null ? 0 : await this.archive.byteLengthOf(creditNote.archivePath);
+
+    const correctedDocument = creditNote.creditNotes?.[0]?.correctsDocumentId
+      ? await this.prisma.document.findFirst({
+          where: { id: creditNote.creditNotes[0].correctsDocumentId },
+        })
+      : null;
+
+    if (!correctedDocument?.number) {
+      throw notFound('Corrected document', creditNote.creditNotes?.[0]?.correctsDocumentId ?? '');
+    }
+
+    return {
+      id: creditNote.id,
+      type: 'CREDIT_NOTE',
+      status: documentStatusSchema.parse(creditNote.status),
+      number: creditNote.number,
+      partyId: creditNote.partyId,
+      issuedAt: creditNote.issuedAt?.toISOString() ?? null,
+      totals: {
+        netAmount: money(creditNote.netAmount.toString()),
+        taxAmount: money(creditNote.taxAmount.toString()),
+        grossAmount: money(creditNote.grossAmount.toString()),
+        withholdingTaxAmount: money(creditNote.withholdingTaxAmount.toString()),
+        stampDutyAmount: money(creditNote.stampDutyAmount.toString()),
+      },
+      businessId: creditNote.businessId,
+      party: {
+        id: creditNote.party.id,
+        code: creditNote.party.code,
+        name: creditNote.party.name,
+        taxIdentifier: creditNote.party.taxIdentifier,
+        address: creditNote.party.address,
+        city: creditNote.party.city,
+        countryCode: creditNote.party.countryCode,
+      },
+      locale: localeSchema.parse(creditNote.locale),
+      vatRegime: vatRegimeSchema.parse(creditNote.vatRegime),
+      currency: creditNote.currency,
+      corrected: {
+        documentId: correctedDocument.id,
+        number: correctedDocument.number,
+      },
+      lines: creditNote.lines.map((line) => ({
+        itemId: line.itemId,
+        unitOfMeasureId: line.unitOfMeasureId,
+        description: line.description,
+        quantity: signedQuantitySchema.parse(line.quantity.toString()),
+        unitPrice: money(line.unitPrice.toString()),
+        taxRate: rate(line.taxRate.toString()),
+        netAmount: money(line.netAmount.toString()),
+        taxAmount: money(line.taxAmount.toString()),
+        grossAmount: money(line.grossAmount.toString()),
+        correctsDocumentLineId: line.correctsDocumentLineId ?? '',
+      })),
+      taxGroups: creditNote.taxes.map((group) => ({
+        rate: rate(group.rate.toString()),
+        base: money(group.base.toString()),
+        amount: money(group.amount.toString()),
+      })),
+      archive:
+        creditNote.archivePath === null
+          ? null
+          : {
+              path: creditNote.archivePath,
+              sha256: creditNote.archiveSha256 ?? '',
+              archivedAt: (creditNote.archivedAt ?? creditNote.createdAt).toISOString(),
+              byteLength,
+            },
+    };
+  }
+
+  /**
+   * Resolve the requested corrections into stored reversal rows, refusing an
+   * overdraw: what was already corrected plus what is asked now never exceeds
+   * what the Invoice billed. Unknown Invoice lines are refused the same way —
+   * a correction that names no billed line is a client bug.
+   */
+  private async reversalRows(
+    invoiceId: string,
+    requested: readonly { invoiceLineId: string; quantity: string }[],
+  ): Promise<ReversalRow[]> {
+    const invoice = await this.prisma.document.findFirst({
+      where: { id: invoiceId, type: 'CUSTOMER_INVOICE' },
+      include: { lines: true },
+    });
+    invariant(invoice, `Invoice ${invoiceId} vanished while drafting its correction.`);
+
+    const credited = await creditedByLine(
+      this.prisma,
+      requested.map((line) => line.invoiceLineId),
+    );
+
+    return requested.map((line) => {
+      const billed = invoice.lines.find((candidate) => candidate.id === line.invoiceLineId);
+      if (!billed) {
+        throw validationFailed(`Invoice line ${line.invoiceLineId} is not on Invoice ${invoiceId}.`, {
+          invoiceLineId: line.invoiceLineId,
+        });
+      }
+      const wanted = Amount.parse(line.quantity);
+      const already = credited.get(line.invoiceLineId) ?? Amount.zero();
+      if (already.plus(wanted).isGreaterThan(Amount.parse(billed.quantity.toString()))) {
+        throw validationFailed(
+          `Correcting ${line.quantity} would overdraw Invoice line ${line.invoiceLineId}: ` +
+            `billed ${billed.quantity}, already corrected ${already.toString()}.`,
+          { invoiceLineId: line.invoiceLineId },
+        );
+      }
+      const figures = reversalOf(
+        { unitPrice: billed.unitPrice.toString(), taxRate: billed.taxRate.toString() },
+        line.quantity,
+      );
+      return {
+        itemId: billed.itemId,
+        unitOfMeasureId: billed.unitOfMeasureId,
+        description: billed.description,
+        ...figures,
+        correctsDocumentLineId: billed.id,
+      };
+    });
+  }
+
+  /**
+   * Re-check the overdraw guard at issue time, under the Invoice's row lock:
+   * two drafts correcting the same remainder produce one Issued note and one
+   * clear refusal, never a correction larger than the bill.
+   */
+  private async assertNoOverdraw(client: PrismaClient, invoiceId: string): Promise<void> {
+    const invoice = await client.document.findFirst({
+      where: { id: invoiceId, type: 'CUSTOMER_INVOICE' },
+      include: { lines: true },
+    });
+    if (!invoice) throw notFound('Customer Invoice', invoiceId);
+
+    const notes = await client.document.findMany({
+      where: { type: CREDIT_NOTE, creditNotes: { some: { correctsDocumentId: invoiceId } } },
+      include: { lines: true },
+    });
+
+    const corrected = new Map<string, Amount>();
+    for (const note of notes) {
+      for (const line of note.lines) {
+        if (!line.correctsDocumentLineId) continue;
+        const magnitude = Amount.parse(line.quantity.toString()).negated();
+        const previous = corrected.get(line.correctsDocumentLineId) ?? Amount.zero();
+        corrected.set(line.correctsDocumentLineId, previous.plus(magnitude));
+      }
+    }
+
+    for (const billed of invoice.lines) {
+      const total = corrected.get(billed.id) ?? Amount.zero();
+      if (total.isGreaterThan(Amount.parse(billed.quantity.toString()))) {
+        throw validationFailed(
+          `Invoice line ${billed.id} is overdrawn: billed ${billed.quantity}, ` +
+            `corrected ${total.toString()}.`,
+          { invoiceLineId: billed.id },
+        );
+      }
+    }
+  }
+
+  private async archiveIssued(
+    creditNoteId: string,
+    correctsDocumentId: string,
+    allocated: { number: string; pattern: string; sequence: number; padding: number },
+    issuedAt: Date,
+  ): Promise<void> {
+    const creditNote = await this.prisma.document.findFirst({
+      where: { id: creditNoteId, type: CREDIT_NOTE },
+      include: { lines: { orderBy: { position: 'asc' } }, business: true, party: true },
+    });
+    invariant(creditNote, `Credit Note ${creditNoteId} vanished before archiving.`);
+    const corrected = await this.prisma.document.findFirst({ where: { id: correctsDocumentId } });
+
+    const view = buildCustomerInvoice({
+      pattern: allocated.pattern,
+      sequence: allocated.sequence,
+      padding: allocated.padding,
+      year: issuedAt.getUTCFullYear(),
+      issuedAt: issuedAt.toISOString().slice(0, 10),
+      locale: localeSchema.parse(creditNote.locale),
+      vatRegime: vatRegimeSchema.parse(creditNote.vatRegime),
+      currency: creditNote.currency,
+      labels: terminologyFor(
+        localeSchema.parse(creditNote.locale),
+        await this.labels.forDocument(localeSchema.parse(creditNote.locale)),
+      ),
+      issuer: {
+        displayName: creditNote.business.legalName,
+        taxIdentifier: creditNote.business.taxIdentifier,
+        addressLines: [
+          creditNote.business.addressLine1,
+          creditNote.business.city,
+          creditNote.business.countryCode,
+        ].filter(Boolean) as readonly string[],
+      },
+      party: {
+        displayName: creditNote.party.name,
+        taxIdentifier: creditNote.party.taxIdentifier ?? '',
+        addressLines: [creditNote.party.address, creditNote.party.city].filter(
+          Boolean,
+        ) as readonly string[],
+      },
+      kind: 'CREDIT_NOTE',
+      correctedNumber: corrected?.number ?? null,
+      lines: creditNote.lines.map((line) => ({
+        description: line.description,
+        quantity: line.quantity.toString(),
+        unitPrice: line.unitPrice.toString(),
+        taxRate: line.taxRate.toString(),
+        net: line.netAmount.toString(),
+      })),
+      stampDuty: null,
+      withholdingTax: null,
+    });
+
+    const renderer = await sharedPdfRenderer();
+    const pdf = await renderer.toPdf(renderInvoiceHtml(view));
+    const stored = await this.archive.store(
+      CREDIT_NOTE,
+      issuedAt.getUTCFullYear(),
+      view.number,
+      pdf,
+    );
+
+    await this.prisma.document.update({
+      where: { id: creditNoteId },
+      data: { archivePath: stored.path, archiveSha256: stored.sha256, archivedAt: new Date() },
+    });
+  }
+}
+
+function sumOf(values: readonly string[]): string {
+  return values
+    .reduce<Amount>((total, value) => total.plus(Amount.parse(value)), Amount.zero())
+    .toString();
+}

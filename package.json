@@ -9,7 +9,8 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev",
+    "dev": "pnpm db:up && turbo run dev",
+    "dev:apps": "turbo run dev",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint -- --fix",
     "format": "prettier --write .",
@@ -17,16 +18,22 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
+    "test:golden": "turbo run test:golden",
     "verify": "turbo run lint typecheck test build",
     "db:generate": "pnpm --filter @easyerp/api prisma:generate",
     "db:validate": "pnpm --filter @easyerp/api prisma:validate",
-    "db:migrate": "pnpm --filter @easyerp/api prisma:migrate",
+    "db:migrate": "node scripts/db.mjs migrate:target",
+    "db:up": "node scripts/db.mjs up",
+    "db:down": "node scripts/db.mjs down",
+    "db:reset": "node scripts/db.mjs reset",
+    "db:migrate:all": "node scripts/db.mjs migrate",
     "ops:deploy": "pnpm --filter @easyerp/ops deploy",
     "ops:status": "pnpm --filter @easyerp/ops status",
     "ops:backup": "pnpm --filter @easyerp/ops backup",
     "ops:restore-drill": "pnpm --filter @easyerp/ops restore-drill"
   },
   "devDependencies": {
+    "ponytail-audit": "link:@easyerp/agents/ponytail-audit",
     "prettier": "^3.9.9",
     "turbo": "^2.11.5",
     "typescript": "^5.9.3"

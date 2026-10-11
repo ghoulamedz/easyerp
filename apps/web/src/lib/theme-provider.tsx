@@ -12,7 +12,7 @@
  * see the note on the store about hydration.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { applyTheme, type ResolvedTheme, type Theme } from './theme';
 import {
   setThemePreference,
@@ -35,12 +35,15 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const preference = useThemePreference();
   const theme = useResolvedTheme();
+  const isMounted = useRef(false);
 
-  // Writing to the document is the one thing that must happen here, and it is
-  // exactly the use an effect is for: pushing React's answer out to the world.
-  // The pre-paint bootstrap in <head> has already done this once, so redoing it
-  // is harmless and keeps the two in agreement.
+  // On mount, sync the theme class with what the bootstrap script applied.
+  // The bootstrap script in <head> runs before hydration and may have applied
+  // a theme class. If React's initial render (server snapshot: light) differs
+  // from the bootstrap script's choice (e.g. dark), we correct it immediately.
+  // Also re-applies when the resolved theme changes (user or system preference).
   useEffect(() => {
+    isMounted.current = true;
     applyTheme(theme);
   }, [theme]);
 

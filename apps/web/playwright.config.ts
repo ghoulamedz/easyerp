@@ -1,7 +1,18 @@
 import { defineConfig, devices } from '@playwright/test';
 
-const PORT = Number(process.env.E2E_PORT ?? 3100);
-const baseURL = `http://127.0.0.1:${PORT}`;
+/** Where the production web build is served. */
+const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3100);
+/**
+ * Where the API is started for these tests.
+ *
+ * Not 3002: that is the port `pnpm dev` uses, and starting a second API on it
+ * while a development server is already running fails in a way that reads like an
+ * application bug.
+ */
+const API_PORT = Number(process.env.E2E_API_PORT ?? 3102);
+
+const baseURL = `http://127.0.0.1:${WEB_PORT}`;
+const apiURL = `http://127.0.0.1:${API_PORT}`;
 
 /**
  * An alternative Chromium, for machines where Playwright's own download is
@@ -15,6 +26,30 @@ const baseURL = `http://127.0.0.1:${PORT}`;
  */
 const executablePath = process.env.CHROMIUM_PATH;
 
+/**
+ * The API's environment, for the process Playwright starts below.
+ *
+ * The values here are defaults that a real environment overrides — CI sets its own
+ * in the workflow. The secret is a throwaway that satisfies the 32-character
+ * minimum in `apps/api/src/config/env.ts`; it protects nothing and grants nothing,
+ * because this database is created and destroyed per run.
+ *
+ * `DATABASE_URL` matches `apps/api/.env`, so `pnpm test:e2e` works against the
+ * same PostgreSQL that `pnpm dev` uses, without a second setup step.
+ */
+const apiEnv = {
+  NODE_ENV: process.env.NODE_ENV ?? 'test',
+  API_PORT: String(API_PORT),
+  API_HOST: '127.0.0.1',
+  DATABASE_URL:
+    process.env.DATABASE_URL ??
+    'postgresql://easyerp:easyerp@localhost:55432/easyerp?schema=public',
+  BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ?? 'e2e-only-secret-e2e-only-secret-1234',
+  BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ?? baseURL,
+  CORS_ORIGINS: process.env.CORS_ORIGINS ?? baseURL,
+  LOG_LEVEL: process.env.LOG_LEVEL ?? 'warn',
+};
+
 export default defineConfig({
   testDir: './e2e',
   fullyParallel: true,
@@ -27,12 +62,34 @@ export default defineConfig({
     launchOptions: executablePath ? { executablePath } : {},
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    // A production build, not the dev server: RTL and hydration bugs do not only
-    // appear in development.
-    command: `pnpm build && pnpm start --port ${PORT}`,
-    url: baseURL,
-    reuseExistingServer: !process.env.CI,
-    timeout: 180_000,
-  },
+  /**
+   * Both halves of the application, because a browser test against a web app with
+   * nothing behind its `/api` proxy proves only that the HTML renders.
+   *
+   * The API is a production build started from `dist`, built here rather than in
+   * CI's install step so that `pnpm test:e2e` alone is a complete gate. It must
+   * be built: `start` runs `node dist/main.js`, and `dist` is not committed.
+   *
+   * The web build's proxy target is set here rather than inherited, because in
+   * development `next.config.ts` defaults to the API's dev port and this test
+   * runs on a different one.
+   */
+  webServer: [
+    {
+      command: 'pnpm --filter @easyerp/api build && pnpm --filter @easyerp/api start',
+      url: `${apiURL}/api/health`,
+      env: apiEnv,
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: `pnpm build && pnpm start --port ${WEB_PORT}`,
+      url: baseURL,
+      env: { API_INTERNAL_URL: apiURL },
+      reuseExistingServer: !process.env.CI,
+      timeout: 180_000,
+    },
+  ],
 });

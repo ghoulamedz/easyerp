@@ -2,16 +2,21 @@ import { describe, expect, it } from 'vitest';
 import {
   allowedTransitions,
   canTransition,
+  creditNoteSchema,
   DOCUMENT_STATUSES,
   DOCUMENT_TYPES,
   documentStatusSchema,
   documentTypeSchema,
+  draftCreditNoteSchema,
+  draftSalesOrderSchema,
   isEditable,
   isFiscal,
   isNumbered,
   numberPatternSchema,
   orderLineInputSchema,
   renderDocumentNumber,
+  salesOrderSchema,
+  salesOrderUpdateSchema,
 } from './documents.js';
 
 describe('document states', () => {
@@ -84,25 +89,46 @@ describe('document numbering', () => {
   });
 
   it('renders the year and the zero-padded sequence', () => {
-    expect(renderDocumentNumber('FA-{year}-{seq}', { sequence: 1, year: 2026 })).toBe('FA-2026-1');
-    expect(renderDocumentNumber('FA-{year}-{seq}', { sequence: 42, year: 2026 })).toBe(
-      'FA-2026-42',
+    expect(renderDocumentNumber('FA-{year}-{seq}', { sequence: 1, year: 2026, padding: 4 })).toBe(
+      'FA-2026-0001',
     );
-    expect(renderDocumentNumber('FA-{seq}', { sequence: 7, year: 2026 })).toBe('FA-7');
+    expect(renderDocumentNumber('FA-{year}-{seq}', { sequence: 42, year: 2026, padding: 4 })).toBe(
+      'FA-2026-0042',
+    );
+    expect(renderDocumentNumber('FA-{seq}', { sequence: 7, year: 2026, padding: 4 })).toBe(
+      'FA-0007',
+    );
+  });
+
+  it('pads to the padding stored on the pattern, not to a fixed width', () => {
+    // The same pattern at two paddings, because an Administrator edits padding in
+    // Settings and the rendered number has to follow it.
+    expect(renderDocumentNumber('FA-{seq}', { sequence: 7, year: 2026, padding: 2 })).toBe('FA-07');
+    expect(renderDocumentNumber('FA-{seq}', { sequence: 7, year: 2026, padding: 6 })).toBe(
+      'FA-000007',
+    );
   });
 
   it('never pads below the natural width of the sequence, so 1000 does not collide with 1000-1', () => {
-    const thousandth = renderDocumentNumber('FA-{seq}', { sequence: 1000, year: 2026 });
-    const next = renderDocumentNumber('FA-{seq}', { sequence: 1001, year: 2026 });
+    const thousandth = renderDocumentNumber('FA-{seq}', { sequence: 1000, year: 2026, padding: 4 });
+    const next = renderDocumentNumber('FA-{seq}', { sequence: 1001, year: 2026, padding: 4 });
     expect(thousandth).toBe('FA-1000');
     expect(next).toBe('FA-1001');
   });
 
   it('refuses a sequence that is not a positive integer, because that would break the series', () => {
     for (const invalid of [0, -1, 1.5, Number.NaN]) {
-      expect(() => renderDocumentNumber('FA-{seq}', { sequence: invalid, year: 2026 })).toThrow(
-        RangeError,
-      );
+      expect(() =>
+        renderDocumentNumber('FA-{seq}', { sequence: invalid, year: 2026, padding: 4 }),
+      ).toThrow(RangeError);
+    }
+  });
+
+  it('refuses a padding that is not a whole number of digits, rather than silently rendering unpadded', () => {
+    for (const invalid of [0, -1, 1.5, Number.NaN]) {
+      expect(() =>
+        renderDocumentNumber('FA-{seq}', { sequence: 1, year: 2026, padding: invalid }),
+      ).toThrow(RangeError);
     }
   });
 });
@@ -128,5 +154,279 @@ describe('order line input', () => {
   it('rejects a zero or negative quantity', () => {
     expect(orderLineInputSchema.safeParse({ ...valid, quantity: '0' }).success).toBe(false);
     expect(orderLineInputSchema.safeParse({ ...valid, quantity: '-1' }).success).toBe(false);
+  });
+});
+
+describe('Sales Order drafts', () => {
+  const valid = {
+    businessId: 'biz_1',
+    partyId: 'cust_1',
+    lines: [{ itemId: 'item_1', quantity: '2' }],
+  };
+
+  it('carries only the fields a Draft needs: no price, no locale, no totals', () => {
+    expect(draftSalesOrderSchema.parse(valid)).toEqual(valid);
+    expect(Object.keys(draftSalesOrderSchema.shape).sort()).toEqual([
+      'businessId',
+      'lines',
+      'partyId',
+    ]);
+  });
+
+  it('rejects a client that tries to price an order', () => {
+    const forged = {
+      ...valid,
+      lines: [{ itemId: 'item_1', quantity: '2', unitPrice: '9.990' }],
+    };
+    expect(draftSalesOrderSchema.safeParse(forged).success).toBe(false);
+  });
+
+  it('rejects an order draft with no lines', () => {
+    expect(draftSalesOrderSchema.safeParse({ ...valid, lines: [] }).success).toBe(false);
+  });
+
+  it('turns an empty update into an error, and a full one into a replace', () => {
+    expect(salesOrderUpdateSchema.safeParse({}).success).toBe(false);
+    expect(salesOrderUpdateSchema.safeParse({ partyId: 'cust_2' }).success).toBe(true);
+    expect(
+      salesOrderUpdateSchema.safeParse({ lines: [{ itemId: 'item_1', quantity: '1' }] }).success,
+    ).toBe(true);
+  });
+});
+
+describe('Sales Order responses', () => {
+  const order = {
+    id: 'doc_1',
+    type: 'SALES_ORDER',
+    status: 'ISSUED',
+    number: 'BC-2026-0001',
+    partyId: 'cust_1',
+    issuedAt: '2026-10-06T00:00:00.000Z',
+    totals: {
+      netAmount: '300.000',
+      taxAmount: '57.000',
+      grossAmount: '357.000',
+      withholdingTaxAmount: '0.000',
+      stampDutyAmount: '0.000',
+    },
+    businessId: 'biz_1',
+    party: {
+      id: 'cust_1',
+      code: 'C-1',
+      name: 'Atlas Trading',
+      taxIdentifier: '9876543/B/M/000',
+      address: null,
+      city: null,
+      countryCode: null,
+    },
+    lines: [
+      {
+        itemId: 'item_1',
+        unitOfMeasureId: 'u_1',
+        description: 'Cours de soutien',
+        quantity: '2',
+        unitPrice: '150.000',
+        taxRate: '19',
+        netAmount: '300.000',
+        taxAmount: '57.000',
+        grossAmount: '357.000',
+        deliveredQuantity: '0.000',
+      },
+    ],
+  };
+
+  it('carries the server-resolved price and the delivery-additive in one line', () => {
+    expect(salesOrderSchema.parse(order).lines[0]?.deliveredQuantity).toBe('0.000');
+    expect(salesOrderSchema.parse(order).lines[0]?.unitPrice).toBe('150.000');
+  });
+
+  it('rejects an order response whose line lacks the delivered quantity', () => {
+    const line = Object.fromEntries(
+      Object.entries(order.lines[0]!).filter(([key]) => key !== 'deliveredQuantity'),
+    );
+    expect(salesOrderSchema.safeParse({ ...order, lines: [line] }).success).toBe(false);
+  });
+});
+
+describe('credit note', () => {
+  it('rejects a draft that tries to price its own correction', () => {
+    const payload = {
+      businessId: 'biz_1',
+      invoiceId: 'inv_1',
+      lines: [{ invoiceLineId: 'il_1', quantity: '1', unitPrice: '150.000' }],
+    };
+    expect(draftCreditNoteSchema.safeParse(payload).success).toBe(false);
+  });
+
+  it('names the invoice line and a strictly positive quantity on each draft line', () => {
+    expect(
+      draftCreditNoteSchema.safeParse({
+        businessId: 'biz_1',
+        invoiceId: 'inv_1',
+        lines: [{ invoiceLineId: 'il_1', quantity: '1' }],
+      }).success,
+    ).toBe(true);
+    expect(
+      draftCreditNoteSchema.safeParse({
+        businessId: 'biz_1',
+        invoiceId: 'inv_1',
+        lines: [{ invoiceLineId: 'il_1', quantity: '0' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      draftCreditNoteSchema.safeParse({
+        businessId: 'biz_1',
+        invoiceId: 'inv_1',
+        lines: [{ invoiceLineId: 'il_1', quantity: '-1' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('serves the line with a signed quantity and the reversed money', () => {
+    const creditNote = {
+      id: 'cn_1',
+      type: 'CREDIT_NOTE',
+      status: 'ISSUED',
+      number: 'AV-2026-0001',
+      partyId: 'cust_1',
+      issuedAt: '2026-10-07T00:00:00.000Z',
+      totals: {
+        netAmount: '-330.000',
+        taxAmount: '-62.700',
+        grossAmount: '-392.700',
+        withholdingTaxAmount: '0.000',
+        stampDutyAmount: '0.000',
+      },
+      businessId: 'biz_1',
+      party: {
+        id: 'cust_1',
+        code: 'C-1',
+        name: 'Atlas Trading',
+        taxIdentifier: '9876543/B/M/000',
+        address: null,
+        city: null,
+        countryCode: null,
+      },
+      locale: 'fr',
+      vatRegime: 'STANDARD',
+      currency: 'TND',
+      corrected: { documentId: 'inv_1', number: 'FA-2026-0001' },
+      lines: [
+        {
+          itemId: 'item_1',
+          unitOfMeasureId: 'u_1',
+          description: 'Cours de soutien',
+          quantity: '-2',
+          unitPrice: '150.000',
+          taxRate: '19',
+          netAmount: '-300.000',
+          taxAmount: '-57.000',
+          grossAmount: '-357.000',
+          correctsDocumentLineId: 'il_1',
+        },
+      ],
+      taxGroups: [{ rate: '19', base: '-300.000', amount: '-57.000' }],
+      archive: null,
+    };
+
+    const parsed = creditNoteSchema.parse(creditNote);
+    expect(parsed.lines[0]?.quantity).toBe('-2');
+    expect(parsed.lines[0]?.grossAmount).toBe('-357.000');
+    expect(parsed.corrected.number).toBe('FA-2026-0001');
+  });
+
+  it('rejects a response with a positive line quantity: a reversal is signed', () => {
+    const creditNote = {
+      id: 'cn_1',
+      type: 'CREDIT_NOTE',
+      status: 'DRAFT',
+      number: null,
+      partyId: 'cust_1',
+      issuedAt: null,
+      totals: {
+        netAmount: '0.000',
+        taxAmount: '0.000',
+        grossAmount: '0.000',
+        withholdingTaxAmount: '0.000',
+        stampDutyAmount: '0.000',
+      },
+      businessId: 'biz_1',
+      party: {
+        id: 'cust_1',
+        code: 'C-1',
+        name: 'Atlas Trading',
+        taxIdentifier: '9876543/B/M/000',
+        address: null,
+        city: null,
+        countryCode: null,
+      },
+      locale: 'fr',
+      vatRegime: 'STANDARD',
+      currency: 'TND',
+      corrected: { documentId: 'inv_1', number: 'FA-2026-0001' },
+      lines: [
+        {
+          itemId: 'item_1',
+          unitOfMeasureId: 'u_1',
+          quantity: '2',
+          unitPrice: '150.000',
+          taxRate: '19',
+          netAmount: '300.000',
+          taxAmount: '57.000',
+          grossAmount: '357.000',
+          correctsDocumentLineId: 'il_1',
+        },
+      ],
+      taxGroups: [],
+      archive: null,
+    };
+    expect(creditNoteSchema.safeParse(creditNote).success).toBe(false);
+  });
+
+  it('keeps the correction triangle quoted: it always names the Invoice it corrects', () => {
+    const creditNote = {
+      id: 'cn_1',
+      type: 'CREDIT_NOTE',
+      status: 'DRAFT',
+      number: null,
+      partyId: 'cust_1',
+      issuedAt: null,
+      totals: {
+        netAmount: '0.000',
+        taxAmount: '0.000',
+        grossAmount: '0.000',
+        withholdingTaxAmount: '0.000',
+        stampDutyAmount: '0.000',
+      },
+      businessId: 'biz_1',
+      party: {
+        id: 'cust_1',
+        code: 'C-1',
+        name: 'Atlas Trading',
+        taxIdentifier: '9876543/B/M/000',
+        address: null,
+        city: null,
+        countryCode: null,
+      },
+      locale: 'fr',
+      vatRegime: 'STANDARD',
+      currency: 'TND',
+      lines: [
+        {
+          itemId: 'item_1',
+          unitOfMeasureId: 'u_1',
+          quantity: '-2',
+          unitPrice: '150.000',
+          taxRate: '19',
+          netAmount: '-300.000',
+          taxAmount: '-57.000',
+          grossAmount: '-357.000',
+          correctsDocumentLineId: 'il_1',
+        },
+      ],
+      taxGroups: [],
+      archive: null,
+    };
+    expect(creditNoteSchema.safeParse(creditNote).success).toBe(false);
   });
 });

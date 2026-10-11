@@ -69,7 +69,8 @@ export type Item = z.infer<typeof itemSchema>;
 /** What a client may send when creating or updating an Item. */
 export const itemInputSchema = itemSchema
   .omit({ id: true, isService: true })
-  .extend({ customFields: z.record(z.string(), z.unknown()).optional() });
+  .extend({ customFields: z.record(z.string(), z.unknown()).optional() })
+  .strict();
 export type ItemInput = z.infer<typeof itemInputSchema>;
 
 export const PARTY_ROLES = ['CUSTOMER', 'SUPPLIER'] as const;
@@ -78,6 +79,10 @@ export type PartyRole = (typeof PARTY_ROLES)[number];
 /**
  * A Party holds one or both commercial roles. A Party that is both is normal
  * and must not require two records — the legacy schema made that impossible.
+ *
+ * `customerTerms` is present on the response only when the Party holds the
+ * CUSTOMER role. A supplier-only Party has no payment terms, because terms are a
+ * fact about the debts we hold, not about the entity.
  */
 export const partySchema = z.object({
   id: z.string().min(1),
@@ -93,18 +98,29 @@ export const partySchema = z.object({
   countryCode: z.string().length(2).nullable(),
   isActive: z.boolean(),
   customFields: z.record(z.string(), z.unknown()).default({}),
+  customerTerms: z
+    .object({
+      /** Days after issue before an invoice to this Customer falls due. */
+      paymentTermDays: z.number().int().min(0).max(365),
+      creditLimit: moneySchema.nullable(),
+      deliveryAddress: z.string().max(500).nullable(),
+    })
+    .optional(),
 });
 export type Party = z.infer<typeof partySchema>;
 
-/**
- * Commercial conditions held for a Customer, referenced by Sales Orders and
- * Customer Invoices. They are never applied on their own.
- */
-export const customerTermsSchema = z.object({
-  partyId: z.string().min(1),
-  /** Days after issue before the invoice falls due. */
-  paymentTermDays: z.number().int().min(0).max(365),
-  creditLimit: moneySchema.nullable(),
-  deliveryAddress: z.string().max(500).nullable(),
-});
-export type CustomerTerms = z.infer<typeof customerTermsSchema>;
+/** What a client may send when creating or updating a Party. */
+export const partyInputSchema = partySchema
+  .omit({ id: true })
+  .extend({
+    customFields: z.record(z.string(), z.unknown()).optional(),
+    customerTerms: z
+      .object({
+        paymentTermDays: z.number().int().min(0).max(365),
+        creditLimit: moneySchema.nullable(),
+        deliveryAddress: z.string().max(500).nullable(),
+      })
+      .optional(),
+  })
+  .strict();
+export type PartyInput = z.infer<typeof partyInputSchema>;

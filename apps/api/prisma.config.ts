@@ -15,5 +15,12 @@ export default defineConfig({
   },
   datasource: {
     url: process.env.DATABASE_URL ?? '',
+    /**
+     * Only `prisma migrate diff --from-migrations` reads this, which is a local
+     * authoring step for writing a migration. It is deliberately not defaulted:
+     * a deployment and `prisma generate` never diff a migrations directory, and a
+     * shadow URL invented here would point them at a database that does not exist.
+     */
+    shadowDatabaseUrl: process.env.SHADOW_DATABASE_URL,
   },
 });

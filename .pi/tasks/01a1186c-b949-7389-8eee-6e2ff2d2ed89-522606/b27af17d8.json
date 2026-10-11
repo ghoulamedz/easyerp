@@ -1,0 +1,27 @@
+{
+  "id": "b27af17d8",
+  "name": "pnpm install cv-builder",
+  "command": "cd /home/medo/Desktop/cv-builder && pnpm install --no-frozen-lockfile 2>&1 | tail -8; echo \"EXIT:$?\"",
+  "status": "completed",
+  "outputPath": ".pi/tasks/01a1186c-b949-7389-8eee-6e2ff2d2ed89-522606/b27af17d8.output",
+  "cwd": "/home/medo/Desktop/easyerp",
+  "startTime": 1791452055792,
+  "endTime": 1791452679954,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 907435,
+  "bytesWritten": 710,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

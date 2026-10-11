@@ -1,6 +1,24 @@
 name: CI
 
-# Every push runs the fast gates. Nothing merges without all of them.
+# Every push runs the gates. Nothing merges without them.
+#
+# Five gates, and each one exists because a cheaper gate could not catch the
+# failure it covers:
+#
+#   verify      lint, typecheck, unit tests, build. "It compiles" is not the gate.
+#   integration a real PostgreSQL, real transactions, real locking, and a real
+#               AppModule actually started. A change to the module graph passes
+#               every unit test and only shows up when a client starts the server.
+#   golden      a rendered Customer Invoice compared byte for byte against a
+#               committed PDF, in all three locales. Layout, RTL and the tax
+#               breakdown are invisible to every other gate.
+#   e2e         a real API in front of a real browser. The status panel reporting
+#               "operational" is only worth something if the endpoints answering
+#               it exist.
+#
+# There is no job that builds a container image. Production is a native
+# PostgreSQL under systemd on one VPS (ADR 0013), so an image would gate on
+# something no Business ever runs.
 on:
   push:
     branches: [master]
@@ -12,7 +30,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Reproducible installs and no telemetry noise in the logs.
   CI: 'true'
   NEXT_TELEMETRY_DISABLED: '1'
 
@@ -21,37 +38,25 @@ jobs:
     name: lint, typecheck, unit tests, build
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      # Never connects. Present only because `prisma validate` and `generate` read
+      # the datasource block, and a missing variable fails earlier than the
+      # question the step is asking.
+      DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp?schema=public
     steps:
-      - uses: actions/checkout@v5
+      - uses: ./.github/actions/setup
 
-      - uses: pnpm/action-setup@v4
+      - name: Prisma schema is valid
+        # `pnpm verify` already builds, and building generates the client — which
+        # would report a broken schema as a confusing TypeScript error. This asks
+        # the schema question directly and answers it first.
+        run: pnpm db:validate
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Prisma generate
-        # The API's typecheck needs the generated client, and generating it proves
-        # the schema is valid before anything tries to migrate against it.
-        run: pnpm --filter @easyerp/api prisma:generate
-        env:
-          DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp?schema=public
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Unit tests
-        run: pnpm test
-
-      - name: Build
-        run: pnpm build
+      - name: Gates
+        # One command rather than four steps: turbo knows that lint, typecheck and
+        # test each depend on the build, so running them separately re-resolves
+        # that graph four times and prints four summaries instead of one.
+        run: pnpm verify
 
   integration:
     name: integration tests (real PostgreSQL)
@@ -76,76 +81,98 @@ jobs:
     env:
       DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp_test?schema=public
       BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-1234
-      BETTER_AUTH_URL: http://localhost:3001
-      CORS_ORIGINS: http://localhost:3000
+      BETTER_AUTH_URL: http://localhost:3100
+      CORS_ORIGINS: http://localhost:3100
       API_HOST: 127.0.0.1
-      API_PORT: '3001'
+      API_PORT: '3102'
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Generate client
-        run: pnpm --filter @easyerp/api prisma:generate
+        run: pnpm db:generate
 
       - name: Migrations apply cleanly from empty
         # A migration that only works on a database someone built by hand is not
-        # a migration.
+        # a migration. The service starts empty every run, so this is always the
+        # first time this schema has met this database.
         run: pnpm --filter @easyerp/api prisma:migrate:deploy
 
       - name: Integration tests
         run: pnpm test:integration
 
+  golden:
+    name: document goldens (Chromium, RTL)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # No database: the golden gate compares a rendered document, and the document
+    # is built from literal fixtures. A golden that needed a database would be
+    # testing the seed data as much as the template.
+    steps:
+      - uses: ./.github/actions/setup
+
+      - name: Install Chromium
+        # `playwright-core` rather than `playwright`: it ships the installer CLI
+        # without the postinstall browser download, so this step is explicit and
+        # a cache miss is a visible line in the log instead of an install-time
+        # surprise.
+        run: pnpm --filter @easyerp/api exec playwright-core install --with-deps chromium
+
+      - name: Install the document fonts
+        # Not optional. Chromium substitutes a fallback face when a font is
+        # missing instead of failing, and the substituted face has different
+        # metrics, so the goldens move and the failure looks like a layout change.
+        # These two packages provide all three families the invoice stylesheet
+        # asks for; the client's VPS installs the same two (ops/src/deploy.ts).
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends fonts-noto-core fonts-dejavu-core
+          fc-list | grep -q "Noto Naskh Arabic" || (echo "Arabic font missing" && exit 1)
+
+      - name: Golden documents
+        run: pnpm test:golden
+
   e2e:
-    name: browser tests
+    name: browser tests (real API)
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: easyerp
+          POSTGRES_PASSWORD: easyerp
+          POSTGRES_DB: easyerp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U easyerp -d easyerp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # The API needs its whole environment, or `loadEnv` refuses to start — which
+      # is the point of that validation. Ports are the ones
+      # `apps/web/playwright.config.ts` starts the two processes on, so the web
+      # app's /api proxy and CORS point somewhere real.
+      DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp?schema=public
+      BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-1234
+      BETTER_AUTH_URL: http://localhost:3100
+      CORS_ORIGINS: http://localhost:3100
+      API_HOST: 127.0.0.1
+      API_PORT: '3102'
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
+      - uses: ./.github/actions/setup
 
       - name: Install Chromium
         run: pnpm --filter @easyerp/web exec playwright install --with-deps chromium
 
+      - name: Generate client
+        run: pnpm db:generate
+
+      - name: Migrations apply cleanly from empty
+        run: pnpm --filter @easyerp/api prisma:migrate:deploy
+
       - name: Browser tests
+        # Playwright starts both the API and the production web build itself; see
+        # the `webServer` array in apps/web/playwright.config.ts.
         run: pnpm --filter @easyerp/web test:e2e
-
-  images:
-    name: container images build
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    # Proves the Dockerfiles still work. Without this, a broken Dockerfile is only
-    # discovered during a client's deployment.
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: docker/setup-buildx-action@v3
-
-      - name: Build API image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: infra/docker/api.Dockerfile
-          push: false
-
-      - name: Build web image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: infra/docker/web.Dockerfile
-          push: false

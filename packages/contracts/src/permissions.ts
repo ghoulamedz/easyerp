@@ -56,6 +56,7 @@ export const PERMISSION_CATALOG = {
     'production-order:issue',
     'production-order:cancel',
   ],
+  bom: ['bom:read', 'bom:create'],
   identity: ['user:read', 'user:create', 'user:update', 'user:delete'],
   role: ['role:read', 'role:create', 'role:update', 'role:delete'],
   settings: [

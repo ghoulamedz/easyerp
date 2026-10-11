@@ -143,8 +143,12 @@ The record created when a Sales Order is confirmed, released when the order is c
 _Avoid_: Bloc, Hold, Lock
 
 **Opening balance**:
-The first Stock Ledger Entry of an Item, representing stock that existed before the Business went live.
+The first Stock Ledger Entry of an Item, representing stock that existed before the Business went live. Refused once the Item has any other entry; what happens afterwards is an adjustment with a written reason.
 _Avoid_: Stock initial, Inventaire d'ouverture
+
+**Reversal**:
+A Stock Ledger Entry that corrects another one by taking the opposite direction of the entry it reverses and pointing at it. The entry being corrected is never edited.
+_Avoid_: Correction, Annulation de mouvement, Négation
 
 ### Finance
 
@@ -165,14 +169,27 @@ A correcting or cancelling document for a Customer Invoice, with its own Number 
 _Avoid_: Avoir (acronym alone), Annulation, Refund
 
 **Payment**:
-A recorded receipt of money, with its Allocations to one or more Customer Invoices. easyERP records payments; it does not process them.
+A recorded receipt of money, with its Allocations to one or more Documents. easyERP records payments; it does not process them.
 _Avoid_: Règlement bancaire, Transaction, Chargeback
 
 **Allocation**:
-The assignment of a Payment to a Customer Invoice, whole or partial.
+The assignment of a Payment to a Document — a Customer Invoice or a Credit Note — whole or partial. Assigning to a Credit Note is how a refund is recorded.
 _Avoid_: Affectation, Imputation
 
+**Unallocated credit**:
+The part of a Payment not yet assigned to any Document. Money already received and not yet counted against anything.
+_Avoid_: Solde, Reste
+
+**Outstanding**:
+What a Customer owes: what has been invoiced, less what has been credited, less the Payments assigned to those Documents. Always derived, never stored.
+_Avoid_: Solde client (as a stored value), Balance
+
 ### Extensibility
+
+**Module**:
+A named capability of easyERP that a Business can switch off. A disabled Module is absent from navigation and its endpoints refuse every request; it never hides data that was already recorded.
+_Capital M always means this._ Lowercase _module_ means a unit of code with one interface — the thing a caller depends on and does not read the inside of. An **Area** groups Modules for navigation and for reading the plan; an Area is not switchable and an Area is never an architectural unit. See `docs/specs/001-first-business-and-core-slice.md`.
+_Avoid_: Feature, Plugin, Pack, Option, Add-on
 
 **Custom Field**:
 A field a Business defines on an Item, a Party, or a Document header or line, with its type, validation and display order. Disabling one never destroys stored data.
@@ -181,6 +198,24 @@ _Avoid_: Champ personnalisé (as a variable name), Attribut, Metadata field
 **Custom Record**:
 A row in a table a Business defines, composed of Custom Fields. Stored, listed, exported — and with no effect on stock, invoicing, or workflows.
 _Avoid_: Module, Entité dynamique, Custom entity
+
+### Coming into being
+
+**Setup**:
+The one-time act of creating a Business, its first Administrator and the settings without which nothing can be issued. It happens once and cannot be repeated.
+_Avoid_: Installation, Onboarding wizard, Bootstrap, Initialisation
+
+**Setting**:
+A configurable fact about the Business — its legal identity, VAT regime, tax rates, number patterns, terminology — held in the database and edited by an Administrator. Never a file mounted into the container, so replacing an image cannot alter it.
+_Avoid_: Config file, Environment variable (for anything a Business chooses), Parameter
+
+**Backfill**:
+The filling-in of a Setting that a later release of easyERP made required, with a safe default, on a Business that was set up before that release existed. Never asks the Business to choose, never blocks its use.
+_Avoid_: Migration (too broad — that also means schema changes), Patch, Fix
+
+**Document archive**:
+The Business's own copy of every issued Document's rendered PDF, kept on the host's disk by the Business. Not part of the database and not covered by the database backup.
+_Avoid_: Attachment, File store, Blobs
 
 ### Audit
 
@@ -191,3 +226,17 @@ _Avoid_: Alerte, Message, Push
 **Audit trail**:
 An immutable record of who did what, to which record, with the state before and after.
 _Avoid_: Log, Historique, Journal
+
+## Running a local instance
+
+Operational reference, not vocabulary. `AGENTS.md` holds the full description and the gates.
+
+```bash
+pnpm dev
+```
+
+Starts PostgreSQL, applies the migrations, and runs the API on `3002` and the web app on `3003`. Docker is the only prerequisite. Nothing else to set up, no environment variables to write.
+
+The API serves everything under `/api`, so the two addresses worth knowing are `http://localhost:3002/api/health` and `http://localhost:3002/api/ready`. The web app proxies `/api/*` to the API, so `http://localhost:3003` is enough to drive the product.
+
+One PostgreSQL container holds **two** databases: `easyerp` for `pnpm dev`, where rows survive, and `easyerp_test` for `pnpm test:integration`, where every table is emptied between tests. They are separate because the suite is the most destructive thing in the repository, and the harness refuses any database whose name does not look disposable.
