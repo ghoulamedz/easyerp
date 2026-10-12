@@ -1,0 +1,27 @@
+{
+  "id": "b8032660b",
+  "name": "pnpm dev restart",
+  "command": "pnpm dev 2>&1",
+  "status": "killed",
+  "outputPath": ".pi/tasks/01a130ce-3630-72af-8469-4e05c48560fd-4169/b8032660b.output",
+  "cwd": "/home/medo/Projects/easyerp",
+  "startTime": 1791820448488,
+  "endTime": 1791820683507,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 6287,
+  "bytesWritten": 27057,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/usr/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

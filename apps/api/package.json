@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json && rm -rf dist/generated && cp -R src/generated dist/generated",
     "clean": "rm -rf dist coverage",
-    "dev": "node --env-file-if-exists=.env node_modules/@nestjs/cli/bin/nest.js start --watch",
+    "dev": "mkdir -p dist && cp -R src/generated dist/generated 2>/dev/null; node --env-file-if-exists=.env node_modules/@nestjs/cli/bin/nest.js start --watch",
     "lint": "eslint src",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "turbo run build",
-    "dev": "pnpm db:up && turbo run dev",
+    "dev": "test -f apps/api/.env || cp apps/api/.env.example apps/api/.env && pnpm db:generate && pnpm db:up && turbo run dev",
     "dev:apps": "turbo run dev",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint -- --fix",
