@@ -128,3 +128,16 @@ if needed.
   on existing DBs (absent rows read enabled). OFF = byte-identical flow.
 - Caught: z.record over enum is total — partial modules maps 422; test fixed.
 - Suites: setup+settings 26/26, contracts 98/98, web 121/121.
+
+## FODEC wave (3 workers + parent seam fixes)
+- Contracts: fodecSubject (item, default false) + fodecAmount (lines, totals).
+  Pricing: net -> 1% FODEC -> VAT base -> tax -> gross, rounded once.
+- Persistence: migration (Item.fodecSubject, DocumentLine.fodecAmount, both
+  defaulted = backfill), catalog CRUD, all served builders, credit-note carry.
+  Delivery-note totals: '0.000' (quantity-only document).
+- Display: PDF FODEC row only when non-zero; item-form checkbox.
+- Parent fixes: delivery-note totals miss; z.record totality note; VAT prefill
+  '0.19' -> '19' (rate means percent; engine was right, seed was wrong).
+- Suites: contracts 103, web 122, sales-order/delivery/lists/catalog green;
+  11 PDF-issue tests environmental (no chromium).
+- Live: FODEC item -> order line fodec 2.000, totals reconcile.
