@@ -249,4 +249,28 @@ describe('UsersService', () => {
 
     expect((await users.list()).map((user) => user.id)).not.toContain(gone.id);
   });
+
+  it('removes a second administrator and hides them from the list', async () => {
+    const admin = await createUser();
+    const adminRole = await administratorRole();
+    await assignRole(admin.id, adminRole.id);
+    const other = await createUser();
+    await assignRole(other.id, adminRole.id);
+
+    await users.remove(other.id, actorFor(admin));
+
+    const row = await prisma.authUser.findUnique({ where: { id: other.id } });
+    expect(row?.deletedAt).not.toBeNull();
+    expect((await users.list()).map((user) => user.id)).not.toContain(other.id);
+  });
+
+  it('refuses to remove the last active administrator or its own account', async () => {
+    const admin = await createUser();
+    const adminRole = await administratorRole();
+    await assignRole(admin.id, adminRole.id);
+
+    await expect(users.remove(admin.id, actorFor(admin))).rejects.toMatchObject({
+      code: 'CONFLICT',
+    });
+  });
 });
