@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { AppShell } from '../../../components/app-shell';
 import { isLocale, type Locale } from '../../../i18n/config';
-import { readSession } from '../../../lib/server-api';
+import { readSession, readSetupStatus } from '../../../lib/server-api';
 
 /**
  * The application frame, shared by every signed-in page.
@@ -24,6 +24,11 @@ export default async function AppLayout({
   if (!isLocale(locale)) notFound();
 
   const typedLocale: Locale = locale;
+  // No Business yet: every app URL funnels to first-run Setup, even sign-in —
+  // there is nobody to sign in as until Setup creates the Administrator.
+  const status = await readSetupStatus();
+  if (status?.needsSetup) redirect(`/${typedLocale}/setup`);
+
   const session = await readSession();
   if (!session) redirect(`/${typedLocale}/sign-in`);
 

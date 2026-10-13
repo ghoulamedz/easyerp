@@ -286,7 +286,12 @@ describe('Settings (spec 001 stories 8–24)', () => {
       'PURCHASING',
       'SALES',
     ]);
-    expect(body.every((row) => row.isEnabled)).toBe(true);
+    // Grill Q8: Setup defaults to a lean start — everything on except PRODUCTION.
+    const byModule = new Map(body.map((row) => [row.module, row.isEnabled]));
+    expect(byModule.get('PRODUCTION')).toBe(false);
+    for (const module of ['FINANCE', 'INVENTORY', 'PURCHASING', 'SALES']) {
+      expect(byModule.get(module)).toBe(true);
+    }
   });
 
   it('creates a user with a role, and refuses to deactivate the last administrator', async () => {

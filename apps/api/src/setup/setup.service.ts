@@ -28,6 +28,7 @@ import {
   DOCUMENT_TYPES,
   MODULES,
   PARTY_ROLES,
+  allPermissions,
   setupRequestSchema,
   setupStatusSchema,
   type SetupRequest,
@@ -36,7 +37,7 @@ import {
 } from '@easyerp/contracts';
 
 import { AuditService } from '../audit/audit.service.js';
-import { DomainError, conflict, invariant, validationFailed } from '../common/errors.js';
+import { DomainError, conflict, validationFailed } from '../common/errors.js';
 import { env } from '../config/env.js';
 import { Prisma } from '../generated/prisma/index.js';
 import { ADMINISTRATOR_ROLE_CODE } from '../identity/roles.service.js';
@@ -163,8 +164,20 @@ export class SetupService {
         },
       });
 
-      const role = await tx.role.findUnique({ where: { code: ADMINISTRATOR_ROLE_CODE } });
-      invariant(role, 'Administrator role must exist (ensureAdministrator runs at boot)');
+      // Self-healing: a `db:reset` while the API runs wipes the roles seeded at
+      // boot, and the running process never re-seeds them. Upserting here makes
+      // Setup work without a manual API restart; the advisory lock above keeps
+      // two simultaneous Setups from racing the upsert.
+      const role = await tx.role.upsert({
+        where: { code: ADMINISTRATOR_ROLE_CODE },
+        update: {},
+        create: {
+          code: ADMINISTRATOR_ROLE_CODE,
+          name: 'Administrator',
+          permissions: [...allPermissions],
+          isProtected: true,
+        },
+      });
       await tx.userRole.create({ data: { userId: administratorId, roleId: role.id } });
 
       await this.audit.record(
