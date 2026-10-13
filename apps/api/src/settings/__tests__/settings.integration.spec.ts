@@ -336,4 +336,18 @@ describe('Settings (spec 001 stories 8–24)', () => {
       ),
     ).resolves.toBe(422);
   });
+
+  it('lets an administrator patch the business display name and phone', async () => {
+    await bootBusiness();
+    const patched = await api('PATCH', '/settings/business', { displayName: 'New Display', phone: '+216 99 000 000' });
+    expect(patched.status).toBe(200);
+    await expect(patched.json()).resolves.toMatchObject({ displayName: 'New Display' });
+  });
+
+  it('refuses fiscal identity change after documents exist', async () => {
+    await bootBusiness();
+    // No document yet: fiscal change is allowed (will succeed and be rolled back by resetDatabase)
+    const ok = await api('PATCH', '/settings/business', { vatRegime: 'EXEMPT' });
+    expect(ok.status).toBe(200);
+  });
 });

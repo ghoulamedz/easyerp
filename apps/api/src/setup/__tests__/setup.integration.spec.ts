@@ -246,6 +246,18 @@ describe('Setup (ADR 0012)', () => {
     expect(statuses).toEqual([201, 404]);
     await expect(prisma.business.count()).resolves.toBe(1);
   });
+
+  it('writes module enablement from Setup and defaults PRODUCTION off', async () => {
+    const response = await fetch(`${baseUrl}/api/setup/complete`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(request({ modules: { SALES: true, PURCHASING: true, INVENTORY: true, FINANCE: true, PRODUCTION: false } })),
+    });
+    expect(response.status).toBe(201);
+    const states = await prisma.moduleState.findMany({ orderBy: { module: 'asc' } });
+    expect(states.find((s) => s.module === 'PRODUCTION')?.isEnabled).toBe(false);
+    expect(states.find((s) => s.module === 'SALES')?.isEnabled).toBe(true);
+  });
 });
 
 function safeAdmin(email: string): { email: string; name: string; password: string } {
