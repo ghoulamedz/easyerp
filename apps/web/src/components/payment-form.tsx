@@ -6,12 +6,17 @@
  * Money received, not a Document: no number, no status, no archive. Allocations
  * assign part of the payment to the party's issued fiscal Documents; whatever
  * is left over stays unallocated credit. The server refuses
- * `sum(allocations) > amount`, so the form keeps a running remainder.
+ * `sum(allocations) > amount`, so the form keeps a running remainder. Each
+ * allocatable row shows the Document's grossAmount as the reference — the
+ * allocated-so-far is not fetched, so no per-Document outstanding is derived.
+ * The party's current unallocated credit (GET /payments/party/:partyId/balance)
+ * is shown above the allocations as a hint; a balance-fetch failure hides
+ * the line and the form still works.
  */
 
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { BusinessProfile, DocumentSummary, Party } from '@easyerp/contracts';
+import type { BusinessProfile, DocumentSummary, Party, PartyBalance } from '@easyerp/contracts';
 import { apiGet, apiSend } from '../lib/api';
 import { translatorFor, type Locale } from '../i18n/config';
 import { Button, Card, CardBody } from './ui';
@@ -50,6 +55,7 @@ export function PaymentForm({ locale }: { locale: Locale }) {
   const [receivedAt, setReceivedAt] = useState('');
   const [documents, setDocuments] = useState<readonly DocumentSummary[]>([]);
   const [allocations, setAllocations] = useState<Readonly<Record<string, string>>>({});
+  const [balance, setBalance] = useState<PartyBalance | null>(null);
 
   const [loadingRefs, setLoadingRefs] = useState(true);
   const [working, setWorking] = useState(false);
@@ -87,6 +93,25 @@ export function PaymentForm({ locale }: { locale: Locale }) {
     () => documents.filter((doc) => doc.partyId === partyId),
     [documents, partyId],
   );
+
+  useEffect(() => {
+    if (partyId === '') {
+      setBalance(null);
+      return;
+    }
+    let cancelled = false;
+    apiGet<PartyBalance>(`/payments/party/${partyId}/balance`)
+      .then((result) => {
+        if (!cancelled) setBalance(result);
+      })
+      .catch(() => {
+        // The balance is a hint only: hide the line, the form still works.
+        if (!cancelled) setBalance(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [partyId]);
 
   const allocated = useMemo(
     () =>
@@ -209,6 +234,11 @@ export function PaymentForm({ locale }: { locale: Locale }) {
             </div>
           </div>
 
+          {balance !== null ? (
+            <p className="text-xs text-ink-subtle">
+              {t('paymentUnallocatedCredit')}: {balance.unallocatedCredit}
+            </p>
+          ) : null}
           {partyDocs.length > 0 ? (
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold text-ink">{t('paymentAllocations')}</legend>

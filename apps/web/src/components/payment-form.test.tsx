@@ -94,4 +94,30 @@ describe('PaymentForm', () => {
     );
     expect(push).not.toHaveBeenCalled();
   });
+
+  it('shows the party balance line when the balance endpoint answers', async () => {
+    global.fetch = vi.fn(async (url: unknown) => {
+      if (String(url).startsWith('/api/payments/party/')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            partyId: 'p-1',
+            invoiced: '100.000',
+            credited: '0.000',
+            allocatedToInvoices: '0.000',
+            allocatedToCreditNotes: '0.000',
+            outstanding: '100.000',
+            unallocatedCredit: '20.000',
+          }),
+        };
+      }
+      return refs()(url);
+    }) as unknown as typeof fetch;
+
+    render(<PaymentForm locale="en" />);
+
+    expect(await screen.findByLabelText('Customer')).toBeInTheDocument();
+    expect(await screen.findByText('Unallocated credit: 20.000')).toBeInTheDocument();
+  });
 });
