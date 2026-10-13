@@ -30,6 +30,12 @@ const items = {
   page: 1,
   pageSize: 25,
 };
+const orders = {
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize: 25,
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -38,6 +44,7 @@ beforeEach(() => {
     if (u === '/api/settings/business') return { ok: true, status: 200, json: async () => profile };
     if (u.startsWith('/api/parties')) return { ok: true, status: 200, json: async () => parties };
     if (u.startsWith('/api/items')) return { ok: true, status: 200, json: async () => items };
+    if (u.startsWith('/api/purchasing/orders')) return { ok: true, status: 200, json: async () => orders };
     if (u === '/api/purchasing/receipts') return { ok: true, status: 201, json: async () => ({ id: 'r-1' }) };
     throw new Error(`unexpected ${u}`);
   }) as unknown as typeof fetch;
@@ -59,6 +66,8 @@ describe('GoodsReceiptForm', () => {
           return { ok: true, status: 200, json: async () => parties };
         if (String(url).startsWith('/api/items'))
           return { ok: true, status: 200, json: async () => items };
+        if (String(url).startsWith('/api/purchasing/orders'))
+          return { ok: true, status: 200, json: async () => orders };
         throw new Error(`unexpected ${String(url)}`);
       },
     );
@@ -89,6 +98,8 @@ describe('GoodsReceiptForm', () => {
         return { ok: true, status: 200, json: async () => parties };
       if (String(url).startsWith('/api/items'))
         return { ok: true, status: 200, json: async () => items };
+      if (String(url).startsWith('/api/purchasing/orders'))
+        return { ok: true, status: 200, json: async () => orders };
       return {
         ok: false,
         status: 409,
@@ -107,5 +118,67 @@ describe('GoodsReceiptForm', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Refused');
     expect(push).not.toHaveBeenCalled();
+  });
+
+  it('prefills the order lines and submits their link ids', async () => {
+    const user = userEvent.setup();
+    const seen: { url: string; body: unknown }[] = [];
+    const orderCollection = {
+      items: [
+        {
+          id: 'po-1',
+          type: 'PURCHASE_ORDER',
+          status: 'ISSUED',
+          number: 'PO-0001',
+          partyId: 'p-1',
+          partyName: 'Supplier SARL',
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 25,
+    };
+    const orderDetail = {
+      id: 'po-1',
+      partyId: 'p-1',
+      party: { id: 'p-1' },
+      lines: [{ id: 'pl-1', itemId: 'i-1', quantity: '4.000', description: 'Widget' }],
+    };
+    (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(
+      async (url: unknown, init?: RequestInit) => {
+        if (String(url) === '/api/purchasing/receipts' && init?.method === 'POST') {
+          seen.push({ url: String(url), body: JSON.parse(String(init.body)) });
+          return { ok: true, status: 201, json: async () => ({ id: 'r-1' }) };
+        }
+        if (String(url) === '/api/purchasing/orders')
+          return { ok: true, status: 200, json: async () => orderCollection };
+        if (String(url) === '/api/purchasing/orders/po-1')
+          return { ok: true, status: 200, json: async () => orderDetail };
+        if (String(url) === '/api/settings/business')
+          return { ok: true, status: 200, json: async () => profile };
+        if (String(url).startsWith('/api/parties'))
+          return { ok: true, status: 200, json: async () => parties };
+        if (String(url).startsWith('/api/items'))
+          return { ok: true, status: 200, json: async () => items };
+        throw new Error(`unexpected ${String(url)}`);
+      },
+    );
+
+    render(<GoodsReceiptForm locale="en" />);
+
+    expect(await screen.findByLabelText('Supplier')).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Linked order (optional)'), 'po-1');
+
+    expect(await screen.findByDisplayValue('4.000')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/en/purchasing/receipts'));
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.body).toEqual({
+      businessId: 'b-1',
+      partyId: 'p-1',
+      purchaseOrderId: 'po-1',
+      lines: [{ itemId: 'i-1', quantity: '4.000', description: 'Widget', purchaseOrderLineId: 'pl-1' }],
+    });
   });
 });

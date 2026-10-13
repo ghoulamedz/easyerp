@@ -1,17 +1,19 @@
 'use client';
 
 /**
- * New Delivery Note form (standalone).
+ * New Delivery Note form (standalone, or fulfilling a Sales Order).
  *
- * A note may fulfil a Sales Order, but it never has to (expansion Q11): this
- * form drafts the standalone note — recipient plus lines. Linking lines to an
- * order is fulfilment UI for later, not a prerequisite for shipping stock.
- * Stock moves only on issue, from the list, never from this draft.
+ * A note may fulfil a Sales Order, but it never has to (expansion Q11): without
+ * a linked order this form drafts the standalone note — recipient plus lines.
+ * Picking an issued order prefills the lines still open on it (quantity minus
+ * deliveredQuantity, fully-delivered lines skipped) and locks the recipient to
+ * the order's customer. Stock moves only on issue, from the list, never from
+ * this draft.
  */
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { BusinessProfile, Item, Party } from '@easyerp/contracts';
+import type { BusinessProfile, DocumentSummary, Item, Party } from '@easyerp/contracts';
 import { apiGet, apiSend } from '../lib/api';
 import { translatorFor, type Locale } from '../i18n/config';
 import { Button, Card, CardBody } from './ui';
@@ -33,6 +35,22 @@ interface LineRow {
   itemId: string;
   quantity: string;
   description: string;
+  /** The order line this row fulfils; null for a standalone row. */
+  salesOrderLineId: string | null;
+}
+
+interface SalesOrderDetailLine {
+  readonly id: string;
+  readonly itemId: string;
+  readonly quantity: string;
+  readonly deliveredQuantity: string;
+  readonly description?: string | null;
+}
+
+interface SalesOrderDetail {
+  readonly id: string;
+  readonly partyId: string;
+  readonly lines: readonly SalesOrderDetailLine[];
 }
 
 function asArray<T>(data: unknown): readonly T[] {
@@ -47,6 +65,29 @@ function rowKey(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+/**
+ * What is still open on an order line, in plain decimal form. Null when nothing
+ * is open (or the figures do not parse): the caller skips the line, so a
+ * fully-delivered line never prefills a zero-quantity row. Millis arithmetic,
+ * never floating point, so 5.000 minus 2.000 is exactly 3.
+ */
+function remainingOf(quantity: string, delivered: string): string | null {
+  const toMillis = (value: string): bigint | null => {
+    const match = /^(-?)(\d+)(?:\.(\d+))?$/.exec(value.trim());
+    if (!match) return null;
+    const mills = BigInt(`${match[2] ?? '0'}${(match[3] ?? '').slice(0, 3).padEnd(3, '0')}`);
+    return (match[1] ?? '') === '-' ? -mills : mills;
+  };
+  const ordered = toMillis(quantity);
+  const shipped = toMillis(delivered);
+  if (ordered === null || shipped === null) return null;
+  const rest = ordered - shipped;
+  if (rest <= 0n) return null;
+  const frac = (rest % 1000n).toString().padStart(3, '0').replace(/0+$/, '');
+  const whole = (rest / 1000n).toString();
+  return frac === '' ? whole : `${whole}.${frac}`;
+}
+
 export function DeliveryNoteForm({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
   const router = useRouter();
@@ -55,9 +96,14 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
   const [partyId, setPartyId] = useState('');
   const [parties, setParties] = useState<readonly Party[]>([]);
   const [items, setItems] = useState<readonly Item[]>([]);
-  const [lines, setLines] = useState<LineRow[]>([{ key: 'line-1', itemId: '', quantity: '1', description: '' }]);
+  const [orders, setOrders] = useState<readonly DocumentSummary[]>([]);
+  const [salesOrderId, setSalesOrderId] = useState('');
+  const [lines, setLines] = useState<LineRow[]>([
+    { key: 'line-1', itemId: '', quantity: '1', description: '', salesOrderLineId: null },
+  ]);
 
   const [loadingRefs, setLoadingRefs] = useState(true);
+  const [loadingLines, setLoadingLines] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,14 +113,18 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
       apiGet<BusinessProfile>('/settings/business'),
       apiGet<unknown>('/parties'),
       apiGet<unknown>('/items'),
+      apiGet<unknown>('/sales/orders'),
     ])
-      .then(([profile, p, i]) => {
+      .then(([profile, p, i, o]) => {
         if (cancelled) return;
         setBusinessId(profile.id);
         const customers = asArray<Party>(p).filter((party) => party.roles.includes('CUSTOMER'));
         const stocked = asArray<Item>(i);
         setParties(customers);
         setItems(stocked);
+        // Only an issued order can be shipped against: reservations are created
+        // at issue, so only issued orders have reservable lines.
+        setOrders(asArray<DocumentSummary>(o).filter((order) => order.status === 'ISSUED'));
         if (customers.length > 0) setPartyId(customers[0]?.id ?? '');
         setLines((prev) =>
           prev.map((line, index) =>
@@ -94,6 +144,70 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (salesOrderId === '') return;
+    let cancelled = false;
+    apiGet<SalesOrderDetail>(`/sales/orders/${salesOrderId}`)
+      .then((detail) => {
+        if (cancelled) return;
+        setPartyId(detail.partyId);
+        const open = detail.lines.flatMap((line) => {
+          const remaining = remainingOf(line.quantity, line.deliveredQuantity);
+          if (remaining === null) return [];
+          return [
+            {
+              key: rowKey(),
+              itemId: line.itemId,
+              quantity: remaining,
+              description: line.description ?? '',
+              salesOrderLineId: line.id,
+            },
+          ];
+        });
+        setLines(
+          open.length > 0
+            ? open
+            : [
+                {
+                  key: rowKey(),
+                  itemId: items[0]?.id ?? '',
+                  quantity: '1',
+                  description: '',
+                  salesOrderLineId: null,
+                },
+              ],
+        );
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : t('loadFailed'));
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingLines(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [salesOrderId]);
+
+  const onPickOrder = (next: string): void => {
+    setSalesOrderId(next);
+    if (next === '') {
+      // Back to standalone: the link ids leave with the order.
+      setLines([
+        {
+          key: rowKey(),
+          itemId: items[0]?.id ?? '',
+          quantity: '1',
+          description: '',
+          salesOrderLineId: null,
+        },
+      ]);
+    } else {
+      setLoadingLines(true);
+    }
+  };
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setWorking(true);
@@ -102,12 +216,14 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
       await apiSend('/sales/delivery-notes', 'POST', {
         businessId,
         partyId,
+        ...(salesOrderId === '' ? {} : { salesOrderId }),
         lines: lines
           .filter((line) => line.itemId !== '')
           .map((line) => ({
             itemId: line.itemId,
             quantity: line.quantity.trim(),
             ...(line.description.trim() === '' ? {} : { description: line.description.trim() }),
+            ...(line.salesOrderLineId ? { salesOrderLineId: line.salesOrderLineId } : {}),
           })),
       });
       router.push(`/${locale}/delivery-notes`);
@@ -134,11 +250,31 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
       <CardBody>
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
+            <Label htmlFor="note-order">{t('linkOrder')}</Label>
+            <select
+              id="note-order"
+              value={salesOrderId}
+              onChange={(e) => onPickOrder(e.target.value)}
+              className={FIELD}
+            >
+              <option value="">—</option>
+              {orders.map((order) => (
+                <option key={order.id} value={order.id}>
+                  {order.number ?? t('statusDraft')} — {order.partyName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {loadingLines ? <p className="text-sm text-ink-muted">{t('loading')}</p> : null}
+
+          <div>
             <Label htmlFor="note-party">{t('customer')}</Label>
             <select
               id="note-party"
               required
               value={partyId}
+              disabled={salesOrderId !== ''}
               onChange={(e) => setPartyId(e.target.value)}
               className={FIELD}
             >
@@ -215,7 +351,13 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
               onClick={() =>
                 setLines([
                   ...lines,
-                  { key: rowKey(), itemId: items[0]?.id ?? '', quantity: '1', description: '' },
+                  {
+                    key: rowKey(),
+                    itemId: items[0]?.id ?? '',
+                    quantity: '1',
+                    description: '',
+                    salesOrderLineId: null,
+                  },
                 ])
               }
             >
