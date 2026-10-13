@@ -150,3 +150,13 @@ if needed.
 - Suites: web 138, identity+settings 36/36. Live: fiscal PATCH 200,
   tax-rates list + page render.
 - Scout: FODEC ELI5 (3 lines) + docs/deploy-vercel-neon-free.md (15 steps).
+
+## Wave 6 (logout + error i18n + cancel buttons + archive 404 fix + draft edit + logout + tax rates UI + editable settings + users edit/remove + stock adjust-only + doc view/print + deploy guide)
+- Logout icon button in header (Better Auth sign-out, redirects to sign-in)
+- All creation forms get Cancel link back to list (11 forms)
+- API error messages localized by code (fr/en/ar via document.documentElement.lang)
+- Order-linked fulfilment drafts: delivery-note + goods-receipt prefill remaining from issued orders
+- Archive 404 fixed: delivery-note totals now include fodecAmount: '0.000'
+- Tax rates UI (create + retire), Settings fully editable with password, Users edit/remove (soft-delete + last-admin guard), Stock opening removed, View/Print on issued invoices/credit-notes
+- Scout: FODEC in 3 lines + docs/deploy-vercel-neon-free.md (15 steps)
+- All suites: web 138, contracts 103, integration 26/26
