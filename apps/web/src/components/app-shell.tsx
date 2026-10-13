@@ -14,12 +14,14 @@ import { AppNav, navItemsFor } from './app-nav';
 import { LocaleSwitcher } from './locale-switcher';
 import { MobileNav } from './mobile-nav';
 import { ThemeSwitch } from './theme-switch';
+import { isNavVisible, useModuleStates } from '../lib/use-modules';
 import { translatorFor, type Locale } from '../i18n/config';
 
 export function AppShell({ locale, children }: { locale: Locale; children: React.ReactNode }) {
   const t = translatorFor(locale);
   const currentPath = usePathname();
-  const items = navItemsFor(t, locale);
+  const moduleStates = useModuleStates();
+  const items = navItemsFor(t, locale).filter((item) => isNavVisible(item.key, moduleStates));
   const active = items.find(
     (item) => currentPath === item.href || currentPath.startsWith(`${item.href}/`),
   );

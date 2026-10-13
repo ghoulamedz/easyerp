@@ -46,7 +46,7 @@ export function DocumentList({
     return (
       <div className="py-8 text-center">
         <p className="text-sm text-ink-muted">{t('loadFailed')}</p>
-        <p className="mt-1 text-sm text-ink-muted">{t('tryAgainOrContactSupport')}</p>
+        <p className="mt-1 text-sm text-ink-muted">{result.error.message}</p>
       </div>
     );
   }
