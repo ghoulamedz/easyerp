@@ -105,3 +105,11 @@ if needed.
 - payments: party balance line via /payments/party/:id/balance, silent on failure.
 - scout: docs/fiscal-build-plan.md (FODEC core first, then P1/P2 sequenced).
 - Web suite 117/117.
+
+## Worker wave 3 (order linking)
+- delivery-note + goods-receipt forms: optional linked-order select; ISSUED-only
+  for sales (reservations), DRAFT+ISSUED for purchase; prefill remaining
+  quantities with link ids; standalone untouched. 2 new tests (remaining-math,
+  skip fully-delivered). Web suite 119/119.
+- Live: order detail carries line ids + deliveredQuantity (linking
+  prerequisite proven). Full issue chain untestable here (PDF needs chromium).
