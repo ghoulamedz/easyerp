@@ -88,6 +88,7 @@ export function SetupScreen({ locale }: { locale: Locale }) {
     INVENTORY: true,
     FINANCE: true,
     PRODUCTION: false,
+    E_INVOICING: false,
   });
 
   const [working, setWorking] = useState(false);
@@ -499,7 +500,7 @@ export function SetupScreen({ locale }: { locale: Locale }) {
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold text-ink">{t('modulesTitle')}</legend>
               <p className="text-xs text-ink-subtle">{t('modulesBody')}</p>
-              {(['SALES', 'PURCHASING', 'INVENTORY', 'FINANCE', 'PRODUCTION'] as const).map((mod) => (
+              {(['SALES', 'PURCHASING', 'INVENTORY', 'FINANCE', 'PRODUCTION', 'E_INVOICING'] as const).map((mod) => (
                 <label key={mod} className="flex items-center gap-2 text-sm text-ink">
                   <input
                     type="checkbox"

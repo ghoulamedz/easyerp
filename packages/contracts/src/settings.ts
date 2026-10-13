@@ -232,7 +232,19 @@ export type LabelUpsert = z.infer<typeof labelUpsertSchema>;
  * a Business that does not manufacture has no Production navigation and no
  * Production endpoints, and the mapping is data the guard reads, not comments.
  */
-export const MODULES = ['SALES', 'PURCHASING', 'INVENTORY', 'FINANCE', 'PRODUCTION'] as const;
+export const MODULES = [
+  'SALES',
+  'PURCHASING',
+  'INVENTORY',
+  'FINANCE',
+  'PRODUCTION',
+  /**
+   * Fiscal e-invoicing (El Fatoora). Cross-cutting, not a document owner: no
+   * Document type maps to it (see MODULE_BY_DOCUMENT_TYPE), and OFF means
+   * today's draft→issue→PDF flow runs byte-identical with no TEIF calls.
+   */
+  'E_INVOICING',
+] as const;
 export type ModuleCode = (typeof MODULES)[number];
 export const moduleCodeSchema = z.enum(MODULES);
 

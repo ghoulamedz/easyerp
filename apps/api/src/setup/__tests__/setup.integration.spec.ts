@@ -251,7 +251,7 @@ describe('Setup (ADR 0012)', () => {
     const response = await fetch(`${baseUrl}/api/setup/complete`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(request({ modules: { SALES: true, PURCHASING: true, INVENTORY: true, FINANCE: true, PRODUCTION: false } })),
+      body: JSON.stringify(request({ modules: { SALES: true, PURCHASING: true, INVENTORY: true, FINANCE: true, PRODUCTION: false, E_INVOICING: false } })),
     });
     expect(response.status).toBe(201);
     const states = await prisma.moduleState.findMany({ orderBy: { module: 'asc' } });

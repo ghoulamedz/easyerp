@@ -136,10 +136,13 @@ export class SetupService {
         INVENTORY: true,
         FINANCE: true,
         PRODUCTION: false,
+        E_INVOICING: false,
       };
+      const offByDefault = (module: string): boolean =>
+        module === 'PRODUCTION' || module === 'E_INVOICING';
       const modulesToWrite = (input.modules as Record<string, boolean> | undefined) ?? defaultModules;
       for (const module of MODULES) {
-        const isEnabled = modulesToWrite[module] ?? (module === 'PRODUCTION' ? false : true);
+        const isEnabled = modulesToWrite[module] ?? !offByDefault(module);
         await tx.moduleState.create({ data: { module, isEnabled } });
       }
 

@@ -148,8 +148,9 @@ describe('labelUpsertSchema', () => {
 });
 
 describe('Modules', () => {
-  it('lists the five switchable Modules', () => {
+  it('lists the six switchable Modules', () => {
     expect([...MODULES].sort()).toEqual([
+      'E_INVOICING',
       'FINANCE',
       'INVENTORY',
       'PRODUCTION',

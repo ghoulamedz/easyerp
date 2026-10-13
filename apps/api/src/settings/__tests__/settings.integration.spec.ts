@@ -280,6 +280,7 @@ describe('Settings (spec 001 stories 8–24)', () => {
     const list = await api('GET', '/settings/modules');
     const body = (await list.json()) as { module: string; isEnabled: boolean }[];
     expect(body.map((row) => row.module).sort()).toEqual([
+      'E_INVOICING',
       'FINANCE',
       'INVENTORY',
       'PRODUCTION',
@@ -287,8 +288,10 @@ describe('Settings (spec 001 stories 8–24)', () => {
       'SALES',
     ]);
     // Grill Q8: Setup defaults to a lean start — everything on except PRODUCTION.
+    // E_INVOICING is likewise off by default (fiscal opt-in, not a document owner).
     const byModule = new Map(body.map((row) => [row.module, row.isEnabled]));
     expect(byModule.get('PRODUCTION')).toBe(false);
+    expect(byModule.get('E_INVOICING')).toBe(false);
     for (const module of ['FINANCE', 'INVENTORY', 'PURCHASING', 'SALES']) {
       expect(byModule.get(module)).toBe(true);
     }
