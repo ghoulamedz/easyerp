@@ -557,6 +557,7 @@ function toSalesOrder(order: DocumentWithReservation): SalesOrder {
       countryCode: order.party.countryCode,
     },
     lines: order.lines.map((line) => ({
+      id: line.id,
       itemId: line.itemId,
       quantity: line.quantity.toString(),
       unitOfMeasureId: line.unitOfMeasureId,

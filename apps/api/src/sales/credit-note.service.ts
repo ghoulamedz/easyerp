@@ -359,6 +359,7 @@ export class CreditNoteService {
         number: correctedDocument.number,
       },
       lines: creditNote.lines.map((line) => ({
+        id: line.id,
         itemId: line.itemId,
         unitOfMeasureId: line.unitOfMeasureId,
         description: line.description,

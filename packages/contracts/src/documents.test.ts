@@ -221,6 +221,7 @@ describe('Sales Order responses', () => {
     },
     lines: [
       {
+        id: 'line_1',
         itemId: 'item_1',
         unitOfMeasureId: 'u_1',
         description: 'Cours de soutien',

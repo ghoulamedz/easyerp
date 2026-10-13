@@ -192,6 +192,8 @@ export type OrderLineInput = z.infer<typeof orderLineInputSchema>;
 
 /** A line as the server priced it. Never accepted from a client. */
 export const orderLineSchema = orderLineInputSchema.extend({
+  /** The stored row id. Served so a correction can name the line it reverses. */
+  id: z.string().min(1),
   unitPrice: moneySchema.describe('Resolved from the Item price, never from the request.'),
   taxRate: rateSchema.describe('Resolved from the Item tax assignment.'),
   netAmount: moneySchema,

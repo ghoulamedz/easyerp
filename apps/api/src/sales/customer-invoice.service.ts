@@ -392,6 +392,7 @@ export class CustomerInvoiceService {
       vatRegime: vatRegimeSchema.parse(invoice.vatRegime),
       currency: invoice.currency,
       lines: invoice.lines.map((line) => ({
+        id: line.id,
         itemId: line.itemId,
         unitOfMeasureId: line.unitOfMeasureId,
         description: line.description,

@@ -497,6 +497,7 @@ export class ProductionOrderService {
       },
       businessId: order.businessId,
       lines: order.lines.map((line) => ({
+        id: line.id,
         itemId: line.itemId,
         unitOfMeasureId: line.unitOfMeasureId,
         description: line.description,
