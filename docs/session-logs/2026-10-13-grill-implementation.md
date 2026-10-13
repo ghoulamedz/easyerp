@@ -1,0 +1,46 @@
+# Session 2026-10-13 — grill-with-docs implementation (unattended run)
+
+## What was asked
+Implement grill Q1–Q10 steps 2–5, fix "sign-in reachable before setup" (all URLs
+must funnel to /setup while needsSetup), verify live with curl, `pnpm db:reset`
+if needed.
+
+## Commits (this session, on top of e7134c9)
+- `4a9255c` dashboard Hello BusinessName, services health copy, rail scroll,
+  list-button styling, setup modules checkboxes, settings business PATCH,
+  permissions→Users repurpose, role seed, fiscal 409, auth trustedOrigins
+- `2ee5f5d` setup-modules + business-PATCH integration tests
+- `a91c983` GET /users/me session fix, array-tolerant useCollection, stock
+  empty-items fix, payments optional filters, remaining btn fixes
+- `a423bee` nav filtering by module state, working modules toggle,
+  server-message surfacing on document lists
+- `f4e9eda` setup gate on (app) layout + sign-in, self-healing setup roles,
+  items/parties/users creation UI, i18n form keys + dead-key purge, form tests
+
+## Strongest findings
+- Add buttons were hidden by a session-shape mismatch, not CSS: Better Auth
+  `get-session` has no `permissions`; `fetchSession` cast it anyway, so every
+  `useHasPermission` was false. Fixed with `GET /users/me` → SessionUser.
+- `nest start --watch` rebuild after `touch main.ts` took >2 min and never
+  restarted in the window observed — the db.mjs auto-touch is unreliable.
+  Real fix: Setup upserts the Administrator role in-transaction (self-healing).
+- Pre-existing test "lists every Module with its switch" asserted all-on;
+  updated to the Q8 lean default (PRODUCTION off).
+- `UID` is a readonly bash builtin — broke one curl probe (`UNIT=1000`).
+- Stray worktree changes left alone: `.gitignore` (`.pi/` line), deleted
+  `session-opencode-final-desktop-project.md`, `session-ses_latest.md`.
+
+## Live verification (curl, fresh db:reset)
+- `/en/sign-in`, `/en/dashboard`, `/en/items` → 307 `/en/setup` while needsSetup
+- setup/complete 201 (with modules map), sign-in 200, /users/me full permissions
+- party create 201, item create 201, lists return rows
+- web unit 94/94, setup+settings integration 26/26
+
+## Still open (for next session)
+- `sales-orders/new`, `delivery-notes/new`, `customer-invoices/new`,
+  `credit-notes/new`, payments/purchasing/production/bom `new` pages (Add → 404)
+- document issue/cancel actions in web; stock CSV/reservations UI; payments allocate UI
+- fiscal-lock test with a real document (only no-doc path covered)
+- users create/setActive/last-admin + document lifecycle integration tests
+- dead `apps/api/src/users.service.ts` (live one is `identity/users.service.ts`)
+- `sign-inNotice` copy still says no account exists yet
