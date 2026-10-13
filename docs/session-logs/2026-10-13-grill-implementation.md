@@ -76,3 +76,10 @@ if needed.
   invoice obtainable); route proven via named NOT_FOUND + page render.
 - Still open: payments/new, purchasing/production/bom new pages; issue/cancel
   web actions.
+
+## Unattended continuation (payments)
+- `payments/new`: party + amount + date/method/reference/note + allocations to
+  the party's issued docs with live remainder; empty allocations stay
+  unallocated credit. 2 tests. Web suite 104/104.
+- Live: 50.000 receipt allocating 44.625 to the draft invoice, remainder 5.375.
+- Still open: purchasing/production/bom new pages; issue/cancel web actions.
