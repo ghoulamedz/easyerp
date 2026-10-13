@@ -31,6 +31,8 @@ const currencyCodeSchema = z.string().regex(/^[A-Z]{3}$/, 'expected an ISO 4217 
 
 /** The read shape of the Business profile. Optional particulars are absent, never null. */
 export const businessProfileSchema = z.object({
+  /** The row id. Clients need it wherever a draft names its Business. */
+  id: z.string().min(1),
   legalName: z.string().min(1).max(255),
   displayName: z.string().min(1).max(255),
   taxIdentifier: z.string().min(1).max(32),

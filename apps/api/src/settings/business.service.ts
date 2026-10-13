@@ -95,6 +95,7 @@ export class BusinessSettingsService {
   private async current(): Promise<BusinessProfile> {
     const row = await this.business();
     return {
+      id: row.id,
       legalName: row.legalName,
       displayName: row.displayName,
       taxIdentifier: row.taxIdentifier,
