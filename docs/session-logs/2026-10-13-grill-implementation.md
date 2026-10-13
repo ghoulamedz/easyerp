@@ -97,3 +97,11 @@ if needed.
   INSUFFICIENT_STOCK both named (wiring proven).
 - Still open: goods-receipts UI (no list page), order-linked receipts/notes,
   payments allocation UI polish.
+
+## Worker wave 2 (receipts + payments polish + fiscal plan)
+- goods receipts UI (list + new + purchasing-page link); live: receipt
+  BR-2026-0001 created, listed, page renders. Receipts are atomic
+  create-and-issue (no issue/cancel routes) — worker C correctly omitted props.
+- payments: party balance line via /payments/party/:id/balance, silent on failure.
+- scout: docs/fiscal-build-plan.md (FODEC core first, then P1/P2 sequenced).
+- Web suite 117/117.
