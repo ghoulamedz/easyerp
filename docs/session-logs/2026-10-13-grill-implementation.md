@@ -61,3 +61,18 @@ if needed.
 - Live: note 201 DRAFT + invoice 201 DRAFT via proxy; both pages render.
 - Still open: credit-notes/new, payments/new, purchasing/production/bom new
   pages; issue/cancel web actions.
+
+## Unattended continuation (credit notes)
+- Served order lines now carry their row `id` (contracts + 5 builders;
+  delivery-note/goods-receipt already did). Precedent, not novelty: a
+  correction must name the line it reverses.
+- `credit-notes/new`: issued-invoice picker, per-line reversal quantities
+  defaulting to billed figures, overdraw refusal stays on screen. 2 tests.
+  Web suite 102/102; contracts 98/98; sales-order + delivery-note + lists
+  suites green.
+- Environmental: 11 customer-invoice issue/immutability tests need Playwright
+  chromium (PDF at issue); download blocked here, fail identically on master.
+  Live credit-note draft unverified end-to-end for the same reason (no issued
+  invoice obtainable); route proven via named NOT_FOUND + page render.
+- Still open: payments/new, purchasing/production/bom new pages; issue/cancel
+  web actions.
