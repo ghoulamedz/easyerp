@@ -83,3 +83,17 @@ if needed.
   unallocated credit. 2 tests. Web suite 104/104.
 - Live: 50.000 receipt allocating 44.625 to the draft invoice, remainder 5.375.
 - Still open: purchasing/production/bom new pages; issue/cancel web actions.
+
+## Worker wave (purchasing/production/actions)
+- 3 parallel workers, exclusive files, parent-owned i18n keys (docIssue,
+  prodBomVersion, prodFinishedItem, bomComponent x3).
+- purchasing/orders/new (optional supplier), production/orders/new (BOM version
+  picker), boms/new (shell + first version, unit selects); 8 tests.
+- DocumentList issue/cancel per-row buttons, wired per controller routes:
+  sales+purchase+production issue&cancel; delivery/invoice/credit issue only.
+  Web suite 114/114.
+- Live: supplier party, PO draft, PRODUCTION toggle on, BOM v1, production
+  draft, all new pages render; cancel-on-draft 409 + issue-no-stock
+  INSUFFICIENT_STOCK both named (wiring proven).
+- Still open: goods-receipts UI (no list page), order-linked receipts/notes,
+  payments allocation UI polish.
