@@ -121,3 +121,10 @@ if needed.
 - researcher: docs/fiscal-einvoicing-module.md (E_INVOICING off by default,
   cross-cutting not document-owning, OFF = byte-identical flow).
 - Live: wrong password 401; ADJUSTMENT_IN 50 (7.000 -> 57.000 on-hand).
+
+## E_INVOICING scaffold
+- MODULES += E_INVOICING (cross-cutting: NOT in MODULE_BY_DOCUMENT_TYPE).
+  Setup default false + setup-screen checkbox; backfill migration sets false
+  on existing DBs (absent rows read enabled). OFF = byte-identical flow.
+- Caught: z.record over enum is total — partial modules maps 422; test fixed.
+- Suites: setup+settings 26/26, contracts 98/98, web 121/121.
