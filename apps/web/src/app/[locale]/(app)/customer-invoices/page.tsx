@@ -30,6 +30,7 @@ export default async function CustomerInvoicesPage({ params }: { params: Promise
         newKey="newCustomerInvoice"
         addFirstKey="addFirstCustomerInvoice"
         emptyKey="noCustomerInvoices"
+        issuePermission="customer-invoice:issue"
       />
     </div>
   );

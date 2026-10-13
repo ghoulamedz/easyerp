@@ -30,6 +30,8 @@ export default async function SalesOrdersPage({ params }: { params: Promise<{ lo
         newKey="newSalesOrder"
         addFirstKey="addFirstSalesOrder"
         emptyKey="noSalesOrders"
+        issuePermission="sales-order:issue"
+        cancelPermission="sales-order:cancel"
       />
     </div>
   );

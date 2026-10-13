@@ -30,6 +30,7 @@ export default async function DeliveryNotesPage({ params }: { params: Promise<{ 
         newKey="newDeliveryNote"
         addFirstKey="addFirstDeliveryNote"
         emptyKey="noDeliveryNotes"
+        issuePermission="delivery-note:issue"
       />
     </div>
   );

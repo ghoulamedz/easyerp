@@ -30,6 +30,8 @@ export default async function ProductionPage({ params }: { params: Promise<{ loc
         newKey="newProductionOrder"
         addFirstKey="addFirstProductionOrder"
         emptyKey="noProductionOrders"
+        issuePermission="production-order:issue"
+        cancelPermission="production-order:cancel"
       />
     </div>
   );

@@ -30,6 +30,8 @@ export default async function PurchasingPage({ params }: { params: Promise<{ loc
         newKey="newPurchaseOrder"
         addFirstKey="addFirstPurchaseOrder"
         emptyKey="noPurchaseOrders"
+        issuePermission="purchase-order:issue"
+        cancelPermission="purchase-order:cancel"
       />
     </div>
   );
