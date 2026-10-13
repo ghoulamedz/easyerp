@@ -32,10 +32,27 @@ export interface DocumentPricedLine {
   readonly quantity: string;
   readonly unitOfMeasureId: string;
   readonly unitPrice: string;
+  /**
+   * Whether the Item is FODEC-subject. Carried so re-pricing re-derives the
+   * amount from the flag instead of trusting a stored figure.
+   */
+  readonly fodecSubject: boolean;
   readonly taxRate: string;
   readonly netAmount: string;
+  /** FODEC 1% of the net when subject, `0.000` otherwise. */
+  readonly fodecAmount: string;
   readonly taxAmount: string;
   readonly grossAmount: string;
+}
+
+/**
+ * The Item's FODEC flag. Read defensively until the §1 migration materializes
+ * `Item.fodecSubject`: a row written before it parses as absent, which means
+ * not subject — the same default the input contract carries.
+ */
+function readFodecSubject(item: unknown): boolean {
+  if (typeof item !== 'object' || item === null) return false;
+  return (item as { readonly fodecSubject?: unknown }).fodecSubject === true;
 }
 
 /** Resolve Items and price them. The single place money enters the flow. */
@@ -62,7 +79,8 @@ export async function priceItems(
 
     const unitPrice = item.salePrice.toString();
     const taxRate = item.taxRate.rate.toString();
-    const priced = priceLine({ quantity: line.quantity, unitPrice, taxRate });
+    const fodecSubject = readFodecSubject(item);
+    const priced = priceLine({ quantity: line.quantity, unitPrice, taxRate, fodecSubject });
 
     return {
       itemId: item.id,
@@ -71,8 +89,10 @@ export async function priceItems(
       quantity: line.quantity,
       unitOfMeasureId: item.saleUnitId ?? item.baseUnitId,
       unitPrice,
+      fodecSubject,
       taxRate,
       netAmount: priced.net.toString(),
+      fodecAmount: priced.fodec.toString(),
       taxAmount: priced.tax.toString(),
       grossAmount: priced.gross.toString(),
     };
@@ -82,6 +102,7 @@ export async function priceItems(
 /** Totals for a set of priced lines, reusing the one aggregation the renderer uses. */
 export function totalsOf(priced: readonly DocumentPricedLine[]): {
   netAmount: string;
+  fodecAmount: string;
   taxAmount: string;
   grossAmount: string;
   taxGroups: DocumentTaxGroup[];
@@ -92,6 +113,7 @@ export function totalsOf(priced: readonly DocumentPricedLine[]): {
         quantity: line.quantity,
         unitPrice: line.unitPrice,
         taxRate: line.taxRate,
+        fodecSubject: line.fodecSubject,
       }),
       taxRate: line.taxRate,
     })),
@@ -99,6 +121,7 @@ export function totalsOf(priced: readonly DocumentPricedLine[]): {
 
   return {
     netAmount: totals.net.toString(),
+    fodecAmount: totals.fodec.toString(),
     taxAmount: totals.tax.toString(),
     grossAmount: totals.gross.toString(),
     taxGroups: totals.taxByRate.map((group): DocumentTaxGroup => ({
@@ -111,7 +134,10 @@ export function totalsOf(priced: readonly DocumentPricedLine[]): {
 
 /** Re-aggregate the lines of an issuing transaction, without Item re-resolution. */
 export function repriceTotals(
-  priced: readonly Pick<DocumentPricedLine, 'quantity' | 'unitPrice' | 'taxRate'>[],
+  priced: readonly Pick<
+    DocumentPricedLine,
+    'quantity' | 'unitPrice' | 'taxRate' | 'fodecSubject'
+  >[],
 ) {
   return sumLines(
     priced.map((line) => ({
@@ -119,6 +145,7 @@ export function repriceTotals(
         quantity: line.quantity,
         unitPrice: line.unitPrice,
         taxRate: line.taxRate,
+        fodecSubject: line.fodecSubject,
       }),
       taxRate: line.taxRate,
     })),

@@ -71,6 +71,12 @@ export interface CustomerInvoiceView {
   readonly stampDuty: string | null;
   readonly withholdingTax: string | null;
   /**
+   * FODEC 1% total, printed as its own row before VAT (research §2:
+   * line-level, before VAT). Passed through from already-computed totals,
+   * never recomputed here. `null` (or zero) means "does not print".
+   */
+  readonly fodec: string | null;
+  /**
    * The number of the corrected Invoice. Present only on a Credit Note; an
    * avoir without its source would be unanswerable in the file, so the field is
    * part of the Credit Note's printed field set.
@@ -96,6 +102,8 @@ export interface CustomerInvoiceInput {
   readonly correctedNumber?: string | null;
   readonly stampDuty?: string | null;
   readonly withholdingTax?: string | null;
+  /** FODEC total passed through from already-computed totals; never recomputed. */
+  readonly fodec?: string | null;
 }
 
 export function buildCustomerInvoice(input: CustomerInvoiceInput): CustomerInvoiceView {
@@ -144,6 +152,7 @@ export function buildCustomerInvoice(input: CustomerInvoiceInput): CustomerInvoi
     gross: totals.gross.toString(),
     stampDuty: optionalMoney(input.stampDuty),
     withholdingTax: optionalMoney(input.withholdingTax),
+    fodec: optionalMoney(input.fodec),
   };
 }
 

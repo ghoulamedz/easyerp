@@ -19,10 +19,20 @@ export interface PricedLineInput {
   readonly unitPrice: string;
   /** Resolved from the Item's tax assignment, never from the request. */
   readonly taxRate: string;
+  /**
+   * Whether the Item is FODEC-subject. Optional so callers pricing rows that
+   * predate the flag keep compiling; absent means not subject.
+   */
+  readonly fodecSubject?: boolean;
 }
+
+/** FODEC rate in percent, applied to the HT net of a subject line (research §2). */
+export const FODEC_RATE = '1';
 
 export interface LineAmounts {
   readonly net: Amount;
+  /** FODEC 1% of the net when the line is subject, zero otherwise. */
+  readonly fodec: Amount;
   readonly tax: Amount;
   readonly gross: Amount;
 }
@@ -45,9 +55,15 @@ export interface DocumentAmounts extends LineAmounts {
 }
 
 export function priceLine(input: PricedLineInput): LineAmounts {
+  // Canonical order, frozen per docs/tunisia-fiscal-research.md §2: net is
+  // qty × unitPrice (rounded once) → fodec is 1% of the net for a subject line
+  // (rounded once) → the VAT base is net + fodec → tax is base × rate (rounded
+  // once) → gross is base + tax. A non-subject line prices exactly as before.
   const net = Amount.parse(input.unitPrice).timesQuantity(input.quantity);
-  const tax = net.timesRate(input.taxRate);
-  return { net, tax, gross: net.plus(tax) };
+  const fodec = input.fodecSubject === true ? net.timesRate(FODEC_RATE) : Amount.zero();
+  const base = net.plus(fodec);
+  const tax = base.timesRate(input.taxRate);
+  return { net, fodec, tax, gross: base.plus(tax) };
 }
 
 /**
@@ -61,6 +77,9 @@ export function sumLines(
   const taxByRate = new Map<string, { base: Amount; amount: Amount }>();
 
   const net = lines.reduce<Amount>((total, line) => total.plus(line.net), Amount.zero());
+  // The FODEC total is the sum of the rounded line figures, never recomputed
+  // from the summed net: rounding each line first can differ from rounding once.
+  const fodec = lines.reduce<Amount>((total, line) => total.plus(line.fodec), Amount.zero());
   const tax = lines.reduce<Amount>((total, line) => total.plus(line.tax), Amount.zero());
   const gross = lines.reduce<Amount>((total, line) => total.plus(line.gross), Amount.zero());
 
@@ -77,6 +96,7 @@ export function sumLines(
 
   return {
     net,
+    fodec,
     tax,
     gross,
     taxByRate: [...taxByRate.entries()].map(([rate, group]) => ({ rate, ...group })),

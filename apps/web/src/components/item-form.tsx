@@ -52,6 +52,7 @@ export function ItemForm({ locale }: { locale: Locale }) {
   const [purchasePrice, setPurchasePrice] = useState('0');
   const [reorderPoint, setReorderPoint] = useState('');
   const [isActive, setIsActive] = useState(true);
+  const [fodecSubject, setFodecSubject] = useState(false);
 
   const [units, setUnits] = useState<readonly UnitRecord[]>([]);
   const [rates, setRates] = useState<readonly TaxRateRecord[]>([]);
@@ -101,6 +102,7 @@ export function ItemForm({ locale }: { locale: Locale }) {
         purchasePrice: purchasePrice.trim(),
         reorderPoint: reorderPoint.trim() === '' ? null : reorderPoint.trim(),
         isActive,
+        fodecSubject,
       });
       router.push(`/${locale}/items`);
       router.refresh();
@@ -253,6 +255,16 @@ export function ItemForm({ locale }: { locale: Locale }) {
                 onChange={(e) => setReorderPoint(e.target.value)}
                 className={FIELD}
               />
+            </div>
+            <div className="flex items-end pb-2">
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input
+                  type="checkbox"
+                  checked={fodecSubject}
+                  onChange={(e) => setFodecSubject(e.target.checked)}
+                />
+                {t('itemFodec')}
+              </label>
             </div>
             <div className="flex items-end pb-2">
               <label className="flex items-center gap-2 text-sm text-ink">

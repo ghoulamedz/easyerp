@@ -19,6 +19,7 @@ import {
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
 import { notFound, validationFailed } from '../common/errors.js';
+import { Amount } from '../finance/amount.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
@@ -308,6 +309,7 @@ export class GoodsReceiptService {
       issuedAt: receipt.issuedAt?.toISOString() ?? null,
       totals: {
         netAmount: money(receipt.netAmount.toString()),
+        fodecAmount: money(fodecTotal(receipt.lines)),
         taxAmount: money(receipt.taxAmount.toString()),
         grossAmount: money(receipt.grossAmount.toString()),
         withholdingTaxAmount: money(receipt.withholdingTaxAmount.toString()),
@@ -368,6 +370,7 @@ interface LineRow {
   readonly unitPrice: string;
   readonly taxRate: string;
   readonly netAmount: string;
+  readonly fodecAmount: string;
   readonly taxAmount: string;
   readonly grossAmount: string;
 }
@@ -382,7 +385,22 @@ function lineRow(line: DocumentPricedLine, position: number): LineRow {
     unitPrice: line.unitPrice,
     taxRate: line.taxRate,
     netAmount: line.netAmount,
+    fodecAmount: line.fodecAmount,
     taxAmount: line.taxAmount,
     grossAmount: line.grossAmount,
   };
+}
+
+/**
+ * The served FODEC total. There is no `Document.fodecAmount` column by design
+ * (migration 20261013180000): the total is the sum of the stored generic line
+ * figures, so the total and the lines cannot disagree.
+ */
+function fodecTotal(lines: readonly { fodecAmount: { toString(): string } }[]): string {
+  return lines
+    .reduce(
+      (total, line) => total.plus(Amount.parse(line.fodecAmount.toString())),
+      Amount.zero(),
+    )
+    .toString();
 }

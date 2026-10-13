@@ -43,6 +43,7 @@ import {
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
 import { conflict, DomainError, invariant, notFound, validationFailed } from '../common/errors.js';
+import { Amount } from '../finance/amount.js';
 import { Prisma } from '../generated/prisma/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
@@ -504,6 +505,7 @@ interface OrderLineRow {
   readonly unitPrice: string;
   readonly taxRate: string;
   readonly netAmount: string;
+  readonly fodecAmount: string;
   readonly taxAmount: string;
   readonly grossAmount: string;
 }
@@ -518,9 +520,24 @@ function orderLineRow(line: DocumentPricedLine, position: number): OrderLineRow 
     unitPrice: line.unitPrice,
     taxRate: line.taxRate,
     netAmount: line.netAmount,
+    fodecAmount: line.fodecAmount,
     taxAmount: line.taxAmount,
     grossAmount: line.grossAmount,
   };
+}
+
+/**
+ * The served FODEC total. There is no `Document.fodecAmount` column by design
+ * (migration 20261013180000): the total is the sum of the stored line figures,
+ * so the total and the lines cannot disagree.
+ */
+function fodecTotal(lines: readonly { fodecAmount: { toString(): string } }[]): string {
+  return lines
+    .reduce(
+      (total, line) => total.plus(Amount.parse(line.fodecAmount.toString())),
+      Amount.zero(),
+    )
+    .toString();
 }
 
 /** Map an order row (lines, party, reservations) to the contract response. */
@@ -541,6 +558,7 @@ function toSalesOrder(order: DocumentWithReservation): SalesOrder {
     issuedAt: order.issuedAt?.toISOString() ?? null,
     totals: {
       netAmount: order.netAmount.toString(),
+      fodecAmount: fodecTotal(order.lines),
       taxAmount: order.taxAmount.toString(),
       grossAmount: order.grossAmount.toString(),
       withholdingTaxAmount: order.withholdingTaxAmount.toString(),
@@ -565,6 +583,7 @@ function toSalesOrder(order: DocumentWithReservation): SalesOrder {
       unitPrice: line.unitPrice.toString(),
       taxRate: line.taxRate.toString(),
       netAmount: line.netAmount.toString(),
+      fodecAmount: line.fodecAmount.toString(),
       taxAmount: line.taxAmount.toString(),
       grossAmount: line.grossAmount.toString(),
       deliveredQuantity: (deliveredByLine.get(line.id) ?? new Decimal(0)).toString(),

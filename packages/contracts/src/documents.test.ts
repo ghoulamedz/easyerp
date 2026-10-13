@@ -6,6 +6,7 @@ import {
   DOCUMENT_STATUSES,
   DOCUMENT_TYPES,
   documentStatusSchema,
+  documentTotalsSchema,
   documentTypeSchema,
   draftCreditNoteSchema,
   draftSalesOrderSchema,
@@ -14,6 +15,7 @@ import {
   isNumbered,
   numberPatternSchema,
   orderLineInputSchema,
+  orderLineSchema,
   renderDocumentNumber,
   salesOrderSchema,
   salesOrderUpdateSchema,
@@ -157,6 +159,43 @@ describe('order line input', () => {
   });
 });
 
+describe('priced line and totals', () => {
+  const line = {
+    id: 'line_1',
+    itemId: 'item_1',
+    quantity: '2',
+    unitPrice: '150.000',
+    taxRate: '19',
+    netAmount: '300.000',
+    fodecAmount: '3.000',
+    taxAmount: '57.570',
+    grossAmount: '360.570',
+  };
+
+  it('carries the FODEC figure on every priced line', () => {
+    expect(orderLineSchema.parse(line).fodecAmount).toBe('3.000');
+  });
+
+  it('rejects a priced line without its FODEC figure, so a client cannot drop it', () => {
+    const { fodecAmount: _dropped, ...withoutFodec } = line;
+    expect(orderLineSchema.safeParse(withoutFodec).success).toBe(false);
+  });
+
+  it('carries the summed FODEC figure on the totals, never recomputed downstream', () => {
+    const totals = {
+      netAmount: '300.000',
+      fodecAmount: '3.000',
+      taxAmount: '57.570',
+      grossAmount: '360.570',
+      withholdingTaxAmount: '0.000',
+      stampDutyAmount: '0.000',
+    };
+    expect(documentTotalsSchema.parse(totals).fodecAmount).toBe('3.000');
+    const { fodecAmount: _dropped, ...withoutFodec } = totals;
+    expect(documentTotalsSchema.safeParse(withoutFodec).success).toBe(false);
+  });
+});
+
 describe('Sales Order drafts', () => {
   const valid = {
     businessId: 'biz_1',
@@ -204,6 +243,7 @@ describe('Sales Order responses', () => {
     issuedAt: '2026-10-06T00:00:00.000Z',
     totals: {
       netAmount: '300.000',
+      fodecAmount: '0.000',
       taxAmount: '57.000',
       grossAmount: '357.000',
       withholdingTaxAmount: '0.000',
@@ -229,6 +269,7 @@ describe('Sales Order responses', () => {
         unitPrice: '150.000',
         taxRate: '19',
         netAmount: '300.000',
+        fodecAmount: '0.000',
         taxAmount: '57.000',
         grossAmount: '357.000',
         deliveredQuantity: '0.000',
@@ -293,6 +334,7 @@ describe('credit note', () => {
       issuedAt: '2026-10-07T00:00:00.000Z',
       totals: {
         netAmount: '-330.000',
+        fodecAmount: '0.000',
         taxAmount: '-62.700',
         grossAmount: '-392.700',
         withholdingTaxAmount: '0.000',
@@ -346,6 +388,7 @@ describe('credit note', () => {
       issuedAt: null,
       totals: {
         netAmount: '0.000',
+        fodecAmount: '0.000',
         taxAmount: '0.000',
         grossAmount: '0.000',
         withholdingTaxAmount: '0.000',
@@ -394,6 +437,7 @@ describe('credit note', () => {
       issuedAt: null,
       totals: {
         netAmount: '0.000',
+        fodecAmount: '0.000',
         taxAmount: '0.000',
         grossAmount: '0.000',
         withholdingTaxAmount: '0.000',

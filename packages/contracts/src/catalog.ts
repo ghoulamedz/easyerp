@@ -54,6 +54,12 @@ export const itemSchema = z.object({
   purchaseUnitId: z.string().min(1).nullable(),
   saleUnitId: z.string().min(1).nullable(),
   taxRateId: z.string().min(1),
+  /**
+   * Whether the Item is subject to FODEC (fonds de développement de la
+   * compétitivité): 1% of the HT net, priced line-level before VAT
+   * (docs/tunisia-fiscal-research.md §2). Required on read; optional on input.
+   */
+  fodecSubject: z.boolean(),
   /** Resolved by the server; a client never sends a price (ADR 0005). */
   salePrice: moneySchema,
   purchasePrice: moneySchema,
@@ -69,7 +75,11 @@ export type Item = z.infer<typeof itemSchema>;
 /** What a client may send when creating or updating an Item. */
 export const itemInputSchema = itemSchema
   .omit({ id: true, isService: true })
-  .extend({ customFields: z.record(z.string(), z.unknown()).optional() })
+  .extend({
+    customFields: z.record(z.string(), z.unknown()).optional(),
+    /** An Item is not FODEC-subject unless the client says so. */
+    fodecSubject: z.boolean().default(false),
+  })
   .strict();
 export type ItemInput = z.infer<typeof itemInputSchema>;
 

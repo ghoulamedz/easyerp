@@ -62,6 +62,7 @@ function toRecord(row: {
   purchaseUnitId: string | null;
   saleUnitId: string | null;
   taxRateId: string;
+  fodecSubject: boolean;
   salePrice: { toFixed(digits: number): string };
   purchasePrice: { toFixed(digits: number): string };
   reorderPoint: { toFixed(digits: number): string } | null;
@@ -78,6 +79,7 @@ function toRecord(row: {
     purchaseUnitId: row.purchaseUnitId,
     saleUnitId: row.saleUnitId,
     taxRateId: row.taxRateId,
+    fodecSubject: row.fodecSubject,
     salePrice: row.salePrice.toFixed(3),
     purchasePrice: row.purchasePrice.toFixed(3),
     reorderPoint: row.reorderPoint?.toFixed(3) ?? null,
@@ -119,6 +121,7 @@ export class ItemService {
           purchaseUnitId: parsed.purchaseUnitId,
           saleUnitId: parsed.saleUnitId,
           taxRateId: parsed.taxRateId,
+          fodecSubject: parsed.fodecSubject,
           salePrice: parsed.salePrice,
           purchasePrice: parsed.purchasePrice,
           reorderPoint: parsed.reorderPoint,
@@ -199,6 +202,7 @@ export class ItemService {
           ...(patch.purchaseUnitId !== undefined && { purchaseUnitId: patch.purchaseUnitId }),
           ...(patch.saleUnitId !== undefined && { saleUnitId: patch.saleUnitId }),
           ...(patch.taxRateId !== undefined && { taxRateId: patch.taxRateId }),
+          ...(patch.fodecSubject !== undefined && { fodecSubject: patch.fodecSubject }),
           ...(patch.salePrice !== undefined && { salePrice: patch.salePrice }),
           ...(patch.purchasePrice !== undefined && { purchasePrice: patch.purchasePrice }),
           ...(patch.reorderPoint !== undefined && { reorderPoint: patch.reorderPoint }),

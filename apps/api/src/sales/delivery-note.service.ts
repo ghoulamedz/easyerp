@@ -380,6 +380,9 @@ function toDeliveryNote(note: NoteWithOrderAndLines): DeliveryNote {
       grossAmount: money(note.grossAmount.toString()),
       withholdingTaxAmount: money(note.withholdingTaxAmount.toString()),
       stampDutyAmount: money(note.stampDutyAmount.toString()),
+      // Notes are quantity documents: lines carry no money and totals stay
+      // zero, so there is no FODEC to total here.
+      fodecAmount: money('0.000'),
     },
     businessId: note.businessId,
     party: {

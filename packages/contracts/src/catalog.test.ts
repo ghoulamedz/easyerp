@@ -52,6 +52,7 @@ describe('paginatedSchema', () => {
           purchaseUnitId: null,
           saleUnitId: null,
           taxRateId: 'r1',
+          fodecSubject: false,
           salePrice: '12.500',
           purchasePrice: '8.000',
           reorderPoint: null,
@@ -102,6 +103,44 @@ describe('itemInputSchema', () => {
         isActive: true,
       }).success,
     ).toBe(false);
+  });
+
+  it('defaults an Item to not FODEC-subject unless the client says so', () => {
+    const parsed = itemInputSchema.parse({
+      code: 'SVC-1',
+      name: 'Maintenance',
+      description: null,
+      itemType: 'SERVICE',
+      baseUnitId: 'u1',
+      purchaseUnitId: null,
+      saleUnitId: null,
+      taxRateId: 'r1',
+      salePrice: '100',
+      purchasePrice: '0',
+      reorderPoint: null,
+      isActive: true,
+    });
+    expect(parsed.fodecSubject).toBe(false);
+  });
+
+  it('accepts an explicitly FODEC-subject Item', () => {
+    const parsed = itemInputSchema.parse({
+      code: 'IND-001',
+      name: 'Tôle galvanisée',
+      description: null,
+      itemType: 'FINISHED_GOOD',
+      baseUnitId: 'u1',
+      purchaseUnitId: null,
+      saleUnitId: null,
+      taxRateId: 'r1',
+      fodecSubject: true,
+      salePrice: '100',
+      purchasePrice: '80',
+      reorderPoint: null,
+      isActive: true,
+    });
+    expect(parsed.fodecSubject).toBe(true);
+    expect(itemSchema.parse({ ...parsed, id: 'i1', isService: false }).fodecSubject).toBe(true);
   });
 
   it('derives no isService field from the client; the server computes it', () => {

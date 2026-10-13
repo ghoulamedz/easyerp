@@ -52,28 +52,40 @@ interface ReversalRow {
   readonly unitPrice: string;
   readonly taxRate: string;
   readonly netAmount: string;
+  /** The Invoice line's stored FODEC figure carried pro-rata, never re-derived. */
+  readonly fodecAmount: string;
   readonly taxAmount: string;
   readonly grossAmount: string;
   readonly correctsDocumentLineId: string;
 }
 
 /**
- * Pro-rata reversal figures for one requested correction. The unit price and
- * the tax rate are the Invoice line's stored figures; only the quantity is new.
- * Everything is negated before it is stored.
+ * Pro-rata reversal figures for one requested correction. The unit price, the
+ * tax rate and the FODEC figure are the Invoice line's stored figures; only
+ * the quantity is new. Everything is negated before it is stored.
+ *
+ * The FODEC figure is the stored line figure carried pro-rata — never
+ * re-derived from the Item's current flag, so a flag changed after billing
+ * cannot alter the correction of what was billed. The billed quantity is
+ * strictly positive (contracts `quantitySchema`), so the pro-rata divisor is
+ * never zero.
  */
 function reversalOf(
-  invoiceLine: { unitPrice: string; taxRate: string },
+  invoiceLine: { unitPrice: string; taxRate: string; fodecAmount: string; quantity: string },
   reverseQuantity: string,
 ): Omit<ReversalRow, 'itemId' | 'unitOfMeasureId' | 'description' | 'correctsDocumentLineId'> {
   const net = Amount.parse(invoiceLine.unitPrice).timesQuantity(reverseQuantity);
   const tax = net.timesRate(invoiceLine.taxRate);
+  const fodec = Amount.parse(invoiceLine.fodecAmount)
+    .timesQuantity(reverseQuantity)
+    .divide(invoiceLine.quantity);
   const gross = net.plus(tax);
   return {
     quantity: Amount.parse(reverseQuantity).negated().toString(),
     unitPrice: invoiceLine.unitPrice,
     taxRate: invoiceLine.taxRate,
     netAmount: net.negated().toString(),
+    fodecAmount: fodec.negated().toString(),
     taxAmount: tax.negated().toString(),
     grossAmount: gross.negated().toString(),
   };
@@ -179,6 +191,7 @@ export class CreditNoteService {
             unitPrice: row.unitPrice,
             taxRate: row.taxRate,
             netAmount: row.netAmount,
+            fodecAmount: row.fodecAmount,
             taxAmount: row.taxAmount,
             grossAmount: row.grossAmount,
             correctsDocumentLineId: row.correctsDocumentLineId,
@@ -336,6 +349,7 @@ export class CreditNoteService {
       issuedAt: creditNote.issuedAt?.toISOString() ?? null,
       totals: {
         netAmount: money(creditNote.netAmount.toString()),
+        fodecAmount: money(fodecTotal(creditNote.lines)),
         taxAmount: money(creditNote.taxAmount.toString()),
         grossAmount: money(creditNote.grossAmount.toString()),
         withholdingTaxAmount: money(creditNote.withholdingTaxAmount.toString()),
@@ -426,7 +440,12 @@ export class CreditNoteService {
         );
       }
       const figures = reversalOf(
-        { unitPrice: billed.unitPrice.toString(), taxRate: billed.taxRate.toString() },
+        {
+          unitPrice: billed.unitPrice.toString(),
+          taxRate: billed.taxRate.toString(),
+          fodecAmount: billed.fodecAmount.toString(),
+          quantity: billed.quantity.toString(),
+        },
         line.quantity,
       );
       return {
@@ -553,4 +572,13 @@ function sumOf(values: readonly string[]): string {
   return values
     .reduce<Amount>((total, value) => total.plus(Amount.parse(value)), Amount.zero())
     .toString();
+}
+
+/**
+ * The served FODEC total. There is no `Document.fodecAmount` column by design
+ * (migration 20261013180000): the total is the sum of the stored line figures,
+ * so the total and the lines cannot disagree.
+ */
+function fodecTotal(lines: readonly { fodecAmount: { toString(): string } }[]): string {
+  return sumOf(lines.map((line) => line.fodecAmount.toString()));
 }

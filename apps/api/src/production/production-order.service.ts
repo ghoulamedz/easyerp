@@ -20,6 +20,7 @@ import {
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
 import { conflict, invariant, notFound, validationFailed } from '../common/errors.js';
+import { Amount } from '../finance/amount.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
@@ -490,6 +491,7 @@ export class ProductionOrderService {
       issuedAt: order.issuedAt?.toISOString() ?? null,
       totals: {
         netAmount: money(order.netAmount.toString()),
+        fodecAmount: money(fodecTotal(order.lines)),
         taxAmount: money(order.taxAmount.toString()),
         grossAmount: money(order.grossAmount.toString()),
         withholdingTaxAmount: money(order.withholdingTaxAmount.toString()),
@@ -505,6 +507,7 @@ export class ProductionOrderService {
         unitPrice: money(line.unitPrice.toString()),
         taxRate: rate(line.taxRate.toString()),
         netAmount: money(line.netAmount.toString()),
+        fodecAmount: money(line.fodecAmount.toString()),
         taxAmount: money(line.taxAmount.toString()),
         grossAmount: money(line.grossAmount.toString()),
       })),
@@ -550,6 +553,7 @@ interface LineRow {
   readonly unitPrice: string;
   readonly taxRate: string;
   readonly netAmount: string;
+  readonly fodecAmount: string;
   readonly taxAmount: string;
   readonly grossAmount: string;
 }
@@ -564,7 +568,22 @@ function lineRow(line: DocumentPricedLine, position: number): LineRow {
     unitPrice: line.unitPrice,
     taxRate: line.taxRate,
     netAmount: line.netAmount,
+    fodecAmount: line.fodecAmount,
     taxAmount: line.taxAmount,
     grossAmount: line.grossAmount,
   };
+}
+
+/**
+ * The served FODEC total. There is no `Document.fodecAmount` column by design
+ * (migration 20261013180000): the total is the sum of the stored line figures,
+ * so the total and the lines cannot disagree.
+ */
+function fodecTotal(lines: readonly { fodecAmount: { toString(): string } }[]): string {
+  return lines
+    .reduce(
+      (total, line) => total.plus(Amount.parse(line.fodecAmount.toString())),
+      Amount.zero(),
+    )
+    .toString();
 }

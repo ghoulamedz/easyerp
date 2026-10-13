@@ -74,9 +74,9 @@ export function SetupScreen({ locale }: { locale: Locale }) {
     { id: 'initial-kg', code: 'KG', allowsFraction: true },
   ]);
   const [rates, setRates] = useState<RateRow[]>([
-    { id: 'initial-tva19', code: 'TVA19', rate: '0.19' },
-    { id: 'initial-tva13', code: 'TVA13', rate: '0.13' },
-    { id: 'initial-tva07', code: 'TVA07', rate: '0.07' },
+    { id: 'initial-tva19', code: 'TVA19', rate: '19' },
+    { id: 'initial-tva13', code: 'TVA13', rate: '13' },
+    { id: 'initial-tva07', code: 'TVA07', rate: '7' },
   ]);
 
   // Show/hide states for password fields
@@ -470,7 +470,7 @@ export function SetupScreen({ locale }: { locale: Locale }) {
                     aria-label={t('setupRateValue')}
                     dir="ltr"
                     inputMode="decimal"
-                    placeholder="0.19"
+                    placeholder="19"
                     value={row.rate}
                     onChange={(event) =>
                       setRates(rates.map((entry) => (entry.id === row.id ? { ...entry, rate: event.target.value } : entry)))

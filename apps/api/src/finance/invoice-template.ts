@@ -137,13 +137,26 @@ function renderTotals(invoice: CustomerInvoiceView): string {
 
   // Stamp duty and withholding are separate lines (ADR 0011): neither is VAT and
   // neither belongs inside the gross total a client reconciles against their
-  // payment. They print below it or not at all.
+  // payment. They print below it or not at all. FODEC is the same kind of
+  // separate line, except it prints above the gross (research §2: line-level,
+  // before VAT) and only when non-zero, so documents without FODEC render
+  // byte-identical to before. The label is the statutory acronym itself, which
+  // is locale-invariant, so no terminology code is needed.
   const optionalLine = (value: string | null, label: string): string =>
     value === null
       ? ''
       : `
           <tr>
             <th scope="row">${escapeHtml(label)}</th>
+            <td class="numeric">${escapeHtml(formatMoney(value))}</td>
+          </tr>`;
+
+  const fodecLine = (value: string | null): string =>
+    value === null || new Decimal(value).isZero()
+      ? ''
+      : `
+          <tr>
+            <th scope="row">${escapeHtml('FODEC')}</th>
             <td class="numeric">${escapeHtml(formatMoney(value))}</td>
           </tr>`;
 
@@ -154,6 +167,7 @@ function renderTotals(invoice: CustomerInvoiceView): string {
             <th scope="row">${escapeHtml(labels('field.subtotal'))}</th>
             <td class="numeric">${escapeHtml(formatMoney(invoice.net))}</td>
           </tr>
+          ${fodecLine(invoice.fodec)}
           ${
             invoice.vatRegime === 'STANDARD'
               ? `

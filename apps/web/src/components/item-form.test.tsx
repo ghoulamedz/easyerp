@@ -61,6 +61,31 @@ describe('ItemForm', () => {
     await waitFor(() => expect(push).toHaveBeenCalledWith('/en/items'));
   });
 
+  it('posts fodecSubject when the FODEC box is checked', async () => {
+    const user = userEvent.setup();
+    let posted: Record<string, unknown> | null = null;
+    mockFetch((url, init) => {
+      if (url === '/api/settings/units' && (!init?.method || init.method === 'GET')) return units;
+      if (url === '/api/settings/tax-rates') return rates;
+      if (url === '/api/items') {
+        posted = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return { id: 'i-1' };
+      }
+      throw new Error(`unexpected ${init?.method} ${url}`);
+    });
+
+    render(<ItemForm locale="en" />);
+
+    expect(await screen.findByLabelText('Item code')).toBeInTheDocument();
+    await user.type(screen.getByLabelText('Item code'), 'WIDGET');
+    await user.type(screen.getByLabelText('Name'), 'Widget');
+    await user.click(screen.getByLabelText('FODEC-applicable'));
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/en/items'));
+    expect(posted).toMatchObject({ fodecSubject: true });
+  });
+
   it('shows the refusal instead of navigating away', async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn(async (url: unknown) => {

@@ -369,6 +369,10 @@ model Item {
   saleUnit       Unit?                 @relation("ItemSaleUnit", fields: [saleUnitId], references: [id])
   taxRateId      String
   taxRate        TaxRate               @relation(fields: [taxRateId], references: [id])
+  /// Whether the Item is subject to FODEC (fonds de développement de la
+  /// compétitivité): 1% of the HT net, priced line-level before VAT
+  /// (docs/tunisia-fiscal-research.md §2). False unless the Business says so.
+  fodecSubject   Boolean               @default(false)
   /// Resolved by the server. A request never carries a price (ADR 0005).
   salePrice      Decimal               @default(0) @db.Decimal(18, 3)
   purchasePrice  Decimal               @default(0) @db.Decimal(18, 3)
@@ -534,6 +538,10 @@ model DocumentLine {
   /// The Item's own rate, snapshotted. Numeric, so two lines of the same rate
   /// aggregate into one printed group.
   taxRate         Decimal         @db.Decimal(5, 3)
+  /// FODEC 1% of the net when the Item was subject, zero otherwise. Stored like
+  /// every other priced figure, so the document is reproducible after the
+  /// Item's flag changes; a Credit Note carries the stored figure pro-rata.
+  fodecAmount     Decimal         @default(0) @db.Decimal(18, 3)
   netAmount       Decimal         @db.Decimal(18, 3)
   taxAmount       Decimal         @db.Decimal(18, 3)
   grossAmount     Decimal         @db.Decimal(18, 3)

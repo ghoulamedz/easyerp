@@ -197,6 +197,9 @@ export const orderLineSchema = orderLineInputSchema.extend({
   unitPrice: moneySchema.describe('Resolved from the Item price, never from the request.'),
   taxRate: rateSchema.describe('Resolved from the Item tax assignment.'),
   netAmount: moneySchema,
+  fodecAmount: moneySchema.describe(
+    'FODEC 1% of the net when the Item is subject, zero otherwise (research §2).',
+  ),
   taxAmount: moneySchema,
   grossAmount: moneySchema,
 });
@@ -204,6 +207,8 @@ export type OrderLine = z.infer<typeof orderLineSchema>;
 
 export const documentTotalsSchema = z.object({
   netAmount: moneySchema,
+  /** FODEC total: the sum of the priced line figures, never recomputed from totals. */
+  fodecAmount: moneySchema,
   taxAmount: moneySchema,
   grossAmount: moneySchema,
   /** Retenue à la source, a legal deduction in some regimes. Zero elsewhere. */
