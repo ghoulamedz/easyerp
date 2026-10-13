@@ -113,3 +113,11 @@ if needed.
   skip fully-delivered). Web suite 119/119.
 - Live: order detail carries line ids + deliveredQuantity (linking
   prerequisite proven). Full issue chain untestable here (PDF needs chromium).
+
+## Worker wave 4 (stock dialogs + e-invoicing plan)
+- stock-list: per-row Open/Adjust, stock:adjust-gated, password via same-user
+  sign-in check (bare fetch, 401 = wrong password), refetch on success.
+  2 tests. Web suite 121/121.
+- researcher: docs/fiscal-einvoicing-module.md (E_INVOICING off by default,
+  cross-cutting not document-owning, OFF = byte-identical flow).
+- Live: wrong password 401; ADJUSTMENT_IN 50 (7.000 -> 57.000 on-hand).
