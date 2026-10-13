@@ -141,3 +141,12 @@ if needed.
 - Suites: contracts 103, web 122, sales-order/delivery/lists/catalog green;
   11 PDF-issue tests environmental (no chromium).
 - Live: FODEC item -> order line fodec 2.000, totals reconcile.
+
+## 7-worker wave (settings/users/stock/docs + 2 scouts)
+- Tax rates UI (page + create + retire); fiscal lock REMOVED per owner reversal
+  (all settings editable + password confirm); users edit/remove (soft delete,
+  last-admin/self guards) + 2 identity tests; stock opening removed;
+  View/Print on issued invoice/credit-note rows; stockSetOpening purged.
+- Suites: web 138, identity+settings 36/36. Live: fiscal PATCH 200,
+  tax-rates list + page render.
+- Scout: FODEC ELI5 (3 lines) + docs/deploy-vercel-neon-free.md (15 steps).
