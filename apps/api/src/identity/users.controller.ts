@@ -19,6 +19,14 @@ import { UsersService, type UserSummary } from './users.service.js';
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
+  /** The caller, with the same permissions SessionGuard enforces. The web
+   * session hook reads this — never Better Auth's raw get-session, which
+   * knows nothing about our roles. */
+  @Get('me')
+  me(@CurrentUser() user: SessionUser): SessionUser {
+    return user;
+  }
+
   @RequirePermissions('user:read')
   @Get()
   list(): Promise<UserSummary[]> {

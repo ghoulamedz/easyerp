@@ -146,17 +146,20 @@ export class PaymentsService {
   }
 
   /**
-   * List all Payments for a Party with pagination.
+   * List Payments, optionally filtered by Party/Business, with pagination.
    */
   async list(
-    partyId: string,
-    businessId: string,
+    partyId: string | null,
+    businessId: string | null,
     page: number,
     pageSize: number,
   ): Promise<PaymentPage> {
+    const where: Record<string, unknown> = {};
+    if (businessId) where.businessId = businessId;
+    if (partyId) where.partyId = partyId;
     const [items, total] = await Promise.all([
       this.prisma.payment.findMany({
-        where: { businessId, partyId },
+        where,
         include: {
           allocations: {
             include: {
@@ -170,7 +173,7 @@ export class PaymentsService {
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.payment.count({ where: { businessId, partyId } }),
+      this.prisma.payment.count({ where }),
     ]);
 
     return {

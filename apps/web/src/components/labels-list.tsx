@@ -34,7 +34,7 @@ export function LabelsList({ locale }: { locale: Locale }) {
       <div className="py-8 text-center">
         <p className="text-sm text-ink-muted">{t('noLabels')}</p>
         {canManage ? (
-          <a href={`/${locale}/settings/labels/new`} className="btn btn-outline mt-4 inline-block">
+          <a href={`/${locale}/settings/labels/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
             {t('addFirstLabel')}
           </a>
         ) : null}
@@ -46,7 +46,7 @@ export function LabelsList({ locale }: { locale: Locale }) {
     <div>
       {canManage ? (
         <div className="mb-4 flex justify-end">
-          <a href={`/${locale}/settings/labels/new`} className="btn btn-primary">
+          <a href={`/${locale}/settings/labels/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">
             {t('newLabel')}
           </a>
         </div>

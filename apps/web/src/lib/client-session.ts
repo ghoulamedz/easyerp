@@ -1,28 +1,31 @@
 import { useEffect, useState } from 'react';
-import { apiGet } from './api';
+import type { SessionUser } from '@easyerp/contracts';
 
-/** The shape of the session user returned by GET /api/auth/get-session. */
+/** The session identity, exactly as the API's guards resolve it. */
 export interface ClientSession {
-  readonly user: {
-    readonly id: string;
-    readonly email: string;
-    readonly displayName: string;
-    readonly isActive: boolean;
-    readonly roleIds: readonly string[];
-    readonly permissions: readonly string[];
-  };
+  readonly user: SessionUser;
 }
 
-/** Fetch the current session user (including permissions) for client components. */
+/**
+ * Fetch the current session user (including permissions) for client components.
+ *
+ * Reads `GET /api/users/me` — the `SessionUser` the guards enforce — never
+ * Better Auth's raw `get-session`, which knows nothing about our roles. That
+ * raw shape (`{ session, user: { name, emailVerified, … } }`) has no
+ * `permissions`, so every `useHasPermission` returned false and every Add
+ * button hid while the token sat valid in cookies.
+ */
 export async function fetchSession(): Promise<ClientSession | null> {
   try {
-    const response = await fetch(`/api/auth/get-session`, {
+    const response = await fetch(`/api/users/me`, {
       credentials: 'include',
     });
     if (!response.ok) return null;
-    const data = await response.json();
-    if (!data || typeof data !== 'object' || !('user' in data)) return null;
-    return data as ClientSession;
+    const user = (await response.json()) as SessionUser;
+    if (!user || typeof user !== 'object' || !user.id || !Array.isArray(user.permissions)) {
+      return null;
+    }
+    return { user };
   } catch {
     return null;
   }
@@ -46,8 +49,6 @@ export function useSession() {
 
     loadSession();
 
-    // TODO: Consider using websockets or polling for real-time updates
-    // For now, we just load once on mount
     return () => {
       cancelled = true;
     };

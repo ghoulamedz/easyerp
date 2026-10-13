@@ -218,6 +218,7 @@ export class StockLedgerService {
     });
 
     const ids = items.map((item) => item.id);
+    if (ids.length === 0) return [];
     // Lock the Item rows to prevent stale reads from concurrent stock changes
     await this.prisma.$executeRaw`SELECT id FROM item WHERE id IN (${Prisma.join(ids)}) FOR UPDATE`;
 

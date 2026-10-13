@@ -57,7 +57,7 @@ export function StockList({ locale }: { locale: Locale }) {
   return (
     <div>
       <div className="mb-4 flex justify-end">
-        <a href="/api/inventory/stock.csv" className="btn btn-secondary">
+        <a href="/api/inventory/stock.csv" className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
           {t('stockExportCsv')}
         </a>
       </div>

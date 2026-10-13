@@ -36,8 +36,8 @@ import { pageQuerySchema } from '@easyerp/contracts';
 import { z } from 'zod';
 
 const paymentsListQuerySchema = pageQuerySchema.extend({
-  partyId: z.string().min(1),
-  businessId: z.string().min(1),
+  partyId: z.string().min(1).optional(),
+  businessId: z.string().min(1).optional(),
 });
 
 @Controller('payments')
@@ -60,7 +60,7 @@ export class PaymentsController {
   list(@Query() query: unknown): Promise<PaymentPage> {
     const parsed = paymentsListQuerySchema.parse(query);
     const { partyId, businessId, page, pageSize } = parsed;
-    return this.payments.list(partyId, businessId, page, pageSize);
+    return this.payments.list(partyId ?? null, businessId ?? null, page, pageSize);
   }
 
   @RequirePermissions('payment:read')

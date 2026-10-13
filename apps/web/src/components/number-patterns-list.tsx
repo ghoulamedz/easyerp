@@ -31,7 +31,7 @@ export function NumberPatternsList({ locale }: { locale: Locale }) {
       <div className="py-8 text-center">
         <p className="text-sm text-ink-muted">{t('noNumberPatterns')}</p>
         {canManage ? (
-          <Link href={`/${locale}/settings/number-patterns/new`} className="btn btn-outline mt-4 inline-block">
+          <Link href={`/${locale}/settings/number-patterns/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
             {t('addFirstNumberPattern')}
           </Link>
         ) : null}
@@ -43,7 +43,7 @@ export function NumberPatternsList({ locale }: { locale: Locale }) {
     <div>
       {canManage ? (
         <div className="mb-4 flex justify-end">
-          <Link href={`/${locale}/settings/number-patterns/new`} className="btn btn-primary">
+          <Link href={`/${locale}/settings/number-patterns/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">
             {t('newNumberPattern')}
           </Link>
         </div>

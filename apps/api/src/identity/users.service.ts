@@ -20,7 +20,12 @@ export interface UserSummary {
   readonly email: string;
   readonly displayName: string;
   readonly isActive: boolean;
-  readonly roles: readonly { readonly id: string; readonly code: string; readonly name: string }[];
+  readonly roles: readonly {
+    readonly id: string;
+    readonly code: string;
+    readonly name: string;
+    readonly permissions: readonly string[];
+  }[];
 }
 
 /**
@@ -53,7 +58,13 @@ export class UsersService {
     const users = await this.prisma.authUser.findMany({
       where: { deletedAt: null },
       orderBy: { email: 'asc' },
-      include: { roles: { include: { role: { select: { id: true, code: true, name: true } } } } },
+      include: {
+        roles: {
+          include: {
+            role: { select: { id: true, code: true, name: true, permissions: true } },
+          },
+        },
+      },
     });
     return users.map((user) => ({
       id: user.id,
@@ -107,7 +118,13 @@ export class UsersService {
       });
       return await tx.authUser.findUniqueOrThrow({
         where: { id: userId },
-        include: { roles: { include: { role: { select: { id: true, code: true, name: true } } } } },
+        include: {
+          roles: {
+            include: {
+              role: { select: { id: true, code: true, name: true, permissions: true } },
+            },
+          },
+        },
       });
     });
 
@@ -149,7 +166,12 @@ export class UsersService {
         email: user.email,
         displayName: user.name,
         isActive: user.isActive,
-        roles: roles.map((role) => ({ id: role.id, code: role.code, name: role.name })),
+        roles: roles.map((role) => ({
+          id: role.id,
+          code: role.code,
+          name: role.name,
+          permissions: [...role.permissions],
+        })),
       };
     });
   }

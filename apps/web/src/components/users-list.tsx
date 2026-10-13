@@ -24,7 +24,8 @@ export function UsersList({ locale }: { locale: Locale }) {
     );
   }
 
-  const rows = result.data.items;
+  const raw = result.data as unknown;
+  const rows: readonly User[] = Array.isArray(raw) ? (raw as readonly User[]) : (raw as { items: readonly User[] }).items ?? [];
 
   if (rows.length === 0) {
     return (

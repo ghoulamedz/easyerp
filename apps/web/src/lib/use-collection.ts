@@ -28,8 +28,14 @@ export function useCollection<T>(path: string, query?: CollectionQuery): Collect
   useEffect(() => {
     let cancelled = false;
     listCollection<T>(path, query).then(
-      (data) => {
-        if (!cancelled) setResult({ state: 'ready', data });
+      (data: unknown) => {
+        // Some routes (`/users`, `/roles`, `/settings/*`) return a bare
+        // array, not the `{ items, total, … }` envelope. Wrap it so every
+        // list screen can read `data.items` without crashing.
+        const wrapped = (Array.isArray(data)
+          ? { items: data as readonly T[], total: (data as readonly T[]).length, page: 1, pageSize: (data as readonly T[]).length }
+          : (data as Collection<T>)) as Collection<T>;
+        if (!cancelled) setResult({ state: 'ready', data: wrapped });
       },
       (error: unknown) => {
         if (!cancelled) {

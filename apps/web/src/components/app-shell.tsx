@@ -37,7 +37,7 @@ export function AppShell({ locale, children }: { locale: Locale; children: React
       {/* The rail is `fixed` on wide screens and the column on narrow ones. Both
           use inset-inline-start, so Arabic moves it to the right for free. */}
       <aside
-        className="fixed inset-block-0 inset-inline-start-0 z-30 hidden w-64 flex-col gap-6 overflow-y-auto overscroll-contain border-e border-line bg-surface-raised px-4 py-5 lg:flex"
+        className="fixed inset-block-0 inset-inline-start-0 z-30 hidden w-64 flex-col gap-6 overflow-y-auto overscroll-contain border-e border-line bg-surface-raised px-4 py-5 lg:flex lg:h-dvh"
         aria-label={t('navMain')}
       >
         <div className="flex items-center gap-2.5 px-2">
@@ -54,7 +54,9 @@ export function AppShell({ locale, children }: { locale: Locale; children: React
           </div>
         </div>
 
-        <AppNav items={items} currentPath={currentPath} label={t('navMain')} />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <AppNav items={items} currentPath={currentPath} label={t('navMain')} />
+        </div>
       </aside>
 
       <div className="lg:ps-64">
