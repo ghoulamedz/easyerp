@@ -16,6 +16,13 @@ import { MobileNav } from './mobile-nav';
 import { ThemeSwitch } from './theme-switch';
 import { isNavVisible, useModuleStates } from '../lib/use-modules';
 import { translatorFor, type Locale } from '../i18n/config';
+import { IconKey } from './icons';
+
+function handleSignOut(locale: Locale) {
+  fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' }).then(() => {
+    window.location.href = `/${locale}/sign-in`;
+  });
+}
 
 export function AppShell({ locale, children }: { locale: Locale; children: React.ReactNode }) {
   const t = translatorFor(locale);
@@ -75,6 +82,15 @@ export function AppShell({ locale, children }: { locale: Locale; children: React
             <div className="flex items-center gap-2">
               <ThemeSwitch t={t} compact />
               <LocaleSwitcher locale={locale} label={t('localeLabel')} />
+              <button
+                type="button"
+                onClick={() => handleSignOut(locale)}
+                className="inline-flex items-center justify-center rounded-lg px-2 py-1.5 text-sm text-ink-subtle hover:text-ink hover:bg-surface-sunken transition-colors"
+                aria-label={t('navSignOut')}
+                title={t('navSignOut')}
+              >
+                <IconKey className="size-5" />
+              </button>
             </div>
           </div>
         </header>
