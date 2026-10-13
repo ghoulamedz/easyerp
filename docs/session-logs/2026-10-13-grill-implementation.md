@@ -53,3 +53,11 @@ if needed.
   renders. Web suite 96/96 (2 new order-form tests).
 - Still open: delivery-notes / customer-invoices / credit-notes / payments /
   purchasing / production / bom `new` pages; issue/cancel web actions.
+
+## Unattended continuation (evening)
+- `delivery-notes/new` (standalone note, order-linking left for fulfilment UI)
+  + `customer-invoices/new` (draft carries document locale): forms, pages, 4
+  interaction tests. Web suite 100/100.
+- Live: note 201 DRAFT + invoice 201 DRAFT via proxy; both pages render.
+- Still open: credit-notes/new, payments/new, purchasing/production/bom new
+  pages; issue/cancel web actions.
