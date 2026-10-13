@@ -17,9 +17,9 @@ export class RolesService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * Make sure the protected role exists and still holds every permission. Called
-   * at boot, so an administrator that was emptied by hand or by a bad migration
-   * repairs itself on the next restart.
+   * Make sure the protected roles exist. Called at boot, so an administrator
+   * that was emptied by hand or by a bad migration repairs itself on restart.
+   * OPERATOR (no user delete) and VIEWER (read-only) are seeded for Q9.
    */
   async ensureAdministrator(): Promise<void> {
     await this.prisma.role.upsert({
@@ -31,6 +31,18 @@ export class RolesService {
         permissions: [...allPermissions],
         isProtected: true,
       },
+    });
+    const operatorPermissions = allPermissions.filter((p) => !p.startsWith('user:delete'));
+    const viewerPermissions = allPermissions.filter((p) => p.endsWith(':read') || p === 'business-settings:read');
+    await this.prisma.role.upsert({
+      where: { code: 'OPERATOR' },
+      update: { name: 'Operator', permissions: operatorPermissions },
+      create: { code: 'OPERATOR', name: 'Operator', permissions: operatorPermissions },
+    });
+    await this.prisma.role.upsert({
+      where: { code: 'VIEWER' },
+      update: { name: 'Viewer', permissions: viewerPermissions },
+      create: { code: 'VIEWER', name: 'Viewer', permissions: viewerPermissions },
     });
   }
 

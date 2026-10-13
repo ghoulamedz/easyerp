@@ -126,11 +126,20 @@ export class SetupService {
         });
       }
 
-      // Every Module starts enabled, stated explicitly so a fresh deployment's
-      // state matches what the Database says rather than what an absent row
-      // implies (spec 001 story 19).
+      // Module enablement from Setup; defaults to all enabled except PRODUCTION
+      // (and BOM via production) for a lean start per grill Q8. Explicit so a
+      // fresh deployment's state matches the DB, not an absent-row implication.
+      const defaultModules: Record<(typeof MODULES)[number], boolean> = {
+        SALES: true,
+        PURCHASING: true,
+        INVENTORY: true,
+        FINANCE: true,
+        PRODUCTION: false,
+      };
+      const modulesToWrite = (input.modules as Record<string, boolean> | undefined) ?? defaultModules;
       for (const module of MODULES) {
-        await tx.moduleState.create({ data: { module, isEnabled: true } });
+        const isEnabled = modulesToWrite[module] ?? (module === 'PRODUCTION' ? false : true);
+        await tx.moduleState.create({ data: { module, isEnabled } });
       }
 
       const { hashPassword } = await import('better-auth/crypto');

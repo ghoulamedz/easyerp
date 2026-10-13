@@ -99,6 +99,14 @@ export function StatusPanel({
 
   const iconFor = (id: string) => (id === 'database' ? <IconDatabase /> : <IconServer />);
 
+  const helpFor = (id: string, state: State): string | null => {
+    if (state !== 'failing') return null;
+    if (id === 'api') return t('checkApiHelp');
+    if (id === 'database') return t('checkDatabaseHelp');
+    if (id === 'web') return t('checkWebHelp');
+    return null;
+  };
+
   return (
     <Card>
       <CardHeader
@@ -116,20 +124,26 @@ export function StatusPanel({
       />
       <CardBody>
         <ul className="grid gap-2 sm:grid-cols-3">
-          {checks.map((check) => (
-            <li
-              key={check.id}
-              className="flex items-center gap-3 rounded-lg border border-line bg-surface px-3 py-2.5"
-            >
-              <span className="text-ink-subtle">{iconFor(check.id)}</span>
-              <span className="min-w-0 flex-1 truncate text-sm text-ink">{check.label}</span>
-              <span className="flex items-center gap-1.5">
-                {check.state === 'ok' ? <IconCheck className="size-4 text-ok" /> : null}
-                {check.state === 'failing' ? <IconAlert className="size-4 text-danger" /> : null}
-                <StatusDot tone={toneOf(check.state)} />
-              </span>
-            </li>
-          ))}
+          {checks.map((check) => {
+            const help = helpFor(check.id, check.state);
+            return (
+              <li
+                key={check.id}
+                className="flex flex-col gap-1 rounded-lg border border-line bg-surface px-3 py-2.5"
+              >
+                <div className="flex items-center gap-3">
+                  <span className="text-ink-subtle">{iconFor(check.id)}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm text-ink">{check.label}</span>
+                  <span className="flex items-center gap-1.5">
+                    {check.state === 'ok' ? <IconCheck className="size-4 text-ok" /> : null}
+                    {check.state === 'failing' ? <IconAlert className="size-4 text-danger" /> : null}
+                    <StatusDot tone={toneOf(check.state)} />
+                  </span>
+                </div>
+                {help ? <p className="text-xs text-ink-muted">{help}</p> : null}
+              </li>
+            );
+          })}
         </ul>
       </CardBody>
     </Card>

@@ -102,12 +102,12 @@ export function SignInForm({ locale }: { locale: Locale }) {
                 dir="ltr"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                className={field + ' pr-10'}
+                className={field + ' pe-10'}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 me-3 flex items-center text-ink-subtle hover:text-ink"
+                className="absolute inset-y-0 end-0 pe-3 flex items-center text-ink-subtle hover:text-ink"
                 aria-label={showPassword ? t('hidePassword') : t('showPassword')}
               >
                 {showPassword ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}

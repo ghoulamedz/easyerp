@@ -13,6 +13,7 @@
 import { z } from 'zod';
 import { rateSchema } from './numeric.js';
 import { vatRegimeSchema } from './documents.js';
+import { moduleCodeSchema } from './settings.js';
 
 export type { VatRegime } from './documents.js';
 
@@ -80,6 +81,8 @@ export const setupRequestSchema = z
      * enforced by the service, where a DomainError speaks HTTP.
      */
     taxRates: z.array(setupTaxRateSchema).default([]),
+    /** Module enablement; defaults to all enabled except PRODUCTION (and BOM via production) for a lean start. */
+    modules: z.record(moduleCodeSchema, z.boolean()).optional(),
   })
   .strict();
 export type SetupRequest = z.infer<typeof setupRequestSchema>;

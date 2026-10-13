@@ -15,6 +15,7 @@ const apiTarget = process.env.API_INTERNAL_URL ?? 'http://localhost:3002';
 
 const config: NextConfig = {
   reactStrictMode: true,
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   // Deliberately not `output: 'standalone'`. Standalone exists to copy a minimal
   // server and its traced dependencies into a container image, and there are no
   // container images any more (ADR 0013). It also makes `next start` — which is

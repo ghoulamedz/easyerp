@@ -62,6 +62,9 @@ const messages = {
     checkApi: 'API',
     checkDatabase: 'Base de données',
     checkWeb: 'Interface web',
+    checkApiHelp: 'API ne répond pas — vérifiez 3002 / pnpm dev',
+    checkDatabaseHelp: 'Base non prête — vérifiez docker / pnpm db:up',
+    checkWebHelp: 'Interface indisponible',
     checkStatusTitle: 'Services',
 
     // Dashboard
@@ -257,6 +260,8 @@ const messages = {
     settingsBusinessName: 'Raison sociale',
     settingsVatRegime: 'Régime de TVA',
     settingsCurrency: 'Devise',
+    settingsLocked: 'verrouillé',
+    saved: 'Enregistré',
     settingsNotPersisted:
       'Les préférences d\'apparence et de langue sont enregistrées sur cet appareil. Les données d\'entreprise ne sont pas encore enregistrées : aucun point d\'entrée ne les accepte encore.',
     settingsPlaceholder: 'Non renseigné',
@@ -446,6 +451,9 @@ const messages = {
     checkApi: 'API',
     checkDatabase: 'Database',
     checkWeb: 'Web interface',
+    checkApiHelp: 'API not responding — check 3002 / pnpm dev',
+    checkDatabaseHelp: 'Database not ready — check docker / pnpm db:up',
+    checkWebHelp: 'Web interface unreachable',
     checkStatusTitle: 'Services',
 
     // Dashboard
@@ -640,6 +648,8 @@ const messages = {
     settingsBusinessName: 'Registered name',
     settingsVatRegime: 'VAT regime',
     settingsCurrency: 'Currency',
+    settingsLocked: 'locked',
+    saved: 'Saved',
     settingsNotPersisted:
       'Appearance and language are saved on this device. Business details are not saved yet: no endpoint accepts them.',
     settingsPlaceholder: 'Not set',
@@ -829,6 +839,9 @@ const messages = {
     checkApi: 'الواجهة البرمجية',
     checkDatabase: 'قاعدة البيانات',
     checkWeb: 'واجهة الاستعمال',
+    checkApiHelp: 'الواجهة البرمجية لا تستجيب — تحقق من 3002 / pnpm dev',
+    checkDatabaseHelp: 'قاعدة البيانات غير جاهزة — تحقق من docker / pnpm db:up',
+    checkWebHelp: 'الواجهة غير متاحة',
     checkStatusTitle: 'الخدمات',
 
     // Dashboard
@@ -1023,6 +1036,8 @@ const messages = {
     settingsBusinessName: 'التسمية التجارية',
     settingsVatRegime: 'نظام ضريبة القيمة المضافة',
     settingsCurrency: 'العملة',
+    settingsLocked: 'مقفل',
+    saved: 'تم الحفظ',
     settingsNotPersisted:
       'يُحفظ المظهر واللغة على هذا الجهاز. أما بيانات المؤسسة فلا تُحفظ بعد: لا يوجد أي مسار يقبلها.',
     settingsPlaceholder: 'غير محدَّد',

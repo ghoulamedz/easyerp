@@ -21,6 +21,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import { existsSync, utimesSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { directDatabaseUrl } from './direct-url.mjs';
 
@@ -84,6 +85,17 @@ const commands = {
     // races a Postgres that is still starting.
     docker('up', '-d', '--wait');
     migrateBoth();
+    // If the API is running under `nest start --watch` (pnpm dev), a preceding
+    // `pnpm db:reset` left its pool pointing at the destroyed volume and
+    // `ensureAdministrator` will not re-seed until the process restarts. Touching
+    // the entry file triggers the watcher to rebuild and restart now that the DB
+    // is back and migrated, so Setup works without a manual restart.
+    const entry = resolve(ROOT, 'apps/api/src/main.ts');
+    if (existsSync(entry)) {
+      try {
+        utimesSync(entry, new Date(), new Date());
+      } catch {}
+    }
     console.log('\nPostgreSQL is up on localhost:55432.');
     console.log('  easyerp        development — already migrated');
     console.log('  easyerp_test   integration — already migrated\n');

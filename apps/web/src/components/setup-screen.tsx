@@ -70,18 +70,25 @@ export function SetupScreen({ locale }: { locale: Locale }) {
   const [adminEmail, setAdminEmail] = useState('admin@mycompany.tn');
   const [adminPassword, setAdminPassword] = useState('password123');
   const [units, setUnits] = useState<UnitRow[]>([
-    { id: generateId(), code: 'PCS', allowsFraction: false },
-    { id: generateId(), code: 'KG', allowsFraction: true },
+    { id: 'initial-pcs', code: 'PCS', allowsFraction: false },
+    { id: 'initial-kg', code: 'KG', allowsFraction: true },
   ]);
   const [rates, setRates] = useState<RateRow[]>([
-    { id: generateId(), code: 'TVA19', rate: '0.19' },
-    { id: generateId(), code: 'TVA13', rate: '0.13' },
-    { id: generateId(), code: 'TVA07', rate: '0.07' },
+    { id: 'initial-tva19', code: 'TVA19', rate: '0.19' },
+    { id: 'initial-tva13', code: 'TVA13', rate: '0.13' },
+    { id: 'initial-tva07', code: 'TVA07', rate: '0.07' },
   ]);
 
   // Show/hide states for password fields
   const [showToken, setShowToken] = useState(false);
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [modules, setModules] = useState<Record<string, boolean>>({
+    SALES: true,
+    PURCHASING: true,
+    INVENTORY: true,
+    FINANCE: true,
+    PRODUCTION: false,
+  });
 
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -122,6 +129,7 @@ export function SetupScreen({ locale }: { locale: Locale }) {
         taxRates: rates
           .filter((row) => row.code.trim() !== '' && row.rate.trim() !== '')
           .map((row) => ({ code: row.code.trim(), rate: row.rate.trim() })),
+        modules,
       });
       setDone(true);
     } catch (failure) {
@@ -130,7 +138,7 @@ export function SetupScreen({ locale }: { locale: Locale }) {
     } finally {
       setWorking(false);
     }
-  }, [token, legalName, displayName, taxIdentifier, countryCode, vatRegime, currency, phone, email, addressLine1, addressLine2, city, postalCode, adminName, adminEmail, adminPassword, units, rates, t]);
+  }, [token, legalName, displayName, taxIdentifier, countryCode, vatRegime, currency, phone, email, addressLine1, addressLine2, city, postalCode, adminName, adminEmail, adminPassword, units, rates, modules, t]);
 
   if (done) {
     return (
@@ -193,12 +201,12 @@ export function SetupScreen({ locale }: { locale: Locale }) {
                   dir="ltr"
                   value={token}
                   onChange={(event) => setToken(event.target.value)}
-                  className={FIELD + ' pr-10'}
+                  className={FIELD + ' pe-10'}
                 />
                 <button
                   type="button"
                   onClick={() => setShowToken(!showToken)}
-                  className="absolute inset-y-0 me-3 flex items-center text-ink-subtle hover:text-ink"
+                  className="absolute inset-y-0 end-0 pe-3 flex items-center text-ink-subtle hover:text-ink"
                   aria-label={showToken ? t('hideToken') : t('showToken')}
                 >
                   {showToken ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
@@ -379,12 +387,12 @@ export function SetupScreen({ locale }: { locale: Locale }) {
                       dir="ltr"
                       value={adminPassword}
                       onChange={(event) => setAdminPassword(event.target.value)}
-                      className={FIELD + ' pr-10'}
+                      className={FIELD + ' pe-10'}
                     />
                     <button
                       type="button"
                       onClick={() => setShowAdminPassword(!showAdminPassword)}
-                      className="absolute inset-y-0 me-3 flex items-center text-ink-subtle hover:text-ink"
+                      className="absolute inset-y-0 end-0 pe-3 flex items-center text-ink-subtle hover:text-ink"
                       aria-label={showAdminPassword ? t('hidePassword') : t('showPassword')}
                     >
                       {showAdminPassword ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
@@ -486,6 +494,22 @@ export function SetupScreen({ locale }: { locale: Locale }) {
               >
                 {t('setupAddRate')}
               </Button>
+            </fieldset>
+
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-semibold text-ink">{t('modulesTitle')}</legend>
+              <p className="text-xs text-ink-subtle">{t('modulesBody')}</p>
+              {(['SALES', 'PURCHASING', 'INVENTORY', 'FINANCE', 'PRODUCTION'] as const).map((mod) => (
+                <label key={mod} className="flex items-center gap-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={modules[mod] ?? false}
+                    onChange={(e) => setModules({ ...modules, [mod]: e.target.checked })}
+                  />
+                  {mod}
+                  {mod === 'PRODUCTION' ? ` — ${t('bomsTitle')}` : ''}
+                </label>
+              ))}
             </fieldset>
 
             {error ? (
