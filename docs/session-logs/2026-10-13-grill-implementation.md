@@ -44,3 +44,12 @@ if needed.
 - users create/setActive/last-admin + document lifecycle integration tests
 - dead `apps/api/src/users.service.ts` (live one is `identity/users.service.ts`)
 - `sign-inNotice` copy still says no account exists yet
+
+## Unattended continuation (afternoon)
+- `sales-orders/new`: SalesOrderForm (customer select, dynamic lines, no prices
+  travel) + page + `orderAddLine` key x3. API gap closed: `id` added to
+  `businessProfileSchema` + service (no exact-shape test broke).
+- Live: draft create 201 via proxy, server-priced, lists with partyName; page
+  renders. Web suite 96/96 (2 new order-form tests).
+- Still open: delivery-notes / customer-invoices / credit-notes / payments /
+  purchasing / production / bom `new` pages; issue/cancel web actions.
