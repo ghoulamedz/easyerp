@@ -172,3 +172,12 @@ if needed.
   no-detail routes, roles/users guards); logout IconLogout present.
 - Cancel audit: verified absent on all 26 forms, no changes.
 - Suites: web 163, api tsc clean.
+
+## Deploy cleanup wave
+- deploy-demo.yml: new demo-cleanup job (branch delete/recreate + migrate,
+  runs on smoke success only; YAML validated).
+- DEPLOY.md: fresh-setup-every-deploy, creds block removed, redeploy + manual
+  reset steps, sign-in placeholders.
+- Reviewer P0s noted (env-after-deploy, vercel CLI, URL plumbing) — all match
+  known deploy-vercel-neon-free.md flags; mitigation is pre-seeding Vercel env
+  manually before first deploy.
