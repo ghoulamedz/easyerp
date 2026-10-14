@@ -76,7 +76,11 @@ async function request<T>(
     } catch {
       // A proxy or gateway answered without JSON; the status is the signal.
     }
-    throw new ApiError(response.status, code, message);
+    // Localize here, at the single choke point every screen reads through:
+    // server messages arrive in English, the interface language lives on
+    // <html lang>, and no caller should have to remember to translate.
+    const { localizeErrorMessage } = await import('./error-messages.js');
+    throw new ApiError(response.status, code, localizeErrorMessage(code, message));
   }
 
   if (response.status === 204) return undefined as T;

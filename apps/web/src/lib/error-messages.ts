@@ -65,6 +65,11 @@ export const ERROR_MESSAGES: Readonly<Record<string, LocalizedMessage>> = {
     fr: 'La requête a échoué.',
     ar: 'فشل الطلب.',
   },
+  INTERNAL_ERROR: {
+    en: 'Something went wrong on our side. Please try again.',
+    fr: "Quelque chose s'est mal passé de notre côté. Veuillez réessayer.",
+    ar: 'حدث خطأ من جانبنا. يرجى المحاولة مرة أخرى.',
+  },
 };
 
 /** The interface language from `<html lang>`, or English when unknown. */

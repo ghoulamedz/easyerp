@@ -293,7 +293,16 @@ export class CustomerInvoiceService {
       return { view, year, invoiceId: invoice.id };
     });
 
-    await this.archivePdf(issued.view, issued.invoiceId, issued.year);
+    // The fiscal facts (status, number, figures) are committed above. The PDF
+    // is a rendering of those facts, not one of them: if the renderer is down
+    // the issue still succeeds and View re-renders on demand (readArchive).
+    // Failing the whole issue on a renderer outage would strand a numbered
+    // document in a half-issued state the retry then 409s on.
+    try {
+      await this.archivePdf(issued.view, issued.invoiceId, issued.year);
+    } catch (error) {
+      console.error(`Archiving invoice ${issued.invoiceId} failed, will retry on View:`, error);
+    }
 
     const found = await this.findById(issued.invoiceId);
     invariant(found, `Invoice ${issued.invoiceId} vanished immediately after issuing.`);
