@@ -83,6 +83,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: neon-db
+    outputs:
+      api_url: ${{ steps.save-url.outputs.api_url }}
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
       # API needs these at build time for Prisma generate
@@ -115,9 +117,10 @@ jobs:
           working-directory: ./apps/api
 
       - name: Save API deployment URL
+        id: save-url
         run: |
           URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
-          echo "api_url=https://$URL" >> $GITHUB_ENV
+          echo "api_url=https://$URL" >> $GITHUB_OUTPUT
           echo "API deployed to: https://$URL"
 
   # 3. Deploy Web to Vercel (Next.js)
@@ -129,9 +132,9 @@ jobs:
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
       # Web build needs API URL for proxy
-      API_INTERNAL_URL: ${{ env.api_url }}
+      API_INTERNAL_URL: ${{ needs.deploy-api.outputs.api_url }}
       # Runtime env for Better Auth
-      BETTER_AUTH_URL: ${{ env.api_url }}  # Will be updated after web deploy
+      BETTER_AUTH_URL: ${{ needs.deploy-api.outputs.api_url }}  # Will be updated after web deploy
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -146,7 +149,7 @@ jobs:
       - name: Build Web
         run: pnpm --filter @easyerp/web build
         env:
-          API_INTERNAL_URL: ${{ env.api_url }}
+          API_INTERNAL_URL: ${{ needs.deploy-api.outputs.api_url }}
 
       - name: Deploy Web to Vercel
         uses: amondnet/vercel-action@v25
@@ -183,7 +186,7 @@ jobs:
           # Note: Vercel handles runtime env separately, but we can set
           # the DATABASE_URL in Neon's branch settings for reference
           echo "Demo stack deployed:"
-          echo "  API: ${{ env.api_url }}"
+          echo "  API: ${{ needs.deploy-api.outputs.api_url }}"
           echo "  Web: ${{ needs.deploy-web.outputs.web_url }}"
 
   # 5. Update Vercel project env vars with production values
@@ -207,7 +210,7 @@ jobs:
 
       - name: Set Web project environment variables
         run: |
-          vercel env add API_INTERNAL_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "${{ env.api_url }}"
+          vercel env add API_INTERNAL_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "${{ needs.deploy-api.outputs.api_url }}"
           vercel env add NODE_ENV production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "production"
 
   # 6. Run demo smoke tests
@@ -222,11 +225,11 @@ jobs:
 
       - name: Test API health
         run: |
-          curl -sf "${{ env.api_url }}/api/health" | jq -e '.status == "ok"'
+          curl -sf "${{ needs.deploy-api.outputs.api_url }}/api/health" | jq -e '.status == "ok"'
 
       - name: Test API ready
         run: |
-          curl -sf "${{ env.api_url }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
+          curl -sf "${{ needs.deploy-api.outputs.api_url }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
 
       - name: Test Web loads
         run: |
@@ -234,7 +237,7 @@ jobs:
 
       - name: Test Setup flow (API)
         run: |
-          curl -sf -X POST "${{ env.api_url }}/api/setup/complete" \
+          curl -sf -X POST "${{ needs.deploy-api.outputs.api_url }}/api/setup/complete" \
             -H "Content-Type: application/json" \
             -d '{
               "token": "'${{ secrets.DEMO_FIRST_SETUP_TOKEN }}'",
@@ -257,7 +260,7 @@ jobs:
 
       - name: Test Sign-in flow
         run: |
-          curl -sf -X POST "${{ env.api_url }}/api/auth/sign-in/email" \
+          curl -sf -X POST "${{ needs.deploy-api.outputs.api_url }}/api/auth/sign-in/email" \
             -H "Content-Type: application/json" \
             -d '{"email":"admin@demo.easyerp.tn","password":"demo-password-123"}' | jq -e '.user.email == "admin@demo.easyerp.tn"'
 
@@ -269,7 +272,7 @@ jobs:
           echo "| Component | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|-----|" >> $GITHUB_STEP_SUMMARY
           echo "| **Web App** | ${{ needs.deploy-web.outputs.web_url }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **API** | ${{ env.api_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **API** | ${{ needs.deploy-api.outputs.api_url }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Setup Token** | \`${{ secrets.DEMO_FIRST_SETUP_TOKEN }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The demo is fresh: Setup is open at /fr/setup and no accounts exist — the smoke-test account is wiped by demo-cleanup so the owner can demo the whole flow from first Setup." >> $GITHUB_STEP_SUMMARY
