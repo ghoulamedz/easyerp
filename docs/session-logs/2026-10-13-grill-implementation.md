@@ -160,3 +160,15 @@ if needed.
 - Tax rates UI (create + retire), Settings fully editable with password, Users edit/remove (soft-delete + last-admin guard), Stock opening removed, View/Print on issued invoices/credit-notes
 - Scout: FODEC in 3 lines + docs/deploy-vercel-neon-free.md (15 steps)
 - All suites: web 138, contracts 103, integration 26/26
+
+## 6-worker wave (buttons/filters/edits/archive/logout/cancel)
+- Status buttons verified present (DRAFT-only Issue, non-CANCELLED Cancel,
+  per-controller wiring); refusals localized.
+- Archive fallback present from 0e74ecc (stored -> pathFor -> re-render);
+  live 404 gone, remaining 500 is no-chromium-here only.
+- Filters on all lists (status/type/role/search, client-side where API has
+  no query); FilterBar shared + tests. BOM list() spec call fixed.
+- Draft edits wired (purchase/prod strict-body fixes, list-prefill for
+  no-detail routes, roles/users guards); logout IconLogout present.
+- Cancel audit: verified absent on all 26 forms, no changes.
+- Suites: web 163, api tsc clean.
