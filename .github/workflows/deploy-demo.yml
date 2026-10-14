@@ -272,8 +272,52 @@ jobs:
           echo "| **API** | ${{ env.api_url }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Setup Token** | \`${{ secrets.DEMO_FIRST_SETUP_TOKEN }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Demo Credentials" >> $GITHUB_STEP_SUMMARY
-          echo "- **Email:** admin@demo.easyerp.tn" >> $GITHUB_STEP_SUMMARY
-          echo "- **Password:** demo-password-123" >> $GITHUB_STEP_SUMMARY
+          echo "The demo is fresh: Setup is open at /fr/setup and no accounts exist — the smoke-test account is wiped by demo-cleanup so the owner can demo the whole flow from first Setup." >> $GITHUB_STEP_SUMMARY
+
+  # 7. Wipe the smoke-test account so the demo is fresh (Setup open, no accounts)
+  demo-cleanup:
+    name: Reset Demo DB (fresh Setup)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [demo-smoke]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install deps (including dev for build)
+        run: pnpm install --frozen-lockfile
+
+      - name: Authenticate to Neon
+        uses: neondatabase/neonctl-action@v1
+        with:
+          api_key: ${{ secrets.NEON_API_KEY }}
+
+      - name: Delete and recreate demo branch
+        id: neon
+        run: |
+          # Wipe ALL rows: delete and recreate the demo branch from main.
+          # Runs only on smoke success (default on-success); a failed smoke
+          # leaves the DB in place for debugging.
+          BRANCH="demo"
+          neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH
+          neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent main
+
+          UNPOOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp)
+
+          echo "database_url_unpooled=$UNPOOLED" >> $GITHUB_OUTPUT
+
+      - name: Apply migrations to fresh demo branch
+        run: |
+          pnpm --filter @easyerp/api prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ steps.neon.outputs.database_url_unpooled }}
+
+      - name: Post cleanup summary
+        run: |
+          echo "## Demo Cleanup Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "The demo is now live and ready for clients!" >> $GITHUB_STEP_SUMMARY
+          echo "The demo is fresh: Setup is open at /fr/setup and no accounts exist." >> $GITHUB_STEP_SUMMARY

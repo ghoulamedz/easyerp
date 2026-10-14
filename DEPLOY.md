@@ -53,14 +53,44 @@ Push to `master` branch, or run workflow manually:
 gh workflow run deploy-demo.yml
 ```
 
+### Fresh deploy wipes the demo database
+Every deploy resets the demo database and re-applies migrations, so no rows
+survive from one deploy to the next:
+- `/fr/setup` is ALWAYS open on a fresh deploy.
+- No accounts exist — run first Setup yourself with the token below.
+- The smoke test in `deploy-demo.yml` still runs, but it is self-cleaning:
+  it creates a throwaway Business + Administrator to prove the flow, then the
+  next deploy wipes them. Do not rely on its credentials.
+
 ### Demo URLs (after deploy)
 - **Web App**: `https://easyerp-web-<org>.vercel.app`
 - **API**: `https://easyerp-api-<org>.vercel.app`
 - **Setup Token**: Value of `DEMO_FIRST_SETUP_TOKEN` secret
 
-### Demo Credentials (created by smoke test)
-- **Email**: admin@demo.easyerp.tn
-- **Password**: demo-password-123
+### First Setup (no demo credentials)
+There are no long-lived demo credentials. After each deploy:
+1. Visit `https://easyerp-web-<org>.vercel.app/fr/setup`.
+2. Enter the `DEMO_FIRST_SETUP_TOKEN` value.
+3. Fill in Business details and create your Administrator.
+4. Sign in at `/fr/sign-in` with the account you just created.
+
+### Redeploy
+```bash
+# Option 1: push to master (deploy-demo.yml runs automatically)
+git push origin master
+# Option 2: manual trigger
+gh workflow run deploy-demo.yml
+```
+
+### Reset the demo database manually
+The workflow does this automatically on every deploy. Only do it by hand
+when you need a clean demo without redeploying the apps:
+```bash
+# 1. At console.neon.tech: delete the 'demo' branch, then recreate it from 'main'.
+# 2. Migrate the fresh branch with the DIRECT (unpooled) URL:
+DATABASE_URL="<direct-demo-branch-url>" pnpm --filter @easyerp/api prisma:migrate:deploy
+# 3. Visit /fr/setup — it is open again, no accounts exist.
+```
 
 ---
 
@@ -190,15 +220,16 @@ Migrations run automatically in `deploy-vps.yml` and `deploy.ts` before service 
 curl https://<api>.vercel.app/api/health
 curl https://<api>.vercel.app/api/ready
 
-# Setup flow
+# Setup flow (fresh deploy: /fr/setup is open, run this or use the web form)
 curl -X POST https://<api>.vercel.app/api/setup/complete \
   -H "Content-Type: application/json" \
   -d '{...}'
 
-# Sign in
+# Sign in (use the Administrator you created via Setup —
+# no credentials survive a redeploy)
 curl -X POST https://<api>.vercel.app/api/auth/sign-in/email \
   -H "Content-Type: application/json" \
-  -d '{"email":"admin@demo.easyerp.tn","password":"demo-password-123"}'
+  -d '{"email":"<your-admin-email>","password":"<your-admin-password>"}'
 ```
 
 ### Production
