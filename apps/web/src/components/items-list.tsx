@@ -1,14 +1,24 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import type { Item } from '@easyerp/contracts';
 import { translatorFor, type Locale } from '../i18n/config';
-import { useCollection } from '../lib/use-collection';
+import { useCollection, type CollectionQuery } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
+import { FilterBar } from './filter-bar';
 
 export function ItemsList({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
-  const result = useCollection<Item>('/items');
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get('q') ?? '');
+  const [itemType, setItemType] = useState(() => searchParams.get('itemType') ?? '');
+
+  const result = useCollection<Item>('/items', {
+    ...(q ? { q } : {}),
+    ...(itemType ? { itemType } : {}),
+  });
   const canCreate = useHasPermission('item:create');
 
   if (result.state === 'loading') {
@@ -41,6 +51,16 @@ export function ItemsList({ locale }: { locale: Locale }) {
 
   return (
     <div>
+      <FilterBar
+        locale={locale}
+        q={q}
+        onQChange={setQ}
+        itemType={itemType}
+        onItemTypeChange={setItemType}
+        showSearch={true}
+        showItemType={true}
+        searchPlaceholder="filter"
+      />
       {canCreate ? (
         <div className="mb-4 flex justify-end">
           <Link href={`/${locale}/items/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">

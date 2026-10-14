@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { isLocale } from '../../i18n/config';
+import { isLocale } from '@/i18n/config';
 import { readSetupStatus } from '../../lib/server-api';
 
 /**

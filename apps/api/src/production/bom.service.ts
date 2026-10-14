@@ -9,6 +9,7 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  bomListQuerySchema,
   bomSummarySchema,
   createBomSchema,
   createBomVersionSchema,
@@ -105,25 +106,44 @@ export class BomService {
    * List BOMs, newest first, as summaries: finished-item identity plus the
    * version signal a list screen needs. Lines stay on the detail route.
    */
-  async list(): Promise<BomSummary[]> {
-    const rows = await this.prisma.bom.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: {
-        finishedItem: { select: { code: true, name: true } },
-        versions: { select: { version: true }, orderBy: { version: 'desc' } },
-      },
-    });
-    return rows.map((row) =>
-      bomSummarySchema.parse({
-        id: row.id,
-        finishedItemId: row.finishedItemId,
-        finishedItemCode: row.finishedItem.code,
-        finishedItemName: row.finishedItem.name,
-        versionCount: row.versions.length,
-        latestVersion: row.versions[0]?.version ?? null,
-        createdAt: row.createdAt.toISOString(),
+  async list(query: unknown): Promise<{ items: BomSummary[]; total: number; page: number; pageSize: number }> {
+    const parsed = bomListQuerySchema.parse(query);
+    const where: Record<string, unknown> = {};
+    if (parsed.q) {
+      where.OR = [
+        { finishedItem: { code: { contains: parsed.q, mode: 'insensitive' } } },
+        { finishedItem: { name: { contains: parsed.q, mode: 'insensitive' } } },
+      ];
+    }
+    const [rows, total] = await Promise.all([
+      this.prisma.bom.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          finishedItem: { select: { code: true, name: true } },
+          versions: { select: { version: true }, orderBy: { version: 'desc' } },
+        },
+        skip: (parsed.page - 1) * parsed.pageSize,
+        take: parsed.pageSize,
       }),
-    );
+      this.prisma.bom.count({ where }),
+    ]);
+    return {
+      items: rows.map((row) =>
+        bomSummarySchema.parse({
+          id: row.id,
+          finishedItemId: row.finishedItemId,
+          finishedItemCode: row.finishedItem.code,
+          finishedItemName: row.finishedItem.name,
+          versionCount: row.versions.length,
+          latestVersion: row.versions[0]?.version ?? null,
+          createdAt: row.createdAt.toISOString(),
+        }),
+      ),
+      total,
+      page: parsed.page,
+      pageSize: parsed.pageSize,
+    };
   }
 
   /**

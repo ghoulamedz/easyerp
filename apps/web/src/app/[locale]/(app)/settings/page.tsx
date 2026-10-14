@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { SettingsPanel } from '../../../../components/settings-panel';
-import { PageHeader } from '../../../../components/ui';
-import { isLocale, translatorFor, type Locale } from '../../../../i18n/config';
+import { SettingsPanel } from '@/components/settings-panel';
+import { PageHeader } from '@/components/ui';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,

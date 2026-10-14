@@ -38,6 +38,7 @@ import { z } from 'zod';
 const paymentsListQuerySchema = pageQuerySchema.extend({
   partyId: z.string().min(1).optional(),
   businessId: z.string().min(1).optional(),
+  q: z.string().trim().max(255).optional(),
 });
 
 @Controller('payments')
@@ -59,8 +60,8 @@ export class PaymentsController {
   @Get()
   list(@Query() query: unknown): Promise<PaymentPage> {
     const parsed = paymentsListQuerySchema.parse(query);
-    const { partyId, businessId, page, pageSize } = parsed;
-    return this.payments.list(partyId ?? null, businessId ?? null, page, pageSize);
+    const { partyId, businessId, page, pageSize, q } = parsed;
+    return this.payments.list(partyId ?? null, businessId ?? null, page, pageSize, q ?? undefined);
   }
 
   @RequirePermissions('payment:read')

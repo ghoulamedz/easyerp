@@ -59,3 +59,9 @@ export const createBomSchema = z.strictObject({
   finishedItemId: z.string().min(1),
 });
 export type CreateBom = z.infer<typeof createBomSchema>;
+
+import { pageQuerySchema } from './pagination.js';
+
+/** Query parameters for listing BOMs. */
+export const bomListQuerySchema = pageQuerySchema.extend({}).strict();
+export type BomListQuery = z.infer<typeof bomListQuerySchema>;

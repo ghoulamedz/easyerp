@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { PageHeader } from '../../../../components/ui';
-import { DocumentList } from '../../../../components/document-list';
-import { isLocale, translatorFor, type Locale } from '../../../../i18n/config';
+import { PageHeader } from '@/components/ui';
+import { DocumentList } from '@/components/document-list';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,
@@ -32,6 +32,8 @@ export default async function SalesOrdersPage({ params }: { params: Promise<{ lo
         emptyKey="noSalesOrders"
         issuePermission="sales-order:issue"
         cancelPermission="sales-order:cancel"
+        editPermission="sales-order:update"
+        editBaseHref={`/${typedLocale}/sales-orders`}
       />
     </div>
   );

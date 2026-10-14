@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { PageHeader } from '../../../../components/ui';
-import { DocumentList } from '../../../../components/document-list';
-import { isLocale, translatorFor, type Locale } from '../../../../i18n/config';
+import { PageHeader } from '@/components/ui';
+import { DocumentList } from '@/components/document-list';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,
@@ -33,6 +33,8 @@ export default async function PurchasingPage({ params }: { params: Promise<{ loc
         emptyKey="noPurchaseOrders"
         issuePermission="purchase-order:issue"
         cancelPermission="purchase-order:cancel"
+        editPermission="purchase-order:update"
+        editBaseHref={`/${typedLocale}/purchasing/orders`}
       />
       <Link
         href={`/${typedLocale}/purchasing/receipts`}

@@ -11,6 +11,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -19,7 +20,6 @@ import {
   createBomSchema,
   createBomVersionSchema,
   type Bom,
-  type BomSummary,
   type BomVersion,
   type SessionUser,
 } from '@easyerp/contracts';
@@ -58,8 +58,8 @@ export class BomController {
 
   @RequirePermissions('bom:read')
   @Get()
-  async list(): Promise<BomSummary[]> {
-    return this.boms.list();
+  async list(@Query() query: unknown) {
+    return this.boms.list(query);
   }
 
   @RequirePermissions('bom:read')

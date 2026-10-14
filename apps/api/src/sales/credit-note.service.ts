@@ -18,6 +18,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 import {
   documentStatusSchema,
@@ -302,17 +303,153 @@ export class CreditNoteService {
   async readArchive(creditNoteId: string): Promise<{ pdf: Buffer; sha256: string }> {
     const creditNote = await this.prisma.document.findFirst({
       where: { id: creditNoteId, type: CREDIT_NOTE },
+      include: {
+        lines: { orderBy: { position: 'asc' } },
+        taxes: { orderBy: { position: 'asc' } },
+        business: true,
+        party: true,
+        creditNotes: true,
+      },
     });
     if (!creditNote) throw notFound('Credit Note', creditNoteId);
-    if (creditNote.status !== 'ISSUED' || creditNote.archivePath === null) {
+    if (creditNote.status !== 'ISSUED') {
       throw notFound('Archived document', creditNoteId);
     }
-    try {
-      const pdf = await readFile(creditNote.archivePath);
-      return { pdf, sha256: creditNote.archiveSha256 ?? '' };
-    } catch {
-      invariant(false, `The archived document for ${creditNote.number} is missing from disk.`);
+
+    const year = creditNote.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
+    const number = creditNote.number ?? '';
+    const expectedPath = this.archive.pathFor(CREDIT_NOTE, year, number);
+
+    // Try the stored archivePath first (authoritative if it exists).
+    if (creditNote.archivePath !== null) {
+      try {
+        const pdf = await readFile(creditNote.archivePath);
+        return { pdf, sha256: creditNote.archiveSha256 ?? '' };
+      } catch (cause) {
+        const errno = (cause as NodeJS.ErrnoException).code;
+        if (errno !== 'ENOENT') {
+          invariant(false, `Failed to read archived document for ${creditNote.number} from ${creditNote.archivePath}: ${String(cause)}`);
+        }
+        // File missing at stored path — fall through.
+      }
     }
+
+    // Stored path missing or wrong: try the currently computed path.
+    // This handles deployments where DOCUMENT_ARCHIVE_ROOT changed but the file
+    // exists at the new root. If found, update the stored path for next time.
+    if (expectedPath !== creditNote.archivePath) {
+      try {
+        const pdf = await readFile(expectedPath);
+        const sha256 = createHash('sha256').update(pdf).digest('hex');
+        await this.prisma.document.update({
+          where: { id: creditNote.id },
+          data: { archivePath: expectedPath, archiveSha256: sha256, archivedAt: new Date() },
+        });
+        return { pdf, sha256 };
+      } catch (cause) {
+        const errno = (cause as NodeJS.ErrnoException).code;
+        if (errno !== 'ENOENT') {
+          invariant(
+            false,
+            `Failed to read archived document for ${creditNote.number} from ${expectedPath}: ${String(cause)}`,
+          );
+        }
+        // File missing at computed path too — fall through to render.
+      }
+    }
+
+    // Archive missing or never written: render from DB data, then store for next time.
+    const rendered = await this.renderAndArchive(creditNote);
+    return { pdf: rendered.pdf, sha256: rendered.sha256 };
+  }
+
+  /**
+   * Reconstruct the credit note view from stored rows, render to PDF, archive it,
+   * and update the document record with the new archive path and hash.
+   */
+  private async renderAndArchive(creditNote: {
+    id: string;
+    number: string | null;
+    issuedAt: Date | null;
+    locale: string;
+    vatRegime: string;
+    currency: string;
+    business: { legalName: string; taxIdentifier: string; addressLine1: string | null; city: string | null; countryCode: string | null };
+    party: { name: string; taxIdentifier: string | null; address: string | null; city: string | null };
+    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string }; netAmount: { toString(): string } }[];
+    taxes: readonly { rate: { toString(): string }; base: { toString(): string }; amount: { toString(): string } }[];
+    netAmount: { toString(): string };
+    taxAmount: { toString(): string };
+    grossAmount: { toString(): string };
+    stampDutyAmount: { toString(): string };
+    withholdingTaxAmount: { toString(): string };
+    creditNotes: readonly { correctsDocumentId: string }[];
+  }): Promise<{ pdf: Buffer; sha256: string }> {
+    const locale = localeSchema.parse(creditNote.locale);
+    const year = creditNote.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
+    const number = creditNote.number ?? '';
+
+    const corrected = await this.prisma.document.findFirst({
+      where: { id: creditNote.creditNotes?.[0]?.correctsDocumentId },
+    });
+    invariant(corrected?.number, 'Corrected invoice number required for Credit Note rendering.');
+
+    const view = buildCustomerInvoice({
+      pattern: '{seq}',
+      sequence: 0,
+      padding: 0,
+      year,
+      issuedAt: creditNote.issuedAt?.toISOString().slice(0, 10) ?? '',
+      locale,
+      vatRegime: vatRegimeSchema.parse(creditNote.vatRegime),
+      currency: creditNote.currency,
+      labels: terminologyFor(locale, await this.labels.forDocument(locale)),
+      issuer: {
+        displayName: creditNote.business.legalName,
+        taxIdentifier: creditNote.business.taxIdentifier,
+        addressLines: [
+          creditNote.business.addressLine1,
+          creditNote.business.city,
+          creditNote.business.countryCode,
+        ].filter((part): part is string => Boolean(part)),
+      },
+      party: {
+        displayName: creditNote.party.name,
+        taxIdentifier: creditNote.party.taxIdentifier ?? '',
+        addressLines: [creditNote.party.address, creditNote.party.city].filter((part): part is string =>
+          Boolean(part),
+        ),
+      },
+      kind: 'CREDIT_NOTE',
+      correctedNumber: corrected.number,
+      lines: creditNote.lines.map((line) => ({
+        description: line.description,
+        quantity: line.quantity.toString(),
+        unitPrice: line.unitPrice.toString(),
+        taxRate: line.taxRate.toString(),
+        net: line.netAmount.toString(),
+      })),
+      stampDuty: creditNote.stampDutyAmount.toString() === '0' ? null : creditNote.stampDutyAmount.toString(),
+      withholdingTax: creditNote.withholdingTaxAmount.toString() === '0' ? null : creditNote.withholdingTaxAmount.toString(),
+      fodec: null,
+      formattedNumber: creditNote.number ?? '',
+    });
+
+    const renderer = await sharedPdfRenderer();
+    const pdf = await renderer.toPdf(renderInvoiceHtml(view));
+
+    const stored = await this.archive.store(CREDIT_NOTE, year, number, pdf);
+
+    await this.prisma.document.update({
+      where: { id: creditNote.id },
+      data: {
+        archivePath: stored.path,
+        archiveSha256: stored.sha256,
+        archivedAt: new Date(),
+      },
+    });
+
+    return { pdf, sha256: stored.sha256 };
   }
 
   async findById(id: string): Promise<CreditNoteResponse | null> {

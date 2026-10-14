@@ -16,7 +16,6 @@ import {
 } from '@easyerp/contracts';
 
 import { AuditService } from '../audit/audit.service.js';
-import { DomainError } from '../common/errors.js';
 import { notFound } from '../common/errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -46,19 +45,6 @@ export class BusinessSettingsService {
     const input = businessProfileUpdateSchema.parse(patch);
     const before = (await this.current()) as Record<string, unknown>;
     const after = { ...before, ...input };
-
-    // Fiscal identity lock per Q10 / ADR 0006 — vatRegime/currency/countryCode
-    // cannot change after any document exists, otherwise tax breakdowns would
-    // retroactively change. 409, not 400, because the request is well-formed
-    // but illegal in the current state.
-    const fiscalKeys: (keyof typeof input)[] = ['vatRegime', 'currency', 'countryCode'];
-    const touchesFiscal = fiscalKeys.some((k) => k in input);
-    if (touchesFiscal) {
-      const docs = await this.prisma.document.count();
-      if (docs > 0) {
-        throw new DomainError('ILLEGAL_TRANSITION', 'Fiscal identity is locked after documents exist');
-      }
-    }
 
     const business = await this.business();
     const updated = await this.prisma.business.update({

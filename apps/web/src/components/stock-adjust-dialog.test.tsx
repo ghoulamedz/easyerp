@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  *
- * StockList opening/adjust dialog: the Adjust button confirms the password by
+ * StockList adjust dialog: the Adjust button confirms the password by
  * re-signing-in as the session user, then posts the adjustment and refetches;
  * a wrong password (401) shows the sign-in error and never posts stock.
  */

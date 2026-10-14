@@ -5,11 +5,13 @@ import { LocaleSwitcher } from './locale-switcher';
 import { ThemeSwitch } from './theme-switch';
 import { Button, Card, CardBody, CardHeader } from './ui';
 import { ApiError, apiGet, apiSend } from '../lib/api';
+import { useSession } from '../lib/client-session';
 import { translatorFor, type Locale } from '../i18n/config';
 import type { BusinessProfile } from '@easyerp/contracts';
 
 export function SettingsPanel({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
+  const { session } = useSession();
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -17,6 +19,11 @@ export function SettingsPanel({ locale }: { locale: Locale }) {
   const [saved, setSaved] = useState(false);
 
   // Editable fields
+  const [legalName, setLegalName] = useState('');
+  const [taxIdentifier, setTaxIdentifier] = useState('');
+  const [countryCode, setCountryCode] = useState('');
+  const [vatRegime, setVatRegime] = useState<'STANDARD' | 'EXEMPT'>('STANDARD');
+  const [currency, setCurrency] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -25,12 +32,21 @@ export function SettingsPanel({ locale }: { locale: Locale }) {
   const [city, setCity] = useState('');
   const [postalCode, setPostalCode] = useState('');
 
+  // Password-confirm step: every save re-verifies the session password first.
+  const [confirmStep, setConfirmStep] = useState(false);
+  const [password, setPassword] = useState('');
+
   useEffect(() => {
     let cancelled = false;
     apiGet<BusinessProfile>('/settings/business')
       .then((data) => {
         if (cancelled) return;
         setProfile(data);
+        setLegalName(data.legalName ?? '');
+        setTaxIdentifier(data.taxIdentifier ?? '');
+        setCountryCode(data.countryCode ?? '');
+        setVatRegime(data.vatRegime);
+        setCurrency(data.currency ?? '');
         setDisplayName(data.displayName ?? '');
         setPhone(data.phone ?? '');
         setEmail(data.email ?? '');
@@ -50,12 +66,50 @@ export function SettingsPanel({ locale }: { locale: Locale }) {
     };
   }, [t]);
 
-  const onSave = async (): Promise<void> => {
+  const openConfirm = (): void => {
+    setError(null);
+    setSaved(false);
+    setPassword('');
+    setConfirmStep(true);
+  };
+
+  const closeConfirm = (): void => {
+    setConfirmStep(false);
+    setPassword('');
+  };
+
+  const onConfirmSave = async (): Promise<void> => {
+    if (saving) return;
     setSaving(true);
     setError(null);
     setSaved(false);
     try {
+      const sessionEmail = session?.user.email;
+      if (!sessionEmail) {
+        setError(t('signInError'));
+        return;
+      }
+      // No password-verify endpoint exists: re-sign-in as the session user.
+      // A 200 confirms the password; a 401 means it was wrong. Harmless
+      // either way — signing in as yourself changes nothing.
+      // NOTE: bare fetch, not apiSend — apiSend redirects to sign-in on 401,
+      // but here a 401 is the expected wrong-password signal, not a dead session.
+      const check = await fetch('/api/auth/sign-in/email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: sessionEmail, password }),
+      });
+      if (!check.ok) {
+        setError(t('signInError'));
+        return;
+      }
       const updated = await apiSend<BusinessProfile>('/settings/business', 'PATCH', {
+        legalName: legalName.trim() || undefined,
+        taxIdentifier: taxIdentifier.trim() || undefined,
+        countryCode: countryCode.trim().toUpperCase() || undefined,
+        vatRegime,
+        currency: currency.trim().toUpperCase() || undefined,
         displayName: displayName.trim() || undefined,
         phone: phone.trim() || undefined,
         email: email.trim() || undefined,
@@ -66,6 +120,7 @@ export function SettingsPanel({ locale }: { locale: Locale }) {
       });
       setProfile(updated);
       setSaved(true);
+      closeConfirm();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) setError(e.message);
       else setError(e instanceof Error ? e.message : t('loadFailed'));
@@ -97,18 +152,29 @@ export function SettingsPanel({ locale }: { locale: Locale }) {
             <p className="text-sm text-ink-muted">{t('loading')}</p>
           ) : profile ? (
             <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">{t('settingsBusinessName')}</dt>
-                  <dd className="mt-1 text-sm text-ink-muted">{profile.legalName} <span className="text-xs">({t('settingsLocked')})</span></dd>
+                  <label htmlFor="settings-legal" className="mb-1.5 block text-xs font-medium text-ink-muted">{t('setupLegalName')}</label>
+                  <input id="settings-legal" value={legalName} onChange={(e) => setLegalName(e.target.value)} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none" />
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">{t('settingsVatRegime')}</dt>
-                  <dd className="mt-1 text-sm text-ink-muted">{profile.vatRegime} <span className="text-xs">({t('settingsLocked')})</span></dd>
+                  <label htmlFor="settings-taxid" className="mb-1.5 block text-xs font-medium text-ink-muted">{t('setupTaxIdentifier')}</label>
+                  <input id="settings-taxid" dir="ltr" value={taxIdentifier} onChange={(e) => setTaxIdentifier(e.target.value)} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none" />
                 </div>
                 <div>
-                  <dt className="text-xs font-medium uppercase tracking-wide text-ink-subtle">{t('settingsCurrency')}</dt>
-                  <dd className="mt-1 text-sm text-ink-muted">{profile.currency} <span className="text-xs">({t('settingsLocked')})</span></dd>
+                  <label htmlFor="settings-country" className="mb-1.5 block text-xs font-medium text-ink-muted">{t('setupCountryCode')}</label>
+                  <input id="settings-country" dir="ltr" value={countryCode} onChange={(e) => setCountryCode(e.target.value)} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none" />
+                </div>
+                <div>
+                  <label htmlFor="settings-vat" className="mb-1.5 block text-xs font-medium text-ink-muted">{t('setupVatRegime')}</label>
+                  <select id="settings-vat" value={vatRegime} onChange={(e) => setVatRegime(e.target.value as 'STANDARD' | 'EXEMPT')} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none">
+                    <option value="STANDARD">{t('setupVatStandard')}</option>
+                    <option value="EXEMPT">{t('setupVatExempt')}</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="settings-currency" className="mb-1.5 block text-xs font-medium text-ink-muted">{t('setupCurrency')}</label>
+                  <input id="settings-currency" dir="ltr" value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none" />
                 </div>
               </div>
 
@@ -146,9 +212,26 @@ export function SettingsPanel({ locale }: { locale: Locale }) {
               {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
               {saved ? <p role="status" className="text-sm text-ok">{t('saved')}</p> : null}
 
-              <Button type="button" variant="primary" disabled={saving} onClick={onSave}>
-                {saving ? t('loading') : t('save')}
-              </Button>
+              {confirmStep ? (
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="settings-password" className="mb-1.5 block text-xs font-medium text-ink-muted">{t('stockPasswordConfirm')}</label>
+                    <input id="settings-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="primary" disabled={saving} onClick={() => void onConfirmSave()}>
+                      {saving ? t('loading') : t('save')}
+                    </Button>
+                    <Button type="button" variant="secondary" disabled={saving} onClick={closeConfirm}>
+                      {t('cancel')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button type="button" variant="primary" disabled={saving} onClick={openConfirm}>
+                  {t('save')}
+                </Button>
+              )}
             </div>
           ) : (
             <p className="text-sm text-danger">{error ?? t('loadFailed')}</p>

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { PageHeader } from '../../../../components/ui';
-import { DocumentList } from '../../../../components/document-list';
-import { isLocale, translatorFor, type Locale } from '../../../../i18n/config';
+import { PageHeader } from '@/components/ui';
+import { DocumentList } from '@/components/document-list';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,
@@ -32,6 +32,8 @@ export default async function ProductionPage({ params }: { params: Promise<{ loc
         emptyKey="noProductionOrders"
         issuePermission="production-order:issue"
         cancelPermission="production-order:cancel"
+        editPermission="production-order:update"
+        editBaseHref={`/${typedLocale}/production/orders`}
       />
     </div>
   );

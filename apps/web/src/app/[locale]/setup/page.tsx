@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { SetupScreen } from '../../../components/setup-screen';
-import { isLocale, translatorFor, type Locale } from '../../../i18n/config';
+import { SetupScreen } from '@/components/setup-screen';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 import { readSession, readSetupStatus } from '../../../lib/server-api';
 
 export async function generateMetadata({

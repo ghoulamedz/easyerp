@@ -22,7 +22,7 @@ import {
  * 403 renders "not permitted" in the screen's own words), and ready.
  */
 export function useCollection<T>(path: string, query?: CollectionQuery): CollectionState<T> {
-  const key = `${path}|${query?.page ?? 1}|${query?.pageSize ?? 25}|${query?.q ?? ''}`;
+  const key = `${path}|${query?.page ?? 1}|${query?.pageSize ?? 25}|${query?.q ?? ''}|${query?.status ?? ''}|${query?.itemType ?? ''}|${query?.role ?? ''}`;
   const [result, setResult] = useState<CollectionState<T>>({ state: 'loading' });
 
   useEffect(() => {

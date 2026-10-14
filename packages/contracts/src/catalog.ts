@@ -134,3 +134,19 @@ export const partyInputSchema = partySchema
   })
   .strict();
 export type PartyInput = z.infer<typeof partyInputSchema>;
+
+import { pageQuerySchema } from './pagination.js';
+
+/** Query parameters for listing Items. */
+export const itemListQuerySchema = pageQuerySchema.extend({
+  /** Filter by item type (RAW_MATERIAL, SEMI_FINISHED, FINISHED_GOOD, SERVICE, CONSUMABLE). */
+  itemType: itemTypeSchema.optional(),
+}).strict();
+export type ItemListQuery = z.infer<typeof itemListQuerySchema>;
+
+/** Query parameters for listing Parties. */
+export const partyListQuerySchema = pageQuerySchema.extend({
+  /** Filter by role (CUSTOMER, SUPPLIER). Empty means both. */
+  role: z.enum(PARTY_ROLES).optional(),
+}).strict();
+export type PartyListQuery = z.infer<typeof partyListQuerySchema>;

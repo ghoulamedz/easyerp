@@ -1,44 +1,23 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
 import type { BomSummary } from '@easyerp/contracts';
 import { translatorFor, type Locale } from '../i18n/config';
-import { ApiError, apiGet } from '../lib/api';
+import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
-
-type State =
-  | { readonly state: 'loading' }
-  | { readonly state: 'failed'; readonly error: ApiError }
-  | { readonly state: 'ready'; readonly rows: readonly BomSummary[] };
+import { FilterBar } from './filter-bar';
 
 export function BomsList({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get('q') ?? '');
   const canCreate = useHasPermission('bom:create');
-  const [result, setResult] = useState<State>({ state: 'loading' });
 
-  useEffect(() => {
-    let cancelled = false;
-    apiGet<readonly BomSummary[]>('/production/boms').then(
-      (rows) => {
-        if (!cancelled) setResult({ state: 'ready', rows });
-      },
-      (error: unknown) => {
-        if (!cancelled) {
-          setResult({
-            state: 'failed',
-            error:
-              error instanceof ApiError
-                ? error
-                : new ApiError(0, 'REQUEST_FAILED', 'The request could not be completed'),
-          });
-        }
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const result = useCollection<BomSummary>('/production/boms', {
+    ...(q ? { q } : {}),
+  });
 
   if (result.state === 'loading') {
     return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
@@ -53,7 +32,9 @@ export function BomsList({ locale }: { locale: Locale }) {
     );
   }
 
-  if (result.rows.length === 0) {
+  const rows = result.data.items;
+
+  if (rows.length === 0) {
     return (
       <div className="py-8 text-center">
         <p className="text-sm text-ink-muted">{t('noBoms')}</p>
@@ -68,6 +49,16 @@ export function BomsList({ locale }: { locale: Locale }) {
 
   return (
     <div>
+      <FilterBar
+        locale={locale}
+        q={q}
+        onQChange={setQ}
+        showSearch={true}
+        showStatus={false}
+        showItemType={false}
+        showRole={false}
+        searchPlaceholder="finishedItemSearch"
+      />
       {canCreate ? (
         <div className="mb-4 flex justify-end">
           <Link href={`/${locale}/boms/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">
@@ -76,7 +67,7 @@ export function BomsList({ locale }: { locale: Locale }) {
         </div>
       ) : null}
       <div className="divide-y divide-line">
-        {result.rows.map((row) => (
+        {rows.map((row) => (
           <div key={row.id} className="py-4">
             <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
               <div>

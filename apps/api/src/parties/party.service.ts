@@ -18,11 +18,11 @@ import { Injectable } from '@nestjs/common';
 
 import {
   partyInputSchema,
+  partyListQuerySchema,
   partySchema,
-  pageQuerySchema,
-  type PageQuery,
   type Party,
   type PartyInput,
+  type PageQuery,
 } from '@easyerp/contracts';
 
 import { AuditService } from '../audit/audit.service.js';
@@ -151,8 +151,11 @@ export class PartyService {
 
   /** The paged, searchable directory (Q10, story 32). */
   async list(query: unknown): Promise<Paged<Party>> {
-    const parsed = pageQuerySchema.parse(query);
+    const parsed = partyListQuerySchema.parse(query);
     const where = this.searchWhere(parsed);
+    if (parsed.role) {
+      where.roles = { has: parsed.role };
+    }
     const [rows, total] = await Promise.all([
       this.prisma.party.findMany({
         where,

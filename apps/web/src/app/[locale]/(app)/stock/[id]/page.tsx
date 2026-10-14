@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { Card, CardBody, CardHeader, PageHeader } from '../../../../../components/ui';
-import { IconChevronLeft, IconDatabase, IconAlertTriangle } from '../../../../../components/icons';
-import { isLocale, translatorFor, type Locale } from '../../../../../i18n/config';
+import { Card, CardBody, CardHeader, PageHeader } from '@/components/ui';
+import { IconChevronLeft, IconDatabase, IconAlertTriangle } from '@/components/icons';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,

@@ -104,6 +104,11 @@ export interface CustomerInvoiceInput {
   readonly withholdingTax?: string | null;
   /** FODEC total passed through from already-computed totals; never recomputed. */
   readonly fodec?: string | null;
+  /**
+   * Pre-formatted document number (e.g., stored on an Issued document).
+   * When provided, this is used directly instead of rendering from pattern.
+   */
+  readonly formattedNumber?: string;
 }
 
 export function buildCustomerInvoice(input: CustomerInvoiceInput): CustomerInvoiceView {
@@ -121,11 +126,12 @@ export function buildCustomerInvoice(input: CustomerInvoiceInput): CustomerInvoi
     kind: input.kind ?? 'CUSTOMER_INVOICE',
     locale: input.locale,
     direction: directionOf(input.locale),
-    number: renderDocumentNumber(input.pattern, {
-      sequence: input.sequence,
-      year: input.year,
-      padding: input.padding,
-    }),
+    number: input.formattedNumber ??
+      renderDocumentNumber(input.pattern, {
+        sequence: input.sequence,
+        year: input.year,
+        padding: input.padding,
+      }),
     issuedAt: input.issuedAt,
     vatRegime: input.vatRegime,
     currency: input.currency,

@@ -153,10 +153,18 @@ export class PaymentsService {
     businessId: string | null,
     page: number,
     pageSize: number,
+    q?: string,
   ): Promise<PaymentPage> {
     const where: Record<string, unknown> = {};
     if (businessId) where.businessId = businessId;
     if (partyId) where.partyId = partyId;
+    if (q) {
+      where.OR = [
+        { reference: { contains: q, mode: 'insensitive' } },
+        { note: { contains: q, mode: 'insensitive' } },
+        { party: { name: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
     const [items, total] = await Promise.all([
       this.prisma.payment.findMany({
         where,

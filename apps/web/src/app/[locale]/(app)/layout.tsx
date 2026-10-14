@@ -1,6 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
-import { AppShell } from '../../../components/app-shell';
-import { isLocale, type Locale } from '../../../i18n/config';
+import { AppShell } from '@/components/app-shell';
+import { isLocale, type Locale } from '@/i18n/config';
 import { readSession, readSetupStatus } from '../../../lib/server-api';
 
 /**

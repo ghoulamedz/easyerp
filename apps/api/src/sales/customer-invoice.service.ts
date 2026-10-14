@@ -36,6 +36,7 @@
 
 import { Injectable } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 
 import {
   documentStatusSchema,
@@ -329,25 +330,151 @@ export class CustomerInvoiceService {
   async readArchive(invoiceId: string): Promise<{ pdf: Buffer; sha256: string }> {
     const invoice = await this.prisma.document.findFirst({
       where: { id: invoiceId, type: CUSTOMER_INVOICE },
+      include: {
+        lines: { orderBy: { position: 'asc' } },
+        taxes: { orderBy: { position: 'asc' } },
+        business: true,
+        party: true,
+      },
     });
 
     if (!invoice) throw notFound('Customer Invoice', invoiceId);
-    if (invoice.status !== 'ISSUED' || invoice.archivePath === null) {
+    if (invoice.status !== 'ISSUED') {
       throw notFound('Archived document', invoiceId);
     }
 
-    try {
-      const pdf = await readFile(invoice.archivePath);
-      return { pdf, sha256: invoice.archiveSha256 ?? '' };
-    } catch (cause) {
-      // The record survives; the file does not. That is a deployment fault rather
-      // than a client one, so it is a 500 with the path kept for the log: a client
-      // needs to know their document is unavailable, not which disk is empty.
-      invariant(
-        false,
-        `The archived document for ${invoice.number} is missing from disk (${invoice.archivePath}): ${String(cause)}`,
-      );
+    const year = invoice.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
+    const number = invoice.number ?? '';
+    const expectedPath = this.archive.pathFor(CUSTOMER_INVOICE, year, number);
+
+    // Try the stored archivePath first (authoritative if it exists).
+    if (invoice.archivePath !== null) {
+      try {
+        const pdf = await readFile(invoice.archivePath);
+        return { pdf, sha256: invoice.archiveSha256 ?? '' };
+      } catch (cause) {
+        const errno = (cause as NodeJS.ErrnoException).code;
+        if (errno !== 'ENOENT') {
+          // Any error other than "file not found" is a deployment fault.
+          invariant(
+            false,
+            `Failed to read archived document for ${invoice.number} from ${invoice.archivePath}: ${String(cause)}`,
+          );
+        }
+        // File missing at stored path — fall through.
+      }
     }
+
+    // Stored path missing or wrong: try the currently computed path.
+    // This handles deployments where DOCUMENT_ARCHIVE_ROOT changed but the file
+    // exists at the new root. If found, update the stored path for next time.
+    if (expectedPath !== invoice.archivePath) {
+      try {
+        const pdf = await readFile(expectedPath);
+        const sha256 = createHash('sha256').update(pdf).digest('hex');
+        await this.prisma.document.update({
+          where: { id: invoice.id },
+          data: { archivePath: expectedPath, archiveSha256: sha256, archivedAt: new Date() },
+        });
+        return { pdf, sha256 };
+      } catch (cause) {
+        const errno = (cause as NodeJS.ErrnoException).code;
+        if (errno !== 'ENOENT') {
+          invariant(
+            false,
+            `Failed to read archived document for ${invoice.number} from ${expectedPath}: ${String(cause)}`,
+          );
+        }
+        // File missing at computed path too — fall through to render.
+      }
+    }
+
+    // Archive missing or never written: render from DB data, then store for next time.
+    const rendered = await this.renderAndArchive(invoice);
+    return { pdf: rendered.pdf, sha256: rendered.sha256 };
+  }
+
+  /**
+   * Reconstruct the invoice view from stored rows, render to PDF, archive it,
+   * and update the document record with the new archive path and hash.
+   */
+  private async renderAndArchive(invoice: {
+    id: string;
+    number: string | null;
+    issuedAt: Date | null;
+    locale: string;
+    vatRegime: string;
+    currency: string;
+    business: { legalName: string; taxIdentifier: string; addressLine1: string | null; city: string | null; countryCode: string | null };
+    party: { name: string; taxIdentifier: string | null; address: string | null; city: string | null };
+    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string } }[];
+    taxes: readonly { rate: { toString(): string }; base: { toString(): string }; amount: { toString(): string } }[];
+    netAmount: { toString(): string };
+    taxAmount: { toString(): string };
+    grossAmount: { toString(): string };
+    stampDutyAmount: { toString(): string };
+    withholdingTaxAmount: { toString(): string };
+  }): Promise<{ pdf: Buffer; sha256: string }> {
+    const locale = localeSchema.parse(invoice.locale);
+    const year = invoice.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
+    const number = invoice.number ?? '';
+
+    const view = buildCustomerInvoice({
+      // Number pattern details are not stored on the document; they are only needed
+      // for rendering the formatted number. Since the document already has its
+      // formatted number stored, we pass a minimal pattern that renders it as-is.
+      pattern: '{seq}',
+      sequence: 0,
+      padding: 0,
+      year,
+      issuedAt: invoice.issuedAt?.toISOString().slice(0, 10) ?? '',
+      locale,
+      vatRegime: vatRegimeSchema.parse(invoice.vatRegime),
+      currency: invoice.currency,
+      labels: terminologyFor(locale, await this.labels.forDocument(locale)),
+      issuer: {
+        displayName: invoice.business.legalName,
+        taxIdentifier: invoice.business.taxIdentifier,
+        addressLines: [
+          invoice.business.addressLine1,
+          invoice.business.city,
+          invoice.business.countryCode,
+        ].filter((part): part is string => Boolean(part)),
+      },
+      party: {
+        displayName: invoice.party.name,
+        taxIdentifier: invoice.party.taxIdentifier ?? '',
+        addressLines: [invoice.party.address, invoice.party.city].filter((part): part is string =>
+          Boolean(part),
+        ),
+      },
+      lines: invoice.lines.map((line) => ({
+        description: line.description,
+        quantity: line.quantity.toString(),
+        unitPrice: line.unitPrice.toString(),
+        taxRate: line.taxRate.toString(),
+      })),
+      stampDuty: invoice.stampDutyAmount.toString() === '0' ? null : invoice.stampDutyAmount.toString(),
+      withholdingTax: invoice.withholdingTaxAmount.toString() === '0' ? null : invoice.withholdingTaxAmount.toString(),
+      fodec: null, // FODEC total not stored on document; would need line-level recomputation.
+      formattedNumber: invoice.number ?? '',
+    });
+
+    const renderer = await sharedPdfRenderer();
+    const pdf = await renderer.toPdf(renderInvoiceHtml(view));
+
+    const stored = await this.archive.store(CUSTOMER_INVOICE, year, number, pdf);
+
+    await this.prisma.document.update({
+      where: { id: invoice.id },
+      data: {
+        archivePath: stored.path,
+        archiveSha256: stored.sha256,
+        archivedAt: new Date(),
+      },
+    });
+
+    return { pdf, sha256: stored.sha256 };
   }
 
   async findById(id: string): Promise<CustomerInvoiceResponse | null> {

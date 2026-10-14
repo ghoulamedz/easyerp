@@ -204,6 +204,39 @@ export class UsersService {
     });
   }
 
+  /**
+   * Soft-delete a user. Refused for the caller's own account and when the
+   * user is the last active administrator — the same invariant `setActive`
+   * enforces, because deleting an administrator deactivates them too.
+   */
+  async remove(userId: string, actor: SessionUser): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      await lockAdministratorInvariant(tx);
+
+      const user = await tx.authUser.findUnique({
+        where: { id: userId },
+        include: { roles: { include: { role: { select: { code: true } } } } },
+      });
+      if (!user || user.deletedAt) throw notFound('User', userId);
+
+      if (actor.id === userId) {
+        throw conflict('You cannot remove your own account');
+      }
+
+      if (
+        user.isActive &&
+        user.roles.some((assignment) => assignment.role.code === ADMINISTRATOR_ROLE_CODE)
+      ) {
+        const heldBy = await this.activeAdministratorIds(tx);
+        if (heldBy.length <= 1) {
+          throw conflict('The last active administrator cannot be removed');
+        }
+      }
+
+      await tx.authUser.update({ where: { id: userId }, data: { deletedAt: new Date() } });
+    });
+  }
+
   private async activeAdministratorIds(tx: Prisma.TransactionClient): Promise<string[]> {
     const holders = await tx.authUser.findMany({
       where: {

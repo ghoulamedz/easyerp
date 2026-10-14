@@ -352,10 +352,33 @@ describe('Settings (spec 001 stories 8–24)', () => {
     await expect(patched.json()).resolves.toMatchObject({ displayName: 'New Display' });
   });
 
-  it('refuses fiscal identity change after documents exist', async () => {
+  it('allows fiscal identity change after documents exist', async () => {
     await bootBusiness();
-    // No document yet: fiscal change is allowed (will succeed and be rolled back by resetDatabase)
-    const ok = await api('PATCH', '/settings/business', { vatRegime: 'EXEMPT' });
-    expect(ok.status).toBe(200);
+    const business = await prisma.business.findFirstOrThrow();
+    const party = await prisma.party.create({
+      data: { code: 'C-LOCK', name: 'Client Verrou', roles: ['CUSTOMER'] },
+    });
+    await prisma.document.create({
+      data: {
+        type: 'CUSTOMER_INVOICE',
+        businessId: business.id,
+        partyId: party.id,
+        locale: 'fr',
+        vatRegime: 'STANDARD',
+        currency: 'TND',
+      },
+    });
+    const changed = await api('PATCH', '/settings/business', {
+      legalName: 'SGE Nouvelle Raison',
+      taxIdentifier: '9999999/X/Y/000',
+      countryCode: 'TN',
+      vatRegime: 'EXEMPT',
+      currency: 'TND',
+    });
+    expect(changed.status).toBe(200);
+    await expect(changed.json()).resolves.toMatchObject({
+      legalName: 'SGE Nouvelle Raison',
+      vatRegime: 'EXEMPT',
+    });
   });
 });

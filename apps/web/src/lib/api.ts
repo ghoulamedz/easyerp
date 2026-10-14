@@ -116,6 +116,9 @@ export interface CollectionQuery {
   readonly page?: number;
   readonly pageSize?: number;
   readonly q?: string;
+  readonly status?: string;
+  readonly itemType?: string;
+  readonly role?: string;
 }
 
 /** A paged list in the `{ items, total, page, pageSize }` envelope. */
@@ -124,6 +127,9 @@ export function listCollection<T>(path: string, query?: CollectionQuery): Promis
     ...(query?.page !== undefined ? { page: query.page } : {}),
     ...(query?.pageSize !== undefined ? { pageSize: query.pageSize } : {}),
     ...(query?.q !== undefined && query.q !== '' ? { q: query.q } : {}),
+    ...(query?.status !== undefined && query.status !== '' ? { status: query.status } : {}),
+    ...(query?.itemType !== undefined && query.itemType !== '' ? { itemType: query.itemType } : {}),
+    ...(query?.role !== undefined && query.role !== '' ? { role: query.role } : {}),
   });
 }
 

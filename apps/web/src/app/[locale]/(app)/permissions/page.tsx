@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { UsersList } from '../../../../components/users-list';
-import { PermissionCatalogue } from '../../../../components/permission-catalogue';
-import { PageHeader } from '../../../../components/ui';
-import { isLocale, translatorFor, type Locale } from '../../../../i18n/config';
+import { UsersList } from '@/components/users-list';
+import { PermissionCatalogue } from '@/components/permission-catalogue';
+import { PageHeader } from '@/components/ui';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,

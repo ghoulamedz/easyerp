@@ -1,15 +1,23 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
+import { useState } from 'react';
 import Link from 'next/link';
 import type { Payment } from '@easyerp/contracts';
 import { translatorFor, type Locale } from '../i18n/config';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
+import { FilterBar } from './filter-bar';
 
 export function PaymentsList({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
-  const result = useCollection<Payment>('/payments');
+  const searchParams = useSearchParams();
+  const [q, setQ] = useState(() => searchParams.get('q') ?? '');
   const canCreate = useHasPermission('payment:create');
+
+  const result = useCollection<Payment>('/payments', {
+    ...(q ? { q } : {}),
+  });
 
   if (result.state === 'loading') {
     return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
@@ -41,6 +49,16 @@ export function PaymentsList({ locale }: { locale: Locale }) {
 
   return (
     <div>
+      <FilterBar
+        locale={locale}
+        q={q}
+        onQChange={setQ}
+        showSearch={true}
+        showStatus={false}
+        showItemType={false}
+        showRole={false}
+        searchPlaceholder="filter"
+      />
       {canCreate ? (
         <div className="mb-4 flex justify-end">
           <Link href={`/${locale}/payments/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">

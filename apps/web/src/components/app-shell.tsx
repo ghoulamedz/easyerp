@@ -16,7 +16,7 @@ import { MobileNav } from './mobile-nav';
 import { ThemeSwitch } from './theme-switch';
 import { isNavVisible, useModuleStates } from '../lib/use-modules';
 import { translatorFor, type Locale } from '../i18n/config';
-import { IconKey } from './icons';
+import { IconLogout } from './icons';
 
 function handleSignOut(locale: Locale) {
   fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' }).then(() => {
@@ -89,7 +89,7 @@ export function AppShell({ locale, children }: { locale: Locale; children: React
                 aria-label={t('navSignOut')}
                 title={t('navSignOut')}
               >
-                <IconKey className="size-5" />
+                <IconLogout className="size-5" />
               </button>
             </div>
           </div>

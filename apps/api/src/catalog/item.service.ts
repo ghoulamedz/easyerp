@@ -23,8 +23,8 @@ import { Injectable } from '@nestjs/common';
 
 import {
   itemInputSchema,
+  itemListQuerySchema,
   itemSchema,
-  pageQuerySchema,
   type Item,
   type PageQuery,
 } from '@easyerp/contracts';
@@ -144,8 +144,11 @@ export class ItemService {
 
   /** The paged, searchable catalog (Q10, story 32). */
   async list(query: unknown): Promise<Paged<Item>> {
-    const parsed = pageQuerySchema.parse(query);
+    const parsed = itemListQuerySchema.parse(query);
     const where = this.searchWhere(parsed);
+    if (parsed.itemType) {
+      where.itemType = parsed.itemType;
+    }
     const [rows, total] = await Promise.all([
       this.prisma.item.findMany({
         where,

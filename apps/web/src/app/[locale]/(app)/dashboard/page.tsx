@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { StatusPanel } from '../../../../components/status-panel';
-import { PageHeader } from '../../../../components/ui';
-import { isLocale, translatorFor, type Locale } from '../../../../i18n/config';
+import { StatusPanel } from '@/components/status-panel';
+import { PageHeader } from '@/components/ui';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 import { serverApiGet } from '../../../../lib/server-api';
 import type { BusinessProfile } from '@easyerp/contracts';
 

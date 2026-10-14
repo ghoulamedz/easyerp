@@ -8,7 +8,7 @@
  * about people, not about permissions — those live on Roles.
  */
 
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post } from '@nestjs/common';
 
 import { userInputSchema, type SessionUser, type UserInput } from '@easyerp/contracts';
 
@@ -54,5 +54,12 @@ export class UsersController {
     @CurrentUser() actor: SessionUser,
   ): Promise<{ id: string }> {
     return this.users.setActive(id, Boolean(body.isActive), actor).then(() => ({ id }));
+  }
+
+  @RequirePermissions('user:update')
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(@Param('id') id: string, @CurrentUser() actor: SessionUser): Promise<void> {
+    return this.users.remove(id, actor);
   }
 }

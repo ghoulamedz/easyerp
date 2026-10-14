@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { ThemeProvider } from '../../lib/theme-provider';
 import { THEME_BOOTSTRAP_SCRIPT } from '../../lib/theme';
-import { directionOf, isLocale, LOCALES, type Locale, translatorFor } from '../../i18n/config';
+import { directionOf, isLocale, LOCALES, type Locale, translatorFor } from '@/i18n/config';
 import '../globals.css';
 
 export function generateStaticParams(): { locale: Locale }[] {
