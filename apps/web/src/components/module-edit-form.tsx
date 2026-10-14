@@ -36,9 +36,16 @@ export function ModuleEditForm({ locale, module }: { locale: Locale; module: str
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<ModuleState>(`/settings/modules/${module}`)
-      .then((mod) => {
+    // Modules expose a list and PUT :module only: the row is picked out of
+    // the list.
+    apiGet<unknown>('/settings/modules')
+      .then((data) => {
         if (cancelled) return;
+        const rows = Array.isArray(data)
+          ? (data as readonly ModuleState[])
+          : ((data as { items?: readonly ModuleState[] }).items ?? []);
+        const mod = rows.find((row) => row.module === module);
+        if (!mod) throw new Error(t('loadFailed'));
         setIsEnabled(mod.isEnabled);
       })
       .catch((e) => {

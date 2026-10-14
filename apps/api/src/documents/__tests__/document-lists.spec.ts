@@ -265,7 +265,7 @@ describe('document, payment and BOM list endpoints', () => {
       lines: [{ itemId: component.id, quantity: '2', unitOfMeasureId: unit.id }],
     });
 
-    const rows = await boms.list();
+    const rows = (await boms.list({})).items;
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       finishedItemId: finished.id,

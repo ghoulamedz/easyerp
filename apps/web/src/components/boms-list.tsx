@@ -33,32 +33,58 @@ export function BomsList({ locale }: { locale: Locale }) {
   }
 
   const rows = result.data.items;
+  const hasActiveFilters = q !== '';
+  const clearFilters = () => {
+    setQ('');
+  };
+  const filters = (
+    <FilterBar
+      locale={locale}
+      q={q}
+      onQChange={setQ}
+      showSearch={true}
+      showStatus={false}
+      showItemType={false}
+      showRole={false}
+      searchPlaceholder="finishedItemSearch"
+      onClear={hasActiveFilters ? clearFilters : undefined}
+    />
+  );
 
   if (rows.length === 0) {
     return (
-      <div className="py-8 text-center">
-        <p className="text-sm text-ink-muted">{t('noBoms')}</p>
-        {canCreate ? (
-          <Link href={`/${locale}/boms/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
-            {t('addFirstBom')}
-          </Link>
-        ) : null}
+      <div>
+        {filters}
+        <div className="py-8 text-center">
+          {hasActiveFilters ? (
+            <>
+              <p className="text-sm text-ink-muted">{t('noResults')}</p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+              >
+                {t('clearFilters')}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-ink-muted">{t('noBoms')}</p>
+              {canCreate ? (
+                <Link href={`/${locale}/boms/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
+                  {t('addFirstBom')}
+                </Link>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <FilterBar
-        locale={locale}
-        q={q}
-        onQChange={setQ}
-        showSearch={true}
-        showStatus={false}
-        showItemType={false}
-        showRole={false}
-        searchPlaceholder="finishedItemSearch"
-      />
+      {filters}
       {canCreate ? (
         <div className="mb-4 flex justify-end">
           <Link href={`/${locale}/boms/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">

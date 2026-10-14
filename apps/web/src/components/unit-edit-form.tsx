@@ -25,6 +25,14 @@ function Label({ htmlFor, children }: { htmlFor: string; children: React.ReactNo
   );
 }
 
+function asArray<T>(data: unknown): readonly T[] {
+  if (Array.isArray(data)) return data as readonly T[];
+  if (data && typeof data === 'object' && Array.isArray((data as { items?: unknown }).items)) {
+    return (data as { items: readonly T[] }).items;
+  }
+  return [];
+}
+
 export function UnitEditForm({ locale, id }: { locale: Locale; id: string }) {
   const t = translatorFor(locale);
   const router = useRouter();
@@ -39,9 +47,13 @@ export function UnitEditForm({ locale, id }: { locale: Locale; id: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<UnitRecord>(`/settings/units/${id}`)
-      .then((unit) => {
+    // There is no GET /settings/units/:id: the list is the read surface,
+    // so the row is picked out of it.
+    apiGet<unknown>('/settings/units')
+      .then((data) => {
         if (cancelled) return;
+        const unit = asArray<UnitRecord>(data).find((row) => row.id === id);
+        if (!unit) throw new Error(t('loadFailed'));
         setCode(unit.code);
         setAllowsFraction(unit.allowsFraction);
         setIsActive(unit.isActive);

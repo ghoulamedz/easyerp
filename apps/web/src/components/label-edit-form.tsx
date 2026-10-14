@@ -8,7 +8,6 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { LOCALES } from '@easyerp/contracts';
 import type { LabelRecord } from '@easyerp/contracts';
 import { apiGet, apiSend } from '../lib/api';
 import { translatorFor, type Locale } from '../i18n/config';
@@ -47,12 +46,20 @@ export function LabelEditForm({
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<LabelRecord>(`/settings/labels?entityType=${entityType}&entityCode=${entityCode}&locale=${labelLocale}`)
+    // Labels expose a list per entity type plus a PUT upsert: the override
+    // for this exact code and locale is picked out of the list. No row
+    // means no override yet, and the value starts blank.
+    apiGet<unknown>(`/settings/labels?entityType=${entityType}`)
       .then((data) => {
         if (cancelled) return;
-        const labels = Array.isArray(data) ? data : (data as { items?: LabelRecord[] }).items ?? [];
-        if (labels.length > 0) {
-          setValue(labels[0].value);
+        const labels = Array.isArray(data)
+          ? (data as readonly LabelRecord[])
+          : ((data as { items?: readonly LabelRecord[] }).items ?? []);
+        const match = labels.find(
+          (row) => row.entityCode === entityCode && row.locale === labelLocale,
+        );
+        if (match) {
+          setValue(match.value);
         }
       })
       .catch((e) => {
@@ -71,11 +78,13 @@ export function LabelEditForm({
     setWorking(true);
     setError(null);
     try {
+      // An empty string deletes the override and lets the reviewed default
+      // stand again; the wire never carries null (labelUpsertSchema).
       await apiSend('/settings/labels', 'PUT', {
         entityType,
         entityCode,
         locale: labelLocale,
-        value: value.trim() === '' ? null : value.trim(),
+        value: value.trim(),
       });
       router.push(`/${locale}/settings/labels`);
       router.refresh();

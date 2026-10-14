@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { PageHeader } from '../../../../../../../../../components/ui';
-import { LabelEditForm } from '../../../../../../../../../components/label-edit-form';
-import { isLocale, translatorFor, type Locale } from '../../../../../../../../../i18n/config';
+import { PageHeader } from '@/components/ui';
+import { LabelEditForm } from '@/components/label-edit-form';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,

@@ -40,9 +40,16 @@ export function RoleEditForm({ locale, id }: { locale: Locale; id: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<Role>(`/roles/${id}`)
-      .then((role) => {
+    // There is no GET /roles/:id: the list is the read surface, so the row
+    // is picked out of it.
+    apiGet<unknown>('/roles')
+      .then((data) => {
         if (cancelled) return;
+        const rows = Array.isArray(data)
+          ? (data as readonly Role[])
+          : ((data as { items?: readonly Role[] }).items ?? []);
+        const role = rows.find((row) => row.id === id);
+        if (!role) throw new Error(t('loadFailed'));
         setName(role.name);
         setPermissions(role.permissions);
         setIsProtected(role.isProtected);
@@ -70,7 +77,11 @@ export function RoleEditForm({ locale, id }: { locale: Locale; id: string }) {
     setError(null);
     try {
       await apiSend(`/roles/${id}/name`, 'PUT', { name: name.trim() });
-      await apiSend(`/roles/${id}/permissions`, 'PUT', { permissions: [...permissions] });
+      // The Administrator role always holds every permission: the server
+      // 403s a permissions write on it, so a protected rename travels alone.
+      if (!isProtected) {
+        await apiSend(`/roles/${id}/permissions`, 'PUT', { permissions: [...permissions] });
+      }
       router.push(`/${locale}/settings/roles`);
       router.refresh();
     } catch (failure) {

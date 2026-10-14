@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
 import { ProductionOrderEditForm } from '@/components/production-order-edit-form';
-import { isLocale, translatorFor, type Locale } from '../../../../../../../i18n/config';
+import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
   params,

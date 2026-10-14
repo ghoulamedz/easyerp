@@ -31,7 +31,6 @@ export function UserEditForm({ locale, id }: { locale: Locale; id: string }) {
 
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [password, setPassword] = useState('');
   const [roleIds, setRoleIds] = useState<readonly string[]>([]);
   const [roles, setRoles] = useState<readonly Role[]>([]);
   const [isActive, setIsActive] = useState(true);
@@ -43,12 +42,17 @@ export function UserEditForm({ locale, id }: { locale: Locale; id: string }) {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([
-      apiGet<User>(`/users/${id}`),
-      apiGet<unknown>('/roles'),
-    ])
-      .then(([user, rolesData]) => {
+    // There is no GET /users/:id: the list is the read surface, so the row
+    // is picked out of it. Identity edits (email, name, password) have no
+    // update route — this form owns roles and active status only.
+    Promise.all([apiGet<unknown>('/users'), apiGet<unknown>('/roles')])
+      .then(([usersData, rolesData]) => {
         if (cancelled) return;
+        const users = Array.isArray(usersData)
+          ? (usersData as readonly User[])
+          : ((usersData as { items?: readonly User[] }).items ?? []);
+        const user = users.find((row) => row.id === id);
+        if (!user) throw new Error(t('loadFailed'));
         setEmail(user.email);
         setDisplayName(user.displayName);
         setRoleIds(user.roles.map((r) => r.id));
@@ -85,11 +89,10 @@ export function UserEditForm({ locale, id }: { locale: Locale; id: string }) {
     setWorking(true);
     setError(null);
     try {
-      // Update roles
+      // Roles and active status are the whole update surface: identity
+      // fields have no update route and render read-only above.
       await apiSend(`/users/${id}/roles`, 'PATCH', { roleIds: [...roleIds] });
-      // Update active status
       await apiSend(`/users/${id}/active`, 'PATCH', { isActive });
-      // Note: email, displayName, password changes would need additional endpoints
       router.push(`/${locale}/settings/users`);
       router.refresh();
     } catch (failure) {
@@ -132,36 +135,19 @@ export function UserEditForm({ locale, id }: { locale: Locale; id: string }) {
               <input
                 id="user-email"
                 type="email"
-                required
                 dir="ltr"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={FIELD}
+                readOnly
+                className={`${FIELD} bg-surface-sunken`}
               />
             </div>
             <div>
               <Label htmlFor="user-name">{t('setupAdminName')}</Label>
               <input
                 id="user-name"
-                required
                 value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                className={FIELD}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="user-password">{t('setupAdminPassword')}</Label>
-              <input
-                id="user-password"
-                type="password"
-                minLength={8}
-                maxLength={128}
-                autoComplete="new-password"
-                dir="ltr"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={FIELD}
-                placeholder={t('passwordOptional')}
+                readOnly
+                className={`${FIELD} bg-surface-sunken`}
               />
             </div>
             <div className="sm:col-span-2">

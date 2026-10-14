@@ -18,6 +18,7 @@ import { translatorFor, type Locale } from '../i18n/config';
 import { ApiError, apiGet, apiSend } from '../lib/api';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
+import { FilterBar } from './filter-bar';
 
 function failureMessage(failure: unknown, fallback: string): string {
   if (failure instanceof ApiError || failure instanceof Error) return failure.message;
@@ -42,6 +43,9 @@ function UsersListBody({ locale, onDone }: { locale: Locale; onDone: () => void 
   const [pending, setPending] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  // `GET /users` takes no query, so the search filters the fetched users
+  // client-side by display name or email.
+  const [q, setQ] = useState('');
 
   async function toggleActive(user: User): Promise<void> {
     const key = `active:${user.id}`;
@@ -87,22 +91,66 @@ function UsersListBody({ locale, onDone }: { locale: Locale; onDone: () => void 
 
   const raw = result.data as unknown;
   const rows: readonly User[] = Array.isArray(raw) ? (raw as readonly User[]) : (raw as { items: readonly User[] }).items ?? [];
+  const needle = q.trim().toLowerCase();
+  const visible =
+    needle === ''
+      ? rows
+      : rows.filter(
+          (user) =>
+            user.displayName.toLowerCase().includes(needle) ||
+            user.email.toLowerCase().includes(needle),
+        );
+  const clearFilters = () => {
+    setQ('');
+  };
+  const filters = (
+    <FilterBar
+      locale={locale}
+      q={q}
+      onQChange={setQ}
+      showSearch={true}
+      showStatus={false}
+      showItemType={false}
+      showRole={false}
+      searchPlaceholder="filter"
+      onClear={needle !== '' ? clearFilters : undefined}
+    />
+  );
 
-  if (rows.length === 0) {
+  if (visible.length === 0) {
     return (
-      <div className="py-8 text-center">
-        <p className="text-sm text-ink-muted">{t('noUsers')}</p>
-        {canCreate ? (
-          <Link href={`/${locale}/settings/users/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
-            {t('addFirstUser')}
-          </Link>
-        ) : null}
+      <div>
+        {filters}
+        <div className="py-8 text-center">
+          {needle !== '' ? (
+            <>
+              <p className="text-sm text-ink-muted">{t('noResults')}</p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+              >
+                {t('clearFilters')}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-ink-muted">{t('noUsers')}</p>
+              {canCreate ? (
+                <Link href={`/${locale}/settings/users/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
+                  {t('addFirstUser')}
+                </Link>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
+      {filters}
       {canCreate ? (
         <div className="mb-4 flex justify-end">
           <Link href={`/${locale}/settings/users/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">
@@ -116,7 +164,7 @@ function UsersListBody({ locale, onDone }: { locale: Locale; onDone: () => void 
         </p>
       ) : null}
       <div className="divide-y divide-line">
-        {rows.map((user) => (
+        {visible.map((user) => (
           <div key={user.id} className="py-4">
             <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
               <div>

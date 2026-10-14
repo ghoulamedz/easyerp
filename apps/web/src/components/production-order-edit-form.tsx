@@ -10,7 +10,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Bom, BomSummary, BomVersion, BusinessProfile, Item, ProductionOrder } from '@easyerp/contracts';
+import type { Item, ProductionOrder } from '@easyerp/contracts';
 import { apiGet, apiSend } from '../lib/api';
 import { translatorFor, type Locale } from '../i18n/config';
 import { Button, Card, CardBody } from './ui';
@@ -50,16 +50,10 @@ export function ProductionOrderEditForm({ locale, id }: { locale: Locale; id: st
   const t = translatorFor(locale);
   const router = useRouter();
 
-  const [businessId, setBusinessId] = useState('');
-  const [bomId, setBomId] = useState('');
-  const [bomVersionId, setBomVersionId] = useState('');
-  const [boms, setBoms] = useState<readonly BomSummary[]>([]);
-  const [versions, setVersions] = useState<readonly BomVersion[]>([]);
   const [items, setItems] = useState<readonly Item[]>([]);
   const [lines, setLines] = useState<LineRow[]>([{ key: 'line-1', itemId: '', quantity: '1', description: '' }]);
 
   const [loadingRefs, setLoadingRefs] = useState(true);
-  const [loadingVersions, setLoadingVersions] = useState(false);
   const [loadingOrder, setLoadingOrder] = useState(true);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,17 +61,12 @@ export function ProductionOrderEditForm({ locale, id }: { locale: Locale; id: st
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      apiGet<BusinessProfile>('/settings/business'),
-      apiGet<unknown>('/production/boms'),
       apiGet<unknown>('/items'),
       apiGet<ProductionOrder>(`/production/orders/${id}`),
     ])
-      .then(([profile, b, i, order]) => {
+      .then(([i, order]) => {
         if (cancelled) return;
-        setBusinessId(profile.id);
-        const summaries = asArray<BomSummary>(b);
         const stocked = asArray<Item>(i);
-        setBoms(summaries);
         setItems(stocked);
 
         if (order.status !== 'DRAFT') {
@@ -85,8 +74,8 @@ export function ProductionOrderEditForm({ locale, id }: { locale: Locale; id: st
           return;
         }
 
-        // The served order carries no bomVersionId, so the picker starts blank
-        // and the user reselects the version (the update only replaces lines).
+        // The update replaces the lines only: the version the order was
+        // drafted from is immutable, so there is no version picker here.
         setLines(
           order.lines.length > 0
             ? order.lines.map((line) => ({
@@ -113,36 +102,12 @@ export function ProductionOrderEditForm({ locale, id }: { locale: Locale; id: st
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  useEffect(() => {
-    if (bomId === '') return;
-    let cancelled = false;
-    setLoadingVersions(true);
-    apiGet<Bom>(`/production/boms/${bomId}`)
-      .then((detail) => {
-        if (cancelled) return;
-        setVersions(detail.versions);
-        setBomVersionId(detail.versions[0]?.id ?? '');
-      })
-      .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : t('loadFailed'));
-      })
-      .finally(() => {
-        if (!cancelled) setLoadingVersions(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bomId]);
-
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setWorking(true);
     setError(null);
     try {
       await apiSend(`/production/orders/${id}`, 'POST', {
-        businessId,
-        bomVersionId,
         lines: lines
           .filter((line) => line.itemId !== '')
           .map((line) => ({
@@ -187,41 +152,6 @@ export function ProductionOrderEditForm({ locale, id }: { locale: Locale; id: st
     <Card>
       <CardBody>
         <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <Label htmlFor="order-bom">{t('prodFinishedItem')}</Label>
-            <select
-              id="order-bom"
-              required
-              value={bomId}
-              onChange={(e) => setBomId(e.target.value)}
-              className={FIELD}
-            >
-              {boms.map((bom) => (
-                <option key={bom.id} value={bom.id}>
-                  {bom.finishedItemName} ({bom.finishedItemCode})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <Label htmlFor="order-bom-version">{t('prodBomVersion')}</Label>
-            <select
-              id="order-bom-version"
-              required
-              value={bomVersionId}
-              onChange={(e) => setBomVersionId(e.target.value)}
-              disabled={loadingVersions}
-              className={FIELD}
-            >
-              {versions.map((version) => (
-                <option key={version.id} value={version.id}>
-                  v{version.version}
-                </option>
-              ))}
-            </select>
-          </div>
-
           <fieldset className="space-y-2">
             <legend className="text-sm font-semibold text-ink">{t('invoiceLines')}</legend>
             {lines.map((line) => (

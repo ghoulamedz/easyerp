@@ -6,6 +6,7 @@ import { translatorFor, type Locale } from '../i18n/config';
 import { ApiError, apiGet, apiSend } from '../lib/api';
 import { useSession } from '../lib/client-session';
 import { useHasPermission } from '../lib/use-permissions';
+import { FilterBar } from './filter-bar';
 
 type State =
   | { readonly state: 'loading' }
@@ -21,6 +22,9 @@ export function StockList({ locale }: { locale: Locale }) {
   const canAdjust = useHasPermission('stock:adjust');
   const { session } = useSession();
 
+  // `GET /inventory/stock` takes no query, so the search filters the
+  // fetched positions client-side by code or name.
+  const [q, setQ] = useState('');
   const [quantity, setQuantity] = useState('');
   const [direction, setDirection] = useState<'ADJUSTMENT_IN' | 'ADJUSTMENT_OUT'>('ADJUSTMENT_IN');
   const [reasonText, setReasonText] = useState('');
@@ -144,15 +148,50 @@ export function StockList({ locale }: { locale: Locale }) {
     return <p className="py-8 text-center text-sm text-ink-muted">{t('noItems')}</p>;
   }
 
+  const needle = q.trim().toLowerCase();
+  const visible =
+    needle === ''
+      ? result.rows
+      : result.rows.filter(
+          (row) =>
+            row.name.toLowerCase().includes(needle) || row.code.toLowerCase().includes(needle),
+        );
+  const clearFilters = () => {
+    setQ('');
+  };
+
   return (
     <div>
+      <FilterBar
+        locale={locale}
+        q={q}
+        onQChange={setQ}
+        showSearch={true}
+        showStatus={false}
+        showItemType={false}
+        showRole={false}
+        searchPlaceholder="filter"
+        onClear={needle !== '' ? clearFilters : undefined}
+      />
       <div className="mb-4 flex justify-end">
         <a href="/api/inventory/stock.csv" className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
           {t('stockExportCsv')}
         </a>
       </div>
+      {visible.length === 0 ? (
+        <div className="py-8 text-center">
+          <p className="text-sm text-ink-muted">{t('noResults')}</p>
+          <button
+            type="button"
+            onClick={clearFilters}
+            className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+          >
+            {t('clearFilters')}
+          </button>
+        </div>
+      ) : (
       <div className="divide-y divide-line">
-        {result.rows.map((row) => (
+        {visible.map((row) => (
           <div key={row.itemId} className="py-4">
             <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
               <div>
@@ -186,6 +225,7 @@ export function StockList({ locale }: { locale: Locale }) {
           </div>
         ))}
       </div>
+      )}
       {dialog ? (
         <div role="dialog" aria-label={dialog.row.name} className="mt-4 rounded-lg border border-line bg-surface p-4">
           <p className="font-medium text-ink">{dialog.row.name}</p>

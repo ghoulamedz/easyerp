@@ -40,9 +40,16 @@ export function TaxRateEditForm({ locale, id }: { locale: Locale; id: string }) 
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<TaxRateRecord>(`/settings/tax-rates/${id}`)
-      .then((rateRecord) => {
+    // There is no GET /settings/tax-rates/:id: the list is the read surface,
+    // so the row is picked out of it.
+    apiGet<unknown>('/settings/tax-rates')
+      .then((data) => {
         if (cancelled) return;
+        const rows = Array.isArray(data)
+          ? (data as readonly TaxRateRecord[])
+          : ((data as { items?: readonly TaxRateRecord[] }).items ?? []);
+        const rateRecord = rows.find((row) => row.id === id);
+        if (!rateRecord) throw new Error(t('loadFailed'));
         setCode(rateRecord.code);
         setRate(rateRecord.rate);
         setActiveFrom(rateRecord.activeFrom);
@@ -84,6 +91,19 @@ export function TaxRateEditForm({ locale, id }: { locale: Locale; id: string }) 
       <Card>
         <CardBody>
           <p className="text-sm text-ink-muted">{t('loading')}</p>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardBody>
+          <p role="alert" className="flex items-start gap-2 text-sm text-danger">
+            <IconAlert className="mt-0.5 size-4 shrink-0" />
+            {error}
+          </p>
         </CardBody>
       </Card>
     );

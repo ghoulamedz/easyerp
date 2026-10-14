@@ -37,9 +37,16 @@ export function NumberPatternEditForm({ locale, code }: { locale: Locale; code: 
 
   useEffect(() => {
     let cancelled = false;
-    apiGet<NumberPatternRecord>(`/settings/number-patterns/${code}`)
-      .then((np) => {
+    // Number patterns expose a list and PUT :code only: the row is picked
+    // out of the list.
+    apiGet<unknown>('/settings/number-patterns')
+      .then((data) => {
         if (cancelled) return;
+        const rows = Array.isArray(data)
+          ? (data as readonly NumberPatternRecord[])
+          : ((data as { items?: readonly NumberPatternRecord[] }).items ?? []);
+        const np = rows.find((row) => row.code === code);
+        if (!np) throw new Error(t('loadFailed'));
         setPattern(np.pattern);
         setPadding(String(np.padding));
       })

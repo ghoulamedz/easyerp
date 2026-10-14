@@ -10,7 +10,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { BusinessProfile, Item, Party, PurchaseOrder } from '@easyerp/contracts';
+import type { Item, Party, PurchaseOrder } from '@easyerp/contracts';
 import { apiGet, apiSend } from '../lib/api';
 import { translatorFor, type Locale } from '../i18n/config';
 import { Button, Card, CardBody } from './ui';
@@ -50,7 +50,6 @@ export function PurchaseOrderEditForm({ locale, id }: { locale: Locale; id: stri
   const t = translatorFor(locale);
   const router = useRouter();
 
-  const [businessId, setBusinessId] = useState('');
   const [partyId, setPartyId] = useState('');
   const [parties, setParties] = useState<readonly Party[]>([]);
   const [items, setItems] = useState<readonly Item[]>([]);
@@ -64,14 +63,12 @@ export function PurchaseOrderEditForm({ locale, id }: { locale: Locale; id: stri
   useEffect(() => {
     let cancelled = false;
     Promise.all([
-      apiGet<BusinessProfile>('/settings/business'),
       apiGet<unknown>('/parties'),
       apiGet<unknown>('/items'),
       apiGet<PurchaseOrder>(`/purchasing/orders/${id}`),
     ])
-      .then(([profile, p, i, order]) => {
+      .then(([p, i, order]) => {
         if (cancelled) return;
-        setBusinessId(profile.id);
         const suppliers = asArray<Party>(p).filter((party) => party.roles.includes('SUPPLIER'));
         const stocked = asArray<Item>(i);
         setParties(suppliers);
@@ -115,7 +112,6 @@ export function PurchaseOrderEditForm({ locale, id }: { locale: Locale; id: stri
     setError(null);
     try {
       await apiSend(`/purchasing/orders/${id}`, 'POST', {
-        businessId,
         ...(partyId === '' ? {} : { partyId }),
         lines: lines
           .filter((line) => line.itemId !== '')

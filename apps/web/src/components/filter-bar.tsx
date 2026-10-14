@@ -32,8 +32,17 @@ interface FilterBarProps {
   showItemType?: boolean;
   /** Whether to show the role filter */
   showRole?: boolean;
+  /** Called to reset every filter. The clear button renders only when set and a filter is active. */
+  onClear?: (() => void) | undefined;
 }
 
+/**
+ * One filter row for every list screen. Search and each dropdown feed the
+ * collection query (server-side where the endpoint reads them); screens whose
+ * endpoint takes no query filter their already-fetched rows client-side from
+ * the same `q`. Labels reuse the shared `filterBy*` keys — no screen invents
+ * its own wording.
+ */
 export function FilterBar({
   locale,
   q,
@@ -49,6 +58,7 @@ export function FilterBar({
   showStatus = false,
   showItemType = false,
   showRole = false,
+  onClear,
 }: FilterBarProps) {
   const t = translatorFor(locale);
 
@@ -111,14 +121,7 @@ export function FilterBar({
     [t],
   );
 
-  const activeFiltersCount = useMemo(() => {
-    let count = 0;
-    if (q) count += 1;
-    if (status) count += 1;
-    if (itemType) count += 1;
-    if (role) count += 1;
-    return count;
-  }, [q, status, itemType, role]);
+  const hasActiveFilters = Boolean(q || status || itemType || role);
 
   return (
     <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -137,37 +140,50 @@ export function FilterBar({
           />
         </div>
       )}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {showStatus && (
-          <Select
-            value={status ?? ''}
-            onChange={handleStatusChange}
-            options={statusOptions}
-            className="w-40"
-          />
+          <label className="inline-flex items-center">
+            <span className="sr-only">{t('filterByStatus')}</span>
+            <Select
+              value={status ?? ''}
+              onChange={handleStatusChange}
+              options={statusOptions}
+              className="w-40"
+            />
+          </label>
         )}
         {showItemType && (
-          <Select
-            value={itemType ?? ''}
-            onChange={handleItemTypeChange}
-            options={itemTypeOptions}
-            className="w-40"
-          />
+          <label className="inline-flex items-center">
+            <span className="sr-only">{t('filterByType')}</span>
+            <Select
+              value={itemType ?? ''}
+              onChange={handleItemTypeChange}
+              options={itemTypeOptions}
+              className="w-40"
+            />
+          </label>
         )}
         {showRole && (
-          <Select
-            value={role ?? ''}
-            onChange={handleRoleChange}
-            options={roleOptions}
-            className="w-40"
-          />
+          <label className="inline-flex items-center">
+            <span className="sr-only">{t('filterByRole')}</span>
+            <Select
+              value={role ?? ''}
+              onChange={handleRoleChange}
+              options={roleOptions}
+              className="w-40"
+            />
+          </label>
         )}
+        {onClear && hasActiveFilters ? (
+          <button
+            type="button"
+            onClick={onClear}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+          >
+            {t('clearFilters')}
+          </button>
+        ) : null}
       </div>
-      {activeFiltersCount > 0 && (
-        <span className="text-xs text-ink-muted whitespace-nowrap">
-          {t('filter')} ({activeFiltersCount})
-        </span>
-      )}
     </div>
   );
 }

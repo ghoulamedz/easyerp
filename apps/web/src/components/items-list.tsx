@@ -35,32 +35,59 @@ export function ItemsList({ locale }: { locale: Locale }) {
   }
 
   const items = result.data.items;
+  const hasActiveFilters = q !== '' || itemType !== '';
+  const clearFilters = () => {
+    setQ('');
+    setItemType('');
+  };
+  const filters = (
+    <FilterBar
+      locale={locale}
+      q={q}
+      onQChange={setQ}
+      itemType={itemType}
+      onItemTypeChange={setItemType}
+      showSearch={true}
+      showItemType={true}
+      searchPlaceholder="filter"
+      onClear={hasActiveFilters ? clearFilters : undefined}
+    />
+  );
 
   if (items.length === 0) {
     return (
-      <div className="py-8 text-center">
-        <p className="text-sm text-ink-muted">{t('noItems')}</p>
-        {canCreate ? (
-          <Link href={`/${locale}/items/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
-            {t('addFirstItem')}
-          </Link>
-        ) : null}
+      <div>
+        {filters}
+        <div className="py-8 text-center">
+          {hasActiveFilters ? (
+            <>
+              <p className="text-sm text-ink-muted">{t('noResults')}</p>
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+              >
+                {t('clearFilters')}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-ink-muted">{t('noItems')}</p>
+              {canCreate ? (
+                <Link href={`/${locale}/items/new`} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
+                  {t('addFirstItem')}
+                </Link>
+              ) : null}
+            </>
+          )}
+        </div>
       </div>
     );
   }
 
   return (
     <div>
-      <FilterBar
-        locale={locale}
-        q={q}
-        onQChange={setQ}
-        itemType={itemType}
-        onItemTypeChange={setItemType}
-        showSearch={true}
-        showItemType={true}
-        searchPlaceholder="filter"
-      />
+      {filters}
       {canCreate ? (
         <div className="mb-4 flex justify-end">
           <Link href={`/${locale}/items/new`} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">

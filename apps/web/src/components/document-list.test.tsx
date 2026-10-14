@@ -368,6 +368,104 @@ describe('DocumentList view/print', () => {
   });
 });
 
+describe('DocumentList filtering', () => {
+  const filterableRows = [
+    draftRow,
+    { ...issuedRow, partyName: 'Globex SA' },
+  ];
+
+  function stubFilterableList() {
+    const urls: string[] = [];
+    global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (url === '/api/users/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            sessionUserWith(['sales-order:create', 'sales-order:issue', 'sales-order:cancel']),
+        };
+      }
+      if (url.startsWith('/api/sales/orders') && method === 'GET') {
+        urls.push(url);
+        const params = new URLSearchParams(url.includes('?') ? url.split('?')[1] : '');
+        const status = params.get('status');
+        const items = status
+          ? filterableRows.filter((row) => row.status === status)
+          : filterableRows;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ items, total: items.length, page: 1, pageSize: 25 }),
+        };
+      }
+      throw new Error(`unexpected fetch ${method} ${url}`);
+    }) as unknown as typeof fetch;
+    return { urls: () => urls };
+  }
+
+  it('narrows rows through the status dropdown, passing status as a query param', async () => {
+    const user = userEvent.setup();
+    const state = stubFilterableList();
+    renderSalesOrders();
+
+    // Each row prints the party name twice (heading and counterparty cell).
+    await screen.findAllByText('Acme SARL');
+    expect(screen.getAllByText('Globex SA')).toHaveLength(2);
+
+    await user.selectOptions(screen.getByLabelText('Filter by status'), 'ISSUED');
+
+    await waitFor(() =>
+      expect(state.urls().some((url) => url.includes('status=ISSUED'))).toBe(true),
+    );
+    expect(await screen.findAllByText('Globex SA')).toHaveLength(2);
+    expect(screen.queryByText('Acme SARL')).not.toBeInTheDocument();
+  });
+
+  it('clear resets the status filter and restores every row', async () => {
+    const user = userEvent.setup();
+    const state = stubFilterableList();
+    renderSalesOrders();
+
+    await screen.findAllByText('Acme SARL');
+    await user.selectOptions(screen.getByLabelText('Filter by status'), 'ISSUED');
+    await screen.findAllByText('Globex SA');
+    expect(screen.queryByText('Acme SARL')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+
+    await waitFor(() => {
+      const last = state.urls()[state.urls().length - 1];
+      expect(last).not.toContain('status=');
+    });
+    expect(await screen.findAllByText('Acme SARL')).toHaveLength(2);
+    expect(screen.getAllByText('Globex SA')).toHaveLength(2);
+  });
+
+  it('shows no-results with a clear action when the filter matches nothing', async () => {
+    const user = userEvent.setup();
+    stubFilterableList();
+    renderSalesOrders();
+
+    await screen.findAllByText('Acme SARL');
+    await user.selectOptions(screen.getByLabelText('Filter by status'), 'CANCELLED');
+
+    expect(await screen.findByText('No results')).toBeInTheDocument();
+    // The bar keeps its own clear next to the dropdown, and the empty state
+    // offers one beside the message — either resets the filter.
+    expect(
+      screen.getAllByRole('button', { name: 'Clear filters' }).length,
+    ).toBeGreaterThanOrEqual(1);
+
+    const clears = screen.getAllByRole('button', { name: 'Clear filters' });
+    await user.click(clears[0] as HTMLElement);
+
+    expect(await screen.findAllByText('Acme SARL')).toHaveLength(2);
+    expect(screen.queryByText('No results')).not.toBeInTheDocument();
+  });
+});
+
 describe('DocumentList button visibility by status', () => {
   function stubListWithPermissions(endpoint: string, items: Record<string, unknown>[]) {
     global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
