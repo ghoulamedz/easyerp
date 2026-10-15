@@ -58,11 +58,21 @@ jobs:
       - name: Create/update demo branch
         id: neon
         run: |
-          # Use a unique branch name per run for isolation
-          BRANCH="demo-${{ github.run_id }}"
+          # Use a fixed branch name for the demo
+          BRANCH="demo"
           
-          echo "Creating branch $BRANCH from main..."
-          neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent main
+          # Find the default branch to use as parent (first branch in project)
+          PARENT_BRANCH=$(neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json | jq -r '.branches[0].name // "main"')
+          
+          # Check if branch exists
+          if neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json | jq -e ".branches[] | select(.name == \"$BRANCH\")" >/dev/null; then
+            echo "Branch $BRANCH exists, ensuring it's up to date..."
+            # Reset to parent branch
+            neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --force
+          fi
+          
+          echo "Creating branch $BRANCH from $PARENT_BRANCH..."
+          neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent $PARENT_BRANCH
 
           # Get connection strings
           POOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp --pooled)
@@ -331,11 +341,15 @@ jobs:
       - name: Delete and recreate demo branch
         id: neon
         run: |
-          # Wipe ALL rows: delete and recreate the demo branch from main.
+          # Wipe ALL rows: delete and recreate the demo branch.
           # Runs always (if: always()) to ensure fresh demo even on smoke failure.
-          BRANCH="demo-${{ github.run_id }}"
-          neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH || true
-          neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent main
+          BRANCH="demo"
+          
+          # Find the default branch to use as parent
+          PARENT_BRANCH=$(neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json | jq -r '.branches[0].name // "main"')
+          
+          neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --force || true
+          neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent $PARENT_BRANCH
 
           UNPOOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp)
 
