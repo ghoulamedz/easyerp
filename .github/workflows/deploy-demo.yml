@@ -43,11 +43,17 @@ jobs:
       database_url_unpooled: ${{ steps.neon.outputs.database_url_unpooled }}
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install neonctl
+        run: pnpm add -g neonctl@latest
 
       - name: Authenticate to Neon
-        uses: neondatabase/setup-neonctl@v1
-        with:
-          api_key: ${{ secrets.NEON_API_KEY }}
+        run: echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}" >> $GITHUB_ENV
 
       - name: Create/update demo branch
         id: neon
@@ -175,10 +181,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - name: Install neonctl
+        run: pnpm add -g neonctl@latest
+
       - name: Authenticate to Neon
-        uses: neondatabase/setup-neonctl@v1
-        with:
-          api_key: ${{ secrets.NEON_API_KEY }}
+        run: echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}" >> $GITHUB_ENV
 
       - name: Set branch environment variables
         run: |
@@ -315,10 +322,11 @@ jobs:
       - name: Install deps (including dev for build)
         run: pnpm install --frozen-lockfile
 
+      - name: Install neonctl
+        run: pnpm add -g neonctl@latest
+
       - name: Authenticate to Neon
-        uses: neondatabase/setup-neonctl@v1
-        with:
-          api_key: ${{ secrets.NEON_API_KEY }}
+        run: echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}" >> $GITHUB_ENV
 
       - name: Delete and recreate demo branch
         id: neon
