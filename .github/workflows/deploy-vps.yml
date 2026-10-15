@@ -123,6 +123,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
+          known_hosts: ${{ secrets.VPS_KNOWN_HOSTS }}
           script: |
             set -euo pipefail
             cd /home/easyerp/easyerp
@@ -161,30 +162,37 @@ jobs:
 
             # 7. Update systemd environment files
             cat > /home/easyerp/easyerp-api/.env << 'ENVEOF'
-    NODE_ENV=production
-    API_PORT=3002
-    API_HOST=0.0.0.0
-    LOG_LEVEL=info
-    DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
-    DATABASE_POOL_MAX=10
-    DOCUMENT_ARCHIVE_ROOT=/var/lib/easyerp/documents
-    BETTER_AUTH_SECRET=${{ secrets.PROD_BETTER_AUTH_SECRET }}
-    BETTER_AUTH_URL=https://${{ github.event.inputs.domain }}
-    CORS_ORIGINS=https://${{ github.event.inputs.domain }}
-    FIRST_SETUP_TOKEN=${{ secrets.PROD_FIRST_SETUP_TOKEN }}
-    ENVEOF
+            NODE_ENV=production
+            API_PORT=3002
+            API_HOST=0.0.0.0
+            LOG_LEVEL=info
+            DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
+            DATABASE_POOL_MAX=10
+            DOCUMENT_ARCHIVE_ROOT=/var/lib/easyerp/documents
+            BETTER_AUTH_SECRET=${{ secrets.PROD_BETTER_AUTH_SECRET }}
+            BETTER_AUTH_URL=https://${{ github.event.inputs.domain }}
+            CORS_ORIGINS=https://${{ github.event.inputs.domain }}
+            FIRST_SETUP_TOKEN=${{ secrets.PROD_FIRST_SETUP_TOKEN }}
+            ENVEOF
 
             cat > /home/easyerp/easyerp-web/.env << 'ENVEOF'
-    NODE_ENV=production
-    API_INTERNAL_URL=http://127.0.0.1:3002
-    ENVEOF
+            NODE_ENV=production
+            API_INTERNAL_URL=http://127.0.0.1:3002
+            ENVEOF
 
             # 8. Restart services
             sudo systemctl daemon-reload
             sudo systemctl restart easyerp-api easyerp-web caddy
 
-            # 9. Health check
-            sleep 5
+            # 9. Health check with retry
+            for i in {1..10}; do
+              if curl -sf http://127.0.0.1:3002/api/health | jq -e '.status == "ok"' >/dev/null 2>&1; then
+                echo "API health check passed"
+                break
+              fi
+              echo "Waiting for API... (attempt $i/10)"
+              sleep 3
+            done
             curl -sf http://127.0.0.1:3002/api/health | jq -e '.status == "ok"'
             curl -sf http://127.0.0.1:3002/api/ready | jq -e '.status == "ok"'
             curl -sf https://${{ github.event.inputs.domain }}/fr/setup | grep -q "Premier démarrage"

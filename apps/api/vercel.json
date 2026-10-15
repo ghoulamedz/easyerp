@@ -6,9 +6,9 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": null,
   "functions": {
-    "dist/main.js": {
+    "dist/main.serverless.js": {
       "maxDuration": 30,
-      "runtime": "nodejs20.x"
+      "runtime": "nodejs22.x"
     }
   },
   "rewrites": [
