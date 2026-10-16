@@ -1,2 +1,52 @@
 Warning: No project session found with id 'delegate-9b0e9feaf9ea10bc26def1bb15fed7db'; creating a new session with that id.
 Warning: Extension package "/home/medo/.pi/agent/npm/node_modules/remote-pi/package.json": Host-provided extension packages must be declared in peerDependencies with a "*" range, not dependencies: @earendil-works/pi-coding-agent, @earendil-works/pi-tui, typebox. Installed copies can bypass the extension loader and create duplicate runtime modules.
+Potential blockers for demo deploy to Vercel + Neon, with mitigations:
+
+**1. API build lacks Prisma client generation**
+- `apps/api/package.json` `build` is `tsc ... && cp`, never `prisma generate`. On Vercel, if Prisma client isn’t generated, build succeeds then runtime crashes module resolution/import failure.
+- Fix: set API Build Command to `pnpm --filter @easyerp/api prisma:generate && pnpm --filter @easyerp/api build` (or add to build script).
+
+**2. Vercel project points at wrong bootstrap / runtime (docs flag)**
+- `apps/api/vercel.json` runs `build` outputting `dist/main.js` normally, but serverless entry must be `dist/main.serverless.js`.
+- Fix: keep function target `dist/main.serverless.js`, update pinned runtime from `nodejs22.x` to Node 24 to match `.nvmrc`/`engines`. Also remove no-op identity rewrites.
+- Ensure API project framework is “Other,” output dir `dist`.
+
+**3. Monorepo install context**
+- Vercel Root Directory set to `apps/api`/`apps/web` but pnpm workspace dependencies live at repo root.
+- Fix: use root-level install command (`pnpm install --frozen-lockfile`) from repository root or configure Vercel Root Directory carefully so workspace links resolve.
+
+**4. Neon role + two connection strings**
+- Workflow needs role `easyerp`; if absent, `neonctl connection-string --role easyerp` fails.
+- Fix: create role first. Use pooled URL for app `DATABASE_URL` and direct (unpooled) URL for migrations. Never migrate over pooled.
+- Demo cleanup recreates `demo` branch; migrations rerun with direct URL.
+
+**5. Environment variables and validation gates**
+- `env.ts` throws in production unless:
+  - `DOCUMENT_ARCHIVE_ROOT=/tmp/easyerp-documents`
+  - `FIRST_SETUP_TOKEN` non-default
+  - `BETTER_AUTH_SECRET` ≥ 32 chars
+  - `BETTER_AUTH_URL` valid URL (web URL)
+  - `CORS_ORIGINS` exact no wildcard
+- Manual dashboard env must be set before first deploy (workflow env job is ordered after deploy → crash loop). Fix order or set manually.
+
+**6. Next rewrite URL is baked into web build**
+- `apps/web/next.config.ts` uses `API_INTERNAL_URL ?? localhost:3002`. On Vercel, missing env leaves API calls to localhost and fails.
+- Fix: set API project URL in web env before build and rebuild web if API URL changes.
+
+**7. Serverless constraints**
+- Node process never calls `server.listen`; `main.serverless.ts` exports handler and caches app. Cold-start init cost and Better Auth raw `auth.nodeHandler` under Nest serverless is an open risk (canary: smoke sign-in).
+- PDF/doc archive on `/tmp` is ephemeral; files won’t survive cold start/redeploy. Demo-only acceptable; not client production.
+
+**8. Node/runtime version mismatch**
+- Vercel default images vs `.nvmrc` Node 24.21 and `engines.node >=24`. Set `NODE_VERSION=24`/image accordingly.
+
+**9. Playwright golden/e2e tests**
+- Require Chromium + fonts locally; not blockers for deployment, just CI gate. Don’t run on Vercel. Keep as separate CI.
+
+**10. Workflow known bugs (documented but real)**
+- `vercel env add ... <<<` syntax isn’t non-interactive; needs pipe or API.
+- Job-scoped env values aren’t passed as job outputs (`deploy-web` tries cross-job env).
+- `neon-db` job runs pnpm migration without install (partly present now).
+- Smoke setup payload shape unverified against contracts.
+
+Mitigation plan: fix `vercel.json` entry/runtime, add Prisma generate to build, set role + env vars manually before deploy, use pooled/direct correctly, set Vercel env ordering, rebuild web after URL finalization, monitor smoke sign-in. Leave VPS unchanged.
