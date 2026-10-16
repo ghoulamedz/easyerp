@@ -78,7 +78,10 @@ export function ProductionOrderForm({ locale }: { locale: Locale }) {
         const stocked = asArray<Item>(i);
         setBoms(summaries);
         setItems(stocked);
-        if (summaries.length > 0) setBomId(summaries[0]?.id ?? '');
+        if (summaries.length > 0) {
+          setBomId(summaries[0]?.id ?? '');
+          setLoadingVersions(true);
+        }
         setLines((prev) =>
           prev.map((line, index) =>
             index === 0 && line.itemId === '' ? { ...line, itemId: stocked[0]?.id ?? '' } : line,
@@ -97,10 +100,14 @@ export function ProductionOrderForm({ locale }: { locale: Locale }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const onPickBom = (next: string): void => {
+    setBomId(next);
+    if (next !== '') setLoadingVersions(true);
+  };
+
   useEffect(() => {
     if (bomId === '') return;
     let cancelled = false;
-    setLoadingVersions(true);
     apiGet<Bom>(`/production/boms/${bomId}`)
       .then((detail) => {
         if (cancelled) return;
@@ -164,7 +171,7 @@ export function ProductionOrderForm({ locale }: { locale: Locale }) {
               id="order-bom"
               required
               value={bomId}
-              onChange={(e) => setBomId(e.target.value)}
+              onChange={(e) => onPickBom(e.target.value)}
               className={FIELD}
             >
               {boms.map((bom) => (
@@ -273,9 +280,22 @@ export function ProductionOrderForm({ locale }: { locale: Locale }) {
             </p>
           ) : null}
 
-          <Button type="submit" variant="primary" disabled={working} className="w-full">
-            {working ? t('formCreating') : t('formCreate')}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                router.push(`/${locale}/production/orders`);
+                router.refresh();
+              }}
+              className="w-full"
+            >
+              {t('cancel')}
+            </Button>
+            <Button type="submit" variant="primary" disabled={working} className="w-full">
+              {working ? t('formCreating') : t('formCreate')}
+            </Button>
+          </div>
         </form>
       </CardBody>
     </Card>

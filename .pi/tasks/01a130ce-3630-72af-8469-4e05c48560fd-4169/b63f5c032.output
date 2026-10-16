@@ -1,0 +1,710 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+
+> easyerp@0.0.0 dev /home/medo/Projects/easyerp
+> test -f apps/api/.env || cp apps/api/.env.example apps/api/.env && pnpm db:generate && pnpm db:up && turbo run dev
+
+
+> easyerp@0.0.0 db:generate /home/medo/Projects/easyerp
+> pnpm --filter @easyerp/api prisma:generate
+
+
+> @easyerp/api@0.0.0 prisma:generate /home/medo/Projects/easyerp/apps/api
+> prisma generate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (v7.10.0) to ./src/generated/prisma in 452ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+
+> easyerp@0.0.0 db:up /home/medo/Projects/easyerp
+> node scripts/db.mjs up
+
+ Container easyerp_local-postgres-1 Running 
+ Container easyerp_local-postgres-1 Waiting 
+ Container easyerp_local-postgres-1 Healthy 
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "easyerp", schema "public" at "localhost:55432"
+
+10 migrations found in prisma/migrations
+
+
+No pending migrations to apply.
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "easyerp_test", schema "public" at "localhost:55432"
+
+10 migrations found in prisma/migrations
+
+
+No pending migrations to apply.
+
+PostgreSQL is up on localhost:55432.
+  easyerp        development — already migrated
+  easyerp_test   integration — already migrated
+
+Next: pnpm dev, or pnpm test:integration.
+
+   • turbo 2.11.5
+   • Packages in scope: @easyerp/api, @easyerp/contracts, @easyerp/ops, @easyerp/web
+   • Running dev in 4 packages
+   • Remote caching disabled
+
+@easyerp/contracts:dev: cache bypass, force executing bc56ece96f706120
+@easyerp/ops:dev: cache bypass, force executing d3a20a37cfa21e9a
+@easyerp/api:dev: cache bypass, force executing d1a66d7b6b71bea1
+@easyerp/web:dev: cache bypass, force executing 76c51e1858789f60
+@easyerp/api:dev: 
+@easyerp/api:dev: > @easyerp/api@0.0.0 dev /home/medo/Projects/easyerp/apps/api
+@easyerp/api:dev: > mkdir -p dist && cp -R src/generated dist/generated 2>/dev/null; node --env-file-if-exists=.env node_modules/@nestjs/cli/bin/nest.js start --watch
+@easyerp/api:dev: 
+@easyerp/contracts:dev: 
+@easyerp/contracts:dev: > @easyerp/contracts@0.0.0 dev /home/medo/Projects/easyerp/packages/contracts
+@easyerp/contracts:dev: > tsc -p tsconfig.build.json --watch
+@easyerp/contracts:dev: 
+@easyerp/ops:dev: 
+@easyerp/ops:dev: > @easyerp/ops@0.0.0 dev /home/medo/Projects/easyerp/ops
+@easyerp/ops:dev: > echo "@easyerp/ops has no dev server"
+@easyerp/ops:dev: 
+@easyerp/web:dev: 
+@easyerp/web:dev: > @easyerp/web@0.0.0 dev /home/medo/Projects/easyerp/apps/web
+@easyerp/web:dev: > next dev --port 3003
+@easyerp/web:dev: 
+@easyerp/ops:dev: @easyerp/ops has no dev server
+@easyerp/contracts:dev: [2J[3J[H11:15:10 PM - Starting compilation in watch mode...
+@easyerp/contracts:dev: 
+@easyerp/web:dev: ▲ Next.js 16.3.7 (Turbopack)
+@easyerp/web:dev: - Local:         http://localhost:3003
+@easyerp/web:dev: - Network:       http://192.168.1.196:3003
+@easyerp/web:dev: ✓ Ready in 465ms
+@easyerp/web:dev: ✓ Running next.config.ts took 46ms
+@easyerp/api:dev: [2J[3J[H[[90m11:15:11 PM[0m] Starting compilation in watch mode...
+@easyerp/api:dev: 
+@easyerp/web:dev: 
+@easyerp/contracts:dev: 
+@easyerp/contracts:dev: 11:15:11 PM - Found 0 errors. Watching for file changes.
+@easyerp/web:dev: ⚠ Blocked cross-origin request to Next.js dev resource /_next/hmr from "127.0.0.1".
+@easyerp/web:dev: Cross-origin access to Next.js dev resources is blocked by default for safety.
+@easyerp/web:dev: 
+@easyerp/web:dev: To allow this host in development, add it to "allowedDevOrigins" in next.config.js and restart the dev server:
+@easyerp/web:dev: 
+@easyerp/web:dev: // next.config.js
+@easyerp/web:dev: module.exports = {
+@easyerp/web:dev:   allowedDevOrigins: ['127.0.0.1'],
+@easyerp/web:dev: }
+@easyerp/web:dev: 
+@easyerp/web:dev: Read more: https://nextjs.org/docs/app/api-reference/config/next-config-js/allowedDevOrigins
+@easyerp/web:dev:  GET /fr/setup 307 in 2.3s (next.js: 297ms, generate-params: 472ms, application-code: 1542ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 1111ms (next.js: 509ms, generate-params: 482ms, application-code: 120ms)
+@easyerp/api:dev: [[90m11:15:16 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPrismaModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDocumentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mNumberingModule dependencies initialized[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuditModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPaymentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mIdentityModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSettingsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCatalogModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPartiesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mInventoryModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSetupModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPurchasingModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mProductionModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSalesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUsersController {/api/users}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/roles, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/active, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mRolesController {/api/roles}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/permissions, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/name, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id, DELETE} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/api}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/health, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/ready, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mItemController {/api/items}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPartyController {/api/parties}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mStockController {/api/inventory}:[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock.csv, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/open, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/adjust, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/reverse, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/entries/:itemId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCustomerInvoiceController {/api/sales/invoices}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSalesController {/api/sales}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/open, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCreditNoteController {/api/credit-notes}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBusinessSettingsController {/api/settings/business}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTaxRateController {/api/settings/tax-rates}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUnitController {/api/settings/units}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mNumberPatternController {/api/settings/number-patterns}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns/:code, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTerminologyController {/api/settings/labels}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mModuleStateController {/api/settings/modules}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules/:module, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPurchaseOrderController {/api/purchasing/orders}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, GET} route[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mGoodsReceiptController {/api/purchasing/receipts}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBomController {/api/production/boms}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id/versions, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/item/:finishedItemId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/versions/:versionId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mProductionOrderController {/api/production/orders}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPaymentsController {/api/payments}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/party/:partyId/balance, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSetupController {/api/setup}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/status, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/complete, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 185157  - [39m10/12/2026, 11:15:18 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: easyERP api listening on 127.0.0.1:3002
+@easyerp/web:dev:  GET /en/setup 200 in 180ms (next.js: 10ms, generate-params: 14ms, application-code: 156ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 104ms (next.js: 8ms, generate-params: 12ms, application-code: 85ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 157ms (next.js: 4ms, generate-params: 13ms, application-code: 140ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 89ms (next.js: 3ms, generate-params: 13ms, application-code: 73ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 95ms (next.js: 3ms, generate-params: 11ms, application-code: 81ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 131ms (next.js: 5ms, generate-params: 13ms, application-code: 113ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 113ms (next.js: 3ms, generate-params: 11ms, application-code: 99ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 89ms (next.js: 4ms, generate-params: 12ms, application-code: 73ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 86ms (next.js: 3ms, generate-params: 12ms, application-code: 71ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 99ms (next.js: 3ms, generate-params: 11ms, application-code: 85ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 78ms (next.js: 3ms, generate-params: 11ms, application-code: 65ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 95ms (next.js: 4ms, generate-params: 12ms, application-code: 79ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 118ms (next.js: 4ms, generate-params: 15ms, application-code: 99ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 141ms (next.js: 5ms, generate-params: 18ms, application-code: 118ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 92ms (next.js: 3ms, generate-params: 13ms, application-code: 75ms)
+@easyerp/web:dev:  GET / 307 in 104ms (next.js: 42ms, application-code: 63ms)
+@easyerp/web:dev:  GET /fr 307 in 506ms (next.js: 21ms, generate-params: 399ms, application-code: 86ms)
+@easyerp/web:dev:  GET /fr/setup 200 in 97ms (next.js: 4ms, generate-params: 12ms, application-code: 81ms)
+@easyerp/web:dev:  GET /fr/setup?token=dev-first-setup-token 200 in 136ms (next.js: 6ms, generate-params: 13ms, application-code: 118ms)
+@easyerp/api:dev: [2J[3J[H[[90m11:32:17 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: [[90m11:32:18 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: [2J[3J[H[[90m11:32:19 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPrismaModule dependencies initialized[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDocumentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mNumberingModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuditModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPaymentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mIdentityModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSettingsModule dependencies initialized[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCatalogModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPartiesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mInventoryModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSetupModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPurchasingModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mProductionModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSalesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUsersController {/api/users}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/roles, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/active, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mRolesController {/api/roles}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/permissions, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/name, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id, DELETE} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/api}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/health, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/ready, GET} route[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mItemController {/api/items}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPartyController {/api/parties}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mStockController {/api/inventory}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock.csv, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/open, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/adjust, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/reverse, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/entries/:itemId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCustomerInvoiceController {/api/sales/invoices}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSalesController {/api/sales}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/open, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCreditNoteController {/api/credit-notes}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBusinessSettingsController {/api/settings/business}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTaxRateController {/api/settings/tax-rates}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUnitController {/api/settings/units}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, GET} route[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mNumberPatternController {/api/settings/number-patterns}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns/:code, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTerminologyController {/api/settings/labels}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mModuleStateController {/api/settings/modules}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules/:module, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPurchaseOrderController {/api/purchasing/orders}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mGoodsReceiptController {/api/purchasing/receipts}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBomController {/api/production/boms}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id/versions, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/item/:finishedItemId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/versions/:versionId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mProductionOrderController {/api/production/orders}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPaymentsController {/api/payments}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/party/:partyId/balance, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSetupController {/api/setup}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/status, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/complete, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195529  - [39m10/12/2026, 11:32:19 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: easyERP api listening on 127.0.0.1:3002
+@easyerp/api:dev: [[90m11:32:19 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPrismaModule dependencies initialized[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDocumentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mNumberingModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuditModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPaymentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mIdentityModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSettingsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCatalogModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPartiesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mInventoryModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSetupModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPurchasingModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mProductionModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSalesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUsersController {/api/users}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/roles, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/active, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mRolesController {/api/roles}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/permissions, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/name, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id, DELETE} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/api}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/health, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/ready, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mItemController {/api/items}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPartyController {/api/parties}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mStockController {/api/inventory}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock.csv, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/open, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/adjust, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/reverse, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/entries/:itemId, GET} route[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCustomerInvoiceController {/api/sales/invoices}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSalesController {/api/sales}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/open, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCreditNoteController {/api/credit-notes}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBusinessSettingsController {/api/settings/business}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTaxRateController {/api/settings/tax-rates}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUnitController {/api/settings/units}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mNumberPatternController {/api/settings/number-patterns}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns/:code, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTerminologyController {/api/settings/labels}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mModuleStateController {/api/settings/modules}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules/:module, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPurchaseOrderController {/api/purchasing/orders}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mGoodsReceiptController {/api/purchasing/receipts}:[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBomController {/api/production/boms}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id/versions, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/item/:finishedItemId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/versions/:versionId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mProductionOrderController {/api/production/orders}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPaymentsController {/api/payments}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/party/:partyId/balance, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSetupController {/api/setup}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/status, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/complete, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 195667  - [39m10/12/2026, 11:32:21 PM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: easyERP api listening on 127.0.0.1:3002
+@easyerp/api:dev: [2J[3J[H[[90m11:32:50 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/api:dev: [[90m11:32:51 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/api:dev: [2J[3J[H[[90m11:32:52 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: [[90m11:32:53 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/web:dev:  GET /fr/setup?token=dev-first-setup-token 307 in 1307ms (next.js: 4ms, generate-params: 11ms, application-code: 1291ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 67ms (next.js: 4ms, generate-params: 11ms, application-code: 52ms)
+@easyerp/api:dev: [2J[3J[H[[90m11:34:25 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/api:dev: [[90m11:34:25 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/api:dev: [2J[3J[H[[90m11:34:27 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: [[90m11:34:27 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/web:dev:  GET /fr/sign-in 200 in 90ms (next.js: 5ms, generate-params: 15ms, application-code: 70ms)
+@easyerp/api:dev: [2J[3J[H[[90m11:34:53 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/api:dev: [[90m11:34:53 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/api:dev: [2J[3J[H[[90m11:34:55 PM[0m] File change detected. Starting incremental compilation...
+@easyerp/api:dev: 
+@easyerp/api:dev: [[90m11:34:55 PM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: /home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14
+@easyerp/api:dev: export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+@easyerp/api:dev:                                    ^
+@easyerp/api:dev: 
+@easyerp/api:dev: TypeError: Class extends value undefined is not a constructor or null
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/prisma/prisma.service.ts:14:36)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev:     at Object..js (node:internal/modules/cjs/loader:2074:10)
+@easyerp/api:dev:     at Module.load (node:internal/modules/cjs/loader:1656:32)
+@easyerp/api:dev:     at Module._load (node:internal/modules/cjs/loader:1448:12)
+@easyerp/api:dev:     at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+@easyerp/api:dev:     at Module.require (node:internal/modules/cjs/loader:1679:12)
+@easyerp/api:dev:     at require (node:internal/modules/helpers:196:16)
+@easyerp/api:dev:     at Object.<anonymous> (/home/medo/Projects/easyerp/apps/api/src/audit/audit.service.ts:13:1)
+@easyerp/api:dev:     at Module._compile (node:internal/modules/cjs/loader:1934:14)
+@easyerp/api:dev: 
+@easyerp/api:dev: Node.js v26.8.2
+@easyerp/web:dev:  GET /fr/sign-in 200 in 83ms (next.js: 3ms, generate-params: 12ms, application-code: 67ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 75ms (next.js: 3ms, generate-params: 12ms, application-code: 61ms)
+@easyerp/web:dev:  GET /fr/sign-in 200 in 84ms (next.js: 3ms, generate-params: 11ms, application-code: 70ms)
+Shutting down Turborepo tasks...
+@easyerp/contracts:dev:  ELIFECYCLE  Command failed.
+@easyerp/web:dev: [?25h
+@easyerp/api:dev:  ELIFECYCLE  Command failed with exit code 1.
+
+ Tasks:    1 successful, 4 total
+Cached:    0 cached, 4 total
+  Time:    22m49.258s 
+

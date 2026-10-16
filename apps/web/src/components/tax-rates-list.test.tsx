@@ -57,6 +57,9 @@ function stubFetch({ permissions, onPost, onPatch }: StubOptions) {
   global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    if (url === '/api/auth/get-session') {
+      return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+    }
     if (url === '/api/users/me') {
       return { ok: true, status: 200, json: async () => sessionUserWith(permissions) };
     }
@@ -182,7 +185,7 @@ describe('TaxRatesList', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'A Tax Rate with code "TVA19" already exists',
+      'The action conflicts with the current state.',
     );
   });
 

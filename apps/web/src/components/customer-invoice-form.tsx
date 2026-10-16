@@ -231,9 +231,22 @@ export function CustomerInvoiceForm({ locale }: { locale: Locale }) {
             </p>
           ) : null}
 
-          <Button type="submit" variant="primary" disabled={working} className="w-full">
-            {working ? t('formCreating') : t('formCreate')}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                router.push(`/${locale}/customer-invoices`);
+                router.refresh();
+              }}
+              className="w-full"
+            >
+              {t('cancel')}
+            </Button>
+            <Button type="submit" variant="primary" disabled={working} className="w-full">
+              {working ? t('formCreating') : t('formCreate')}
+            </Button>
+          </div>
         </form>
       </CardBody>
     </Card>

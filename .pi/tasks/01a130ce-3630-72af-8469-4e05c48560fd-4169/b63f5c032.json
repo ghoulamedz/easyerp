@@ -1,0 +1,27 @@
+{
+  "id": "b63f5c032",
+  "name": "pnpm dev hydration2",
+  "command": "pnpm dev 2>&1",
+  "status": "completed",
+  "outputPath": ".pi/tasks/01a130ce-3630-72af-8469-4e05c48560fd-4169/b63f5c032.output",
+  "cwd": "/home/medo/Projects/easyerp",
+  "startTime": 1791843302217,
+  "endTime": 1791844678947,
+  "exitCode": 0,
+  "signal": null,
+  "pid": 184323,
+  "bytesWritten": 93379,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/usr/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

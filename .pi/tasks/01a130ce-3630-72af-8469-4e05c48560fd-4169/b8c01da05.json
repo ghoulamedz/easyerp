@@ -1,0 +1,27 @@
+{
+  "id": "b8c01da05",
+  "name": "pnpm dev trustedOrigins",
+  "command": "pnpm dev 2>&1",
+  "status": "killed",
+  "outputPath": ".pi/tasks/01a130ce-3630-72af-8469-4e05c48560fd-4169/b8c01da05.output",
+  "cwd": "/home/medo/Projects/easyerp",
+  "startTime": 1791876079228,
+  "endTime": 1791883310500,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 276285,
+  "bytesWritten": 58015,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/usr/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

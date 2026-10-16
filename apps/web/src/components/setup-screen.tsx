@@ -19,7 +19,6 @@ import { IconAlert, IconCheck, IconEye, IconEyeOff } from './icons';
 import { translatorFor, type Locale, LOCALES } from '../i18n/config';
 import { ThemeSwitch } from './theme-switch';
 import { LocaleSwitcher } from './locale-switcher';
-import { useTheme } from '../lib/theme-provider';
 
 interface UnitRow {
   id: string;
@@ -50,34 +49,45 @@ function generateId(): string {
 
 export function SetupScreen({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
-  const { preference, setPreference, theme } = useTheme();
 
-  // Pre-filled defaults for development convenience
-  const [token, setToken] = useState('dev-first-setup-token');
-  const [legalName, setLegalName] = useState('My Company SARL');
-  const [displayName, setDisplayName] = useState('My Company');
-  const [taxIdentifier, setTaxIdentifier] = useState('1234567/A/M/000');
-  const [countryCode, setCountryCode] = useState('TN');
+  // Prefill is a development convenience only: production ships empty fields
+  // so no token, name or password ever leaves in the bundle.
+  const devPrefill = process.env.NODE_ENV === 'development';
+  const seed = (value: string): string => (devPrefill ? value : '');
+
+  const [token, setToken] = useState(seed('dev-first-setup-token'));
+  const [legalName, setLegalName] = useState(seed('My Company SARL'));
+  const [displayName, setDisplayName] = useState(seed('My Company'));
+  const [taxIdentifier, setTaxIdentifier] = useState(seed('1234567/A/M/000'));
+  const [countryCode, setCountryCode] = useState(seed('TN'));
   const [vatRegime, setVatRegime] = useState<'STANDARD' | 'EXEMPT'>('STANDARD');
-  const [currency, setCurrency] = useState('TND');
-  const [phone, setPhone] = useState('+216 12 345 678');
-  const [email, setEmail] = useState('contact@mycompany.tn');
-  const [addressLine1, setAddressLine1] = useState('123 Main Street');
+  const [currency, setCurrency] = useState(seed('TND'));
+  const [phone, setPhone] = useState(seed('+216 12 345 678'));
+  const [email, setEmail] = useState(seed('contact@mycompany.tn'));
+  const [addressLine1, setAddressLine1] = useState(seed('123 Main Street'));
   const [addressLine2, setAddressLine2] = useState('');
-  const [city, setCity] = useState('Tunis');
-  const [postalCode, setPostalCode] = useState('1000');
-  const [adminName, setAdminName] = useState('Admin User');
-  const [adminEmail, setAdminEmail] = useState('admin@mycompany.tn');
-  const [adminPassword, setAdminPassword] = useState('password123');
-  const [units, setUnits] = useState<UnitRow[]>([
-    { id: 'initial-pcs', code: 'PCS', allowsFraction: false },
-    { id: 'initial-kg', code: 'KG', allowsFraction: true },
-  ]);
-  const [rates, setRates] = useState<RateRow[]>([
-    { id: 'initial-tva19', code: 'TVA19', rate: '19' },
-    { id: 'initial-tva13', code: 'TVA13', rate: '13' },
-    { id: 'initial-tva07', code: 'TVA07', rate: '7' },
-  ]);
+  const [city, setCity] = useState(seed('Tunis'));
+  const [postalCode, setPostalCode] = useState(seed('1000'));
+  const [adminName, setAdminName] = useState(seed('Admin User'));
+  const [adminEmail, setAdminEmail] = useState(seed('admin@mycompany.tn'));
+  const [adminPassword, setAdminPassword] = useState(seed('password123'));
+  const [units, setUnits] = useState<UnitRow[]>(
+    devPrefill
+      ? [
+          { id: 'initial-pcs', code: 'PCS', allowsFraction: false },
+          { id: 'initial-kg', code: 'KG', allowsFraction: true },
+        ]
+      : [],
+  );
+  const [rates, setRates] = useState<RateRow[]>(
+    devPrefill
+      ? [
+          { id: 'initial-tva19', code: 'TVA19', rate: '19' },
+          { id: 'initial-tva13', code: 'TVA13', rate: '13' },
+          { id: 'initial-tva07', code: 'TVA07', rate: '7' },
+        ]
+      : [],
+  );
 
   // Show/hide states for password fields
   const [showToken, setShowToken] = useState(false);

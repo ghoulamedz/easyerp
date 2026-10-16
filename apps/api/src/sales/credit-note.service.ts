@@ -16,7 +16,7 @@
  * stock act with `reason: RETURN_IN`.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
@@ -76,11 +76,14 @@ function reversalOf(
   reverseQuantity: string,
 ): Omit<ReversalRow, 'itemId' | 'unitOfMeasureId' | 'description' | 'correctsDocumentLineId'> {
   const net = Amount.parse(invoiceLine.unitPrice).timesQuantity(reverseQuantity);
-  const tax = net.timesRate(invoiceLine.taxRate);
   const fodec = Amount.parse(invoiceLine.fodecAmount)
     .timesQuantity(reverseQuantity)
     .divide(invoiceLine.quantity);
-  const gross = net.plus(tax);
+  // The VAT base is net + FODEC, exactly as `priceLine` prices a subject line
+  // (finance/pricing.ts): the tax is on the base, and the gross is base + tax.
+  const base = net.plus(fodec);
+  const tax = base.timesRate(invoiceLine.taxRate);
+  const gross = base.plus(tax);
   return {
     quantity: Amount.parse(reverseQuantity).negated().toString(),
     unitPrice: invoiceLine.unitPrice,
@@ -116,6 +119,7 @@ async function creditedByLine(
 
 @Injectable()
 export class CreditNoteService {
+  private readonly logger = new Logger(CreditNoteService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
@@ -293,7 +297,17 @@ export class CreditNoteService {
       return { allocated, correctsDocumentId };
     });
 
-    await this.archiveIssued(creditNoteId, issued.correctsDocumentId, issued.allocated, now);
+    // The fiscal facts (status, number, figures) are committed above. The PDF
+    // is a rendering of those facts, not one of them: if the renderer is down
+    // the issue still succeeds and View re-renders on demand (readArchive).
+    try {
+      await this.archiveIssued(creditNoteId, issued.correctsDocumentId, issued.allocated, now);
+    } catch (error) {
+      this.logger.error(
+        `Archiving credit note ${creditNoteId} failed, will retry on View.`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
     const found = await this.findById(creditNoteId);
     invariant(found, `Credit Note ${creditNoteId} vanished immediately after issuing.`);
@@ -376,7 +390,7 @@ export class CreditNoteService {
     currency: string;
     business: { legalName: string; taxIdentifier: string; addressLine1: string | null; city: string | null; countryCode: string | null };
     party: { name: string; taxIdentifier: string | null; address: string | null; city: string | null };
-    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string }; netAmount: { toString(): string } }[];
+    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string }; netAmount: { toString(): string }; fodecAmount: { toString(): string } }[];
     taxes: readonly { rate: { toString(): string }; base: { toString(): string }; amount: { toString(): string } }[];
     netAmount: { toString(): string };
     taxAmount: { toString(): string };
@@ -422,16 +436,19 @@ export class CreditNoteService {
       },
       kind: 'CREDIT_NOTE',
       correctedNumber: corrected.number,
+      // As in `archiveIssued`: the stored figure is the authority, so the
+      // builder re-derives the stored per-line tax rather than pricing blind.
       lines: creditNote.lines.map((line) => ({
         description: line.description,
         quantity: line.quantity.toString(),
         unitPrice: line.unitPrice.toString(),
         taxRate: line.taxRate.toString(),
         net: line.netAmount.toString(),
+        fodecSubject: !Amount.parse(line.fodecAmount.toString()).isZero(),
       })),
       stampDuty: creditNote.stampDutyAmount.toString() === '0' ? null : creditNote.stampDutyAmount.toString(),
       withholdingTax: creditNote.withholdingTaxAmount.toString() === '0' ? null : creditNote.withholdingTaxAmount.toString(),
-      fodec: null,
+      fodec: storedFodecTotal(creditNote.lines),
       formattedNumber: creditNote.number ?? '',
     });
 
@@ -678,15 +695,20 @@ export class CreditNoteService {
       },
       kind: 'CREDIT_NOTE',
       correctedNumber: corrected?.number ?? null,
+      // The stored rows are the authority, not the Items: the FODEC figure was
+      // carried pro-rata from the corrected Invoice, so subject-ness is read
+      // back from the stored figure and the builder re-derives the stored tax.
       lines: creditNote.lines.map((line) => ({
         description: line.description,
         quantity: line.quantity.toString(),
         unitPrice: line.unitPrice.toString(),
         taxRate: line.taxRate.toString(),
         net: line.netAmount.toString(),
+        fodecSubject: !Amount.parse(line.fodecAmount.toString()).isZero(),
       })),
       stampDuty: null,
       withholdingTax: null,
+      fodec: storedFodecTotal(creditNote.lines),
     });
 
     const renderer = await sharedPdfRenderer();
@@ -703,6 +725,16 @@ export class CreditNoteService {
       data: { archivePath: stored.path, archiveSha256: stored.sha256, archivedAt: new Date() },
     });
   }
+}
+
+/**
+ * The stored FODEC total for an archive render: the sum of the stored line
+ * figures, never recomputed. `null` when zero, so documents without FODEC
+ * render exactly as before (the template prints no FODEC row for `null`).
+ */
+function storedFodecTotal(lines: readonly { fodecAmount: { toString(): string } }[]): string | null {
+  const total = sumOf(lines.map((line) => line.fodecAmount.toString()));
+  return Amount.parse(total).isZero() ? null : total;
 }
 
 function sumOf(values: readonly string[]): string {

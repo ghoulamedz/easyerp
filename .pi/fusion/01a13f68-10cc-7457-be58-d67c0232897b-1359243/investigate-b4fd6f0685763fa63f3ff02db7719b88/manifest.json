@@ -1,0 +1,241 @@
+{
+  "schema_version": "pi-background-tasks.fusion-manifest.v4",
+  "run_id": "investigate-b4fd6f0685763fa63f3ff02db7719b88",
+  "workflow": "investigate",
+  "source": "tool",
+  "state": "failed",
+  "created_at": "2026-10-15T11:54:53.240Z",
+  "updated_at": "2026-10-15T11:54:54.796Z",
+  "cwd": "/home/medo/Projects/easyerp",
+  "config": {
+    "schema_version": "pi-background-tasks.fusion-models.v1",
+    "candidates": [
+      "$current",
+      "$current",
+      "$current"
+    ],
+    "evaluator": "$current",
+    "merger": "$current"
+  },
+  "models": {
+    "candidates": [
+      "freeflow/nvidia/nemotron-3-ultra-550b-a55b:free",
+      "freeflow/nvidia/nemotron-3-ultra-550b-a55b:free",
+      "freeflow/nvidia/nemotron-3-ultra-550b-a55b:free"
+    ],
+    "evaluator": "freeflow/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "merger": "freeflow/nvidia/nemotron-3-ultra-550b-a55b:free",
+    "thinking_level": "medium"
+  },
+  "capabilities": {
+    "candidate": "inspect",
+    "evaluation": "reason",
+    "merge": "reason"
+  },
+  "context": {
+    "kind": "clean_task",
+    "policy_id": "fusion-clean-task-v1"
+  },
+  "tool_policy": {
+    "candidate_tools": [
+      "read",
+      "grep",
+      "find",
+      "ls"
+    ],
+    "evaluation_tools": [],
+    "merge_tools": []
+  },
+  "usage": {
+    "input": 0,
+    "output": 0,
+    "cacheRead": 0,
+    "cacheWrite": 0,
+    "totalTokens": 0,
+    "cost": {
+      "input": 0,
+      "output": 0,
+      "cacheRead": 0,
+      "cacheWrite": 0,
+      "total": 0
+    }
+  },
+  "attempts": [
+    {
+      "stage": "candidate",
+      "attempt": 1,
+      "status": "failed",
+      "child_created": true,
+      "prompt_path": "candidate-3.attempt-1.prompt.txt",
+      "events_path": "candidate-3.attempt-1.events.jsonl",
+      "stderr_path": "candidate-3.attempt-1.stderr.txt",
+      "response_path": "candidate-3.attempt-1.response.md",
+      "error": "Pi child exited with code 1",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "slot": 3
+    },
+    {
+      "stage": "candidate",
+      "attempt": 1,
+      "status": "failed",
+      "child_created": true,
+      "prompt_path": "candidate-2.attempt-1.prompt.txt",
+      "events_path": "candidate-2.attempt-1.events.jsonl",
+      "stderr_path": "candidate-2.attempt-1.stderr.txt",
+      "response_path": "candidate-2.attempt-1.response.md",
+      "error": "Pi child exited with code 1",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "slot": 2
+    },
+    {
+      "stage": "candidate",
+      "attempt": 1,
+      "status": "failed",
+      "child_created": true,
+      "prompt_path": "candidate-1.attempt-1.prompt.txt",
+      "events_path": "candidate-1.attempt-1.events.jsonl",
+      "stderr_path": "candidate-1.attempt-1.stderr.txt",
+      "response_path": "candidate-1.attempt-1.response.md",
+      "error": "Pi child exited with code 1",
+      "usage": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0,
+        "totalTokens": 0,
+        "cost": {
+          "input": 0,
+          "output": 0,
+          "cacheRead": 0,
+          "cacheWrite": 0,
+          "total": 0
+        }
+      },
+      "slot": 1
+    }
+  ],
+  "artifacts": {
+    "canonical-input.json": {
+      "path": "canonical-input.json",
+      "byte_length": 2007,
+      "sha256": "sha256:619e78c381663605990e2112ec087daed6f605aaba5164d5d4c050df770f4879"
+    },
+    "budget-plan.json": {
+      "path": "budget-plan.json",
+      "byte_length": 60113,
+      "sha256": "sha256:727c1f85ca032c455ba94e0e83206ced20de73134d59481eeb9ec8ce8bfe6ae1"
+    },
+    "candidate-3.attempt-1.system-prompt.txt": {
+      "path": "candidate-3.attempt-1.system-prompt.txt",
+      "byte_length": 1472,
+      "sha256": "sha256:692b74caef97ebb5008d55cb57defcc262a1e40e2a97052aae5217a20f42f39d"
+    },
+    "candidate-2.attempt-1.system-prompt.txt": {
+      "path": "candidate-2.attempt-1.system-prompt.txt",
+      "byte_length": 1472,
+      "sha256": "sha256:692b74caef97ebb5008d55cb57defcc262a1e40e2a97052aae5217a20f42f39d"
+    },
+    "candidate-1.attempt-1.system-prompt.txt": {
+      "path": "candidate-1.attempt-1.system-prompt.txt",
+      "byte_length": 1472,
+      "sha256": "sha256:692b74caef97ebb5008d55cb57defcc262a1e40e2a97052aae5217a20f42f39d"
+    },
+    "candidate-3.attempt-1.prompt.txt": {
+      "path": "candidate-3.attempt-1.prompt.txt",
+      "byte_length": 2007,
+      "sha256": "sha256:619e78c381663605990e2112ec087daed6f605aaba5164d5d4c050df770f4879"
+    },
+    "candidate-2.attempt-1.prompt.txt": {
+      "path": "candidate-2.attempt-1.prompt.txt",
+      "byte_length": 2007,
+      "sha256": "sha256:619e78c381663605990e2112ec087daed6f605aaba5164d5d4c050df770f4879"
+    },
+    "candidate-1.attempt-1.prompt.txt": {
+      "path": "candidate-1.attempt-1.prompt.txt",
+      "byte_length": 2007,
+      "sha256": "sha256:619e78c381663605990e2112ec087daed6f605aaba5164d5d4c050df770f4879"
+    },
+    "candidate-3.attempt-1.events.jsonl": {
+      "path": "candidate-3.attempt-1.events.jsonl",
+      "byte_length": 0,
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "candidate-2.attempt-1.events.jsonl": {
+      "path": "candidate-2.attempt-1.events.jsonl",
+      "byte_length": 0,
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "candidate-1.attempt-1.events.jsonl": {
+      "path": "candidate-1.attempt-1.events.jsonl",
+      "byte_length": 0,
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "candidate-3.attempt-1.stderr.txt": {
+      "path": "candidate-3.attempt-1.stderr.txt",
+      "byte_length": 89,
+      "sha256": "sha256:3db5ecf3b84d213f71534c93410819a7398321ae15670a89e007ead577c1b2b8"
+    },
+    "candidate-2.attempt-1.stderr.txt": {
+      "path": "candidate-2.attempt-1.stderr.txt",
+      "byte_length": 89,
+      "sha256": "sha256:3db5ecf3b84d213f71534c93410819a7398321ae15670a89e007ead577c1b2b8"
+    },
+    "candidate-1.attempt-1.stderr.txt": {
+      "path": "candidate-1.attempt-1.stderr.txt",
+      "byte_length": 89,
+      "sha256": "sha256:3db5ecf3b84d213f71534c93410819a7398321ae15670a89e007ead577c1b2b8"
+    },
+    "candidate-3.attempt-1.response.md": {
+      "path": "candidate-3.attempt-1.response.md",
+      "byte_length": 0,
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "candidate-2.attempt-1.response.md": {
+      "path": "candidate-2.attempt-1.response.md",
+      "byte_length": 0,
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "candidate-1.attempt-1.response.md": {
+      "path": "candidate-1.attempt-1.response.md",
+      "byte_length": 0,
+      "sha256": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "error.json": {
+      "path": "error.json",
+      "byte_length": 491,
+      "sha256": "sha256:5f3624a02a6ba124eb3ba2731140a8357c9a92bd248739c1acd5833cc4fb3e3f"
+    },
+    "failure-summary.json": {
+      "path": "failure-summary.json",
+      "byte_length": 6338,
+      "sha256": "sha256:4c9a2b1fa573a8a89883c2aacd4d2029118cac51f36d0fe3232776ffaadab403"
+    }
+  },
+  "error": "Pi child exited with code 1\nRun progress from durable attempts: candidates=incomplete (3 created, 0 completed, 3 failed, 0 cancelled, 0 slot(s) not started); evaluation=not_started (0 created, 0 completed, 0 failed, 0 cancelled); merge=not_started (0 created, 0 completed, 0 failed, 0 cancelled). Usage so far: input=0, output=0, cacheRead=0, cacheWrite=0, totalTokens=0, cost.input=0, cost.output=0, cost.cacheRead=0, cost.cacheWrite=0, cost.total=0."
+}

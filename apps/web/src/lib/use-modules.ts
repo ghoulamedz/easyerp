@@ -55,8 +55,8 @@ export function isNavVisible(
   states: readonly ModuleState[] | null,
 ): boolean {
   if (!states) return true;
-  const module = MODULE_BY_NAV_KEY[key];
-  if (!module) return true;
-  const row = states.find((s) => s.module === module);
+  const requiredModule = MODULE_BY_NAV_KEY[key];
+  if (!requiredModule) return true;
+  const row = states.find((s) => s.module === requiredModule);
   return row?.isEnabled ?? true;
 }

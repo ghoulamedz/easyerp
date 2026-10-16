@@ -115,4 +115,23 @@ describe('ProductionOrderForm', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unknown BOM version');
     expect(push).not.toHaveBeenCalled();
   });
+
+  it('cancel returns to the list without creating anything', async () => {
+    const user = userEvent.setup();
+    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const baseImpl = fetchMock.getMockImplementation();
+    const posts: string[] = [];
+    fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posts.push(String(url));
+        return { ok: true, status: 201, json: async () => ({ id: 'x-1' }) };
+      }
+      return baseImpl!(url, init);
+    });
+    render(<ProductionOrderForm locale="en" />);
+    const cancel = await screen.findByRole('button', { name: 'Cancel' });
+    await user.click(cancel);
+    expect(push).toHaveBeenCalledWith('/en/production/orders');
+    expect(posts).toHaveLength(0);
+  });
 });

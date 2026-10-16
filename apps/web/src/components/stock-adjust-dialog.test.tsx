@@ -47,6 +47,9 @@ function stubFetch({ signInStatus, onAdjust }: StubOptions) {
   global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    if (url === '/api/auth/get-session') {
+      return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+    }
     if (url === '/api/users/me') {
       return {
         ok: true,

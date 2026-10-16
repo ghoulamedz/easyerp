@@ -1,0 +1,105 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+
+> easyerp@0.0.0 dev /home/medo/Projects/easyerp
+> test -f apps/api/.env || cp apps/api/.env.example apps/api/.env && pnpm db:generate && pnpm db:up && turbo run dev
+
+
+> easyerp@0.0.0 db:generate /home/medo/Projects/easyerp
+> pnpm --filter @easyerp/api prisma:generate
+
+
+> @easyerp/api@0.0.0 prisma:generate /home/medo/Projects/easyerp/apps/api
+> prisma generate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (v7.10.0) to ./src/generated/prisma in 456ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+
+> easyerp@0.0.0 db:up /home/medo/Projects/easyerp
+> node scripts/db.mjs up
+
+ Container easyerp_local-postgres-1 Running 
+ Container easyerp_local-postgres-1 Waiting 
+ Container easyerp_local-postgres-1 Healthy 
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "easyerp", schema "public" at "localhost:55432"
+
+10 migrations found in prisma/migrations
+
+
+No pending migrations to apply.
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "easyerp_test", schema "public" at "localhost:55432"
+
+10 migrations found in prisma/migrations
+
+
+No pending migrations to apply.
+
+PostgreSQL is up on localhost:55432.
+  easyerp        development — already migrated
+  easyerp_test   integration — already migrated
+
+Next: pnpm dev, or pnpm test:integration.
+
+   • turbo 2.11.5
+   • Packages in scope: @easyerp/api, @easyerp/contracts, @easyerp/ops, @easyerp/web
+   • Running dev in 4 packages
+   • Remote caching disabled
+
+@easyerp/contracts:dev: cache bypass, force executing bc56ece96f706120
+@easyerp/ops:dev: cache bypass, force executing d3a20a37cfa21e9a
+@easyerp/web:dev: cache bypass, force executing 76c51e1858789f60
+@easyerp/api:dev: cache bypass, force executing d1a66d7b6b71bea1
+@easyerp/contracts:dev: 
+@easyerp/contracts:dev: > @easyerp/contracts@0.0.0 dev /home/medo/Projects/easyerp/packages/contracts
+@easyerp/contracts:dev: > tsc -p tsconfig.build.json --watch
+@easyerp/contracts:dev: 
+@easyerp/web:dev: 
+@easyerp/web:dev: > @easyerp/web@0.0.0 dev /home/medo/Projects/easyerp/apps/web
+@easyerp/web:dev: > next dev --port 3003
+@easyerp/web:dev: 
+@easyerp/ops:dev: 
+@easyerp/ops:dev: > @easyerp/ops@0.0.0 dev /home/medo/Projects/easyerp/ops
+@easyerp/ops:dev: > echo "@easyerp/ops has no dev server"
+@easyerp/ops:dev: 
+@easyerp/ops:dev: @easyerp/ops has no dev server
+@easyerp/api:dev: 
+@easyerp/api:dev: > @easyerp/api@0.0.0 dev /home/medo/Projects/easyerp/apps/api
+@easyerp/api:dev: > mkdir -p dist && cp -R src/generated dist/generated 2>/dev/null; node --env-file-if-exists=.env node_modules/@nestjs/cli/bin/nest.js start --watch
+@easyerp/api:dev: 
+@easyerp/contracts:dev: [2J[3J[H11:14:36 PM - Starting compilation in watch mode...
+@easyerp/contracts:dev: 
+@easyerp/web:dev: ⨯ Failed to start server
+@easyerp/web:dev: Error: listen EADDRINUSE: address already in use :::3003
+@easyerp/web:dev:     at <unknown> (Error: listen EADDRINUSE: address already in use :::3003)
+@easyerp/web:dev:     at new Promise (<anonymous>) {
+@easyerp/web:dev:   code: 'EADDRINUSE',
+@easyerp/web:dev:   errno: -98,
+@easyerp/web:dev:   syscall: 'listen',
+@easyerp/web:dev:   address: '::',
+@easyerp/web:dev:   port: 3003
+@easyerp/web:dev: }
+@easyerp/web:dev: [?25h
+@easyerp/web:dev:  ELIFECYCLE  Command failed with exit code 1.
+@easyerp/api:dev:  ELIFECYCLE  Command failed.
+@easyerp/contracts:dev:  ELIFECYCLE  Command failed.
+@easyerp/web#dev:  ERROR  command (/home/medo/Projects/easyerp/apps/web) /home/medo/.local/share/pnpm/store/v11/links/@/pnpm/10.18.2/0fcbb06597967c7259d6fe387f1b455a8fe95857d4a1de3a74e84ed1a97b4fba/bin/pnpm run dev exited (1)
+
+ Tasks:    1 successful, 4 total
+Cached:    0 cached, 4 total
+  Time:    1.432s 
+Failed:    @easyerp/web#dev
+
+ ERROR  run failed: command  exited (1)
+ ELIFECYCLE  Command failed with exit code 1.

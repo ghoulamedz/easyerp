@@ -8,10 +8,15 @@
  *
  * The host layout this assumes, and the layout the provisioning script creates:
  *
- *   /opt/easyerp/app/            a release: the repository at one commit, built
- *   /opt/easyerp/shared/.env     the environment for both units, outside the
- *                                release so replacing a release never touches it
- *   /opt/easyerp/backups/<id>/   pg_dump output
+ *   /home/easyerp/easyerp/        the repository: the release at one commit, built
+ *   /home/easyerp/easyerp-api/     the API unit's working dir (dist/, prisma/,
+ *                                   node_modules/, .env)
+ *   /home/easyerp/easyerp-web/     the web unit's working dir (.next/, public/,
+ *                                   node_modules/, .env)
+ *   /home/easyerp/backups/         pg_dump output (daily/weekly/monthly)
+ *
+ * There is no shared env dir: each unit reads its own .env (see the systemd
+ * units), and the API's file is the one that holds DATABASE_URL.
  *
  * Nothing here shells out to Docker. That was the old deployment mechanism and
  * `composeCommand` was its single point of contact; it is gone, and PostgreSQL is
@@ -30,14 +35,16 @@ export const REPO_ROOT = resolve(here, '..', '..');
 export const MANIFEST_PATH =
   process.env.EASYERP_CLIENTS ?? resolve(REPO_ROOT, 'ops', 'clients.yaml');
 
-/** Where a release is built on the host. */
-export const REMOTE_APP_DIR = process.env.EASYERP_REMOTE_APP_DIR ?? '/opt/easyerp/app';
-/** Per-Business configuration. Deliberately outside the release directory. */
-export const REMOTE_SHARED_DIR = process.env.EASYERP_REMOTE_SHARED_DIR ?? '/opt/easyerp/shared';
-/** The environment file both units read. */
-export const REMOTE_ENV_FILE = `${REMOTE_SHARED_DIR}/.env`;
-/** `pg_dump` output, one directory per Business. */
-export const REMOTE_BACKUP_ROOT = process.env.EASYERP_BACKUP_ROOT ?? '/opt/easyerp/backups';
+/** Where the checked-out release lives on the host. */
+export const REMOTE_APP_DIR = process.env.EASYERP_REMOTE_APP_DIR ?? '/home/easyerp/easyerp';
+/** The easyerp home that holds the per-service dirs. There is no shared env
+ *  dir: each unit reads its own `<service>/.env` (see ops/systemd), so this
+ *  only locates the API env file that holds DATABASE_URL. */
+export const REMOTE_SHARED_DIR = process.env.EASYERP_REMOTE_SHARED_DIR ?? '/home/easyerp';
+/** The environment file both remote probes read DATABASE_URL from. */
+export const REMOTE_ENV_FILE = `${REMOTE_SHARED_DIR}/easyerp-api/.env`;
+/** `pg_dump` output, in the layout backup.sh writes. */
+export const REMOTE_BACKUP_ROOT = process.env.EASYERP_BACKUP_ROOT ?? '/home/easyerp/backups';
 
 export async function clients(): Promise<readonly Client[]> {
   return (await loadManifest(MANIFEST_PATH)).clients;

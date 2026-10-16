@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Card, CardBody } from './ui';
+import { useSession } from '../lib/client-session';
 import { IconAlert, IconShield, IconEye, IconEyeOff } from './icons';
 import { translatorFor, type Locale } from '../i18n/config';
 
@@ -22,6 +23,7 @@ import { translatorFor, type Locale } from '../i18n/config';
 export function SignInForm({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
   const router = useRouter();
+  const { session } = useSession();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -135,12 +137,16 @@ export function SignInForm({ locale }: { locale: Locale }) {
           {t('signInNotice')}
         </p>
 
-        <Link
-          href={`/${locale}/dashboard`}
-          className="block text-center text-sm text-brand underline underline-offset-4 hover:no-underline"
-        >
-          {t('signInBack')}
-        </Link>
+        {/* Shown only with a session: a signed-out visitor sent to the dashboard
+            would bounce straight back through the session gate, looping here. */}
+        {session ? (
+          <Link
+            href={`/${locale}/dashboard`}
+            className="block text-center text-sm text-brand underline underline-offset-4 hover:no-underline"
+          >
+            {t('signInBack')}
+          </Link>
+        ) : null}
       </CardBody>
     </Card>
   );

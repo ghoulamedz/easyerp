@@ -77,7 +77,7 @@ export function UserForm({ locale }: { locale: Locale }) {
         roleIds: [...roleIds],
         isActive: true,
       });
-      router.push(`/${locale}/permissions`);
+      router.push(`/${locale}/settings/users`);
       router.refresh();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t('loadFailed'));
@@ -154,14 +154,27 @@ export function UserForm({ locale }: { locale: Locale }) {
             </p>
           ) : null}
 
-          <Button
-            type="submit"
-            variant="primary"
-            disabled={working || roleIds.length === 0}
-            className="w-full"
-          >
-            {working ? t('formCreating') : t('formCreate')}
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                router.push(`/${locale}/settings/users`);
+                router.refresh();
+              }}
+              className="w-full"
+            >
+              {t('cancel')}
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={working || roleIds.length === 0}
+              className="w-full"
+            >
+              {working ? t('formCreating') : t('formCreate')}
           </Button>
+          </div>
         </form>
       </CardBody>
     </Card>

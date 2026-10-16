@@ -13,7 +13,7 @@ import { type SessionUser } from '@easyerp/contracts';
 import { env } from '../../config/env.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { type SessionProvider, readSessionHeaders } from './session-provider.js';
-import { toSessionUser } from './session-user.js';
+import { mayObtainSession, toSessionUser } from './session-user.js';
 
 /** The Express handler that serves `/api/auth/*`. */
 export type NodeAuthHandler = ReturnType<typeof toNodeHandler>;
@@ -25,11 +25,19 @@ export interface BetterAuthInstance {
   };
 }
 
-let instance: BetterAuthInstance | undefined;
+/**
+ * One instance per PrismaService: the adapter closes over the client it was
+ * built with, so a single module-level instance would keep serving the first
+ * client's connection after tests (or a second module) hand over another.
+ */
+const instances = new WeakMap<PrismaService, BetterAuthInstance>();
 
 export async function getAuth(prisma: PrismaService): Promise<BetterAuthInstance> {
-  instance ??= await createBetterAuth(prisma);
-  return instance;
+  const cached = instances.get(prisma);
+  if (cached) return cached;
+  const created = await createBetterAuth(prisma);
+  instances.set(prisma, created);
+  return created;
 }
 
 async function createBetterAuth(prisma: PrismaService): Promise<BetterAuthInstance> {
@@ -78,6 +86,26 @@ async function createBetterAuth(prisma: PrismaService): Promise<BetterAuthInstan
       },
     },
     account: { modelName: 'AuthAccount' },
+    databaseHooks: {
+      // A removed or deactivated user must not obtain a session: Better Auth
+      // signs in from the credential alone and knows nothing of `isActive`
+      // or `deletedAt`. Refusing the session row fails the sign-in itself
+      // (401) instead of minting a token the guards then ignore.
+      session: {
+        create: {
+          before: async (session) => {
+            const userId = (session as { userId?: unknown }).userId;
+            if (typeof userId !== 'string') return false;
+            const row = await prisma.authUser.findUnique({
+              where: { id: userId },
+              select: { isActive: true, deletedAt: true },
+            });
+            if (!mayObtainSession(row)) return false;
+            return;
+          },
+        },
+      },
+    },
     /// Better Auth verifies this table exists before serving any request, so it
     /// must be named here as well as created in the schema.
     verification: { modelName: 'AuthVerification' },

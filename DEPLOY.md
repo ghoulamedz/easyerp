@@ -47,6 +47,9 @@ Two deployment paths exist:
 | `DEMO_FIRST_SETUP_TOKEN` | `openssl rand -base64 32` |
 | `DEMO_BETTER_AUTH_SECRET` | `openssl rand -base64 48` |
 
+Names match the Demo section of `.env.example`, which documents each value
+and the command that generates it.
+
 ### Trigger Deploy
 Push to `master` branch, or run workflow manually:
 ```bash
@@ -118,6 +121,8 @@ sudo usermod -aG sudo easyerp
 # 3. Setup SSH for GitHub Actions
 # Generate ed25519 key, add public to /home/easyerp/.ssh/authorized_keys
 # Add private key to GitHub Secrets as VPS_SSH_KEY
+# Record the host key so the workflow can pin it (VPS_KNOWN_HOSTS secret):
+# ssh-keyscan -t ed25519 <vps-ip-or-hostname>
 
 # 4. Install Node.js 24 + pnpm 10 as easyerp user
 sudo -u easyerp bash -c 'curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash'
@@ -137,6 +142,19 @@ sudo -u easyerp crontab -e
 # 0 4 1 * * /home/easyerp/easyerp/ops/src/restore-drill.sh
 ```
 
+### Backups and restore drills
+
+Backups are uncompressed custom-format (`pg_dump -Fc`) dumps under one root:
+`/home/easyerp/backups/`, with `daily/` (7 kept), `weekly/` (4 kept) and
+`monthly/` (12 kept) rotation. `pg_restore` reads the dump file directly —
+there is no gzip layer, so the drill restores exactly the file the backup
+wrote. The monthly drill restores the latest daily dump into a throwaway
+`easyerp_restore_test_*` database (dropped by a trap even on failure) and
+checks the `business` table came back. The deploy itself is gated on
+`/api/health` plus `/api/ready`; the web page is only required to answer —
+Setup copy is never asserted, because on an already-initialized Business
+Setup is closed.
+
 ### GitHub Secrets for Production
 
 | Secret | Value |
@@ -144,12 +162,18 @@ sudo -u easyerp crontab -e
 | `VPS_HOST` | VPS public IP |
 | `VPS_USER` | `easyerp` |
 | `VPS_SSH_KEY` | Private SSH key (from step 3) |
+| `VPS_KNOWN_HOSTS` | `ssh-keyscan -t ed25519 <vps-ip>` output (from step 3) |
 | `PROD_DATABASE_URL` | `postgresql://easyerp@localhost/easyerp?schema=public` |
 | `PROD_BETTER_AUTH_SECRET` | `openssl rand -base64 48` |
 | `PROD_BETTER_AUTH_URL` | `https://client-domain.tn` |
 | `PROD_CORS_ORIGINS` | `https://client-domain.tn` |
 | `PROD_FIRST_SETUP_TOKEN` | `openssl rand -base64 32` |
 | `PROD_ACME_EMAIL` | `admin@client-domain.tn` |
+
+Names match the Production/VPS section of `.env.example`, which documents
+each value and the command that generates it. Secrets are referenced, never
+printed: the workflow masks connection strings after capture and the summary
+steps redact tokens.
 
 ### Deploy to Production
 

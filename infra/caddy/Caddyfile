@@ -17,13 +17,22 @@
 # The two upstreams are the ports in systemd's units, on loopback: the API and
 # the web app are never reachable from the network.
 
+# Every {$VAR} below is a bare placeholder with no default. It is rendered
+# from environment variables by deploy-vps.yml and ops/src/deploy.ts before
+# Caddy ever sees it. Keep them bare: a `:default` suffix is not understood
+# by the sed render step and would survive into the live config as residue.
+#
+#   SITE_DOMAIN  the public domain of this Business (e.g. demo.easyerp.tn)
+#   ACME_EMAIL   contact for Let's Encrypt issuance (see .env.example)
+#   API_PORT     loopback port of the API systemd unit (see .env.example)
+#   WEB_PORT     loopback port of the web systemd unit (see .env.example)
 {
-	email {$ACME_EMAIL:admin@easyerp.tn}
+	email {$ACME_EMAIL}
 	# Zero-downtime renewals and OCSP stapling.
 	acme_ca https://acme-v02.api.letsencrypt.org/directory
 }
 
-{$EASYERP_EMAIL_DOMAIN} {
+{$SITE_DOMAIN} {
 	encode zstd gzip
 
 	request_body {
@@ -42,15 +51,15 @@
 
 	# Better Auth first: it must receive an untouched body.
 	handle /api/auth/* {
-		reverse_proxy 127.0.0.1:{$API_PORT:3002}
+		reverse_proxy 127.0.0.1:{$API_PORT}
 	}
 
 	handle /api/* {
-		reverse_proxy 127.0.0.1:{$API_PORT:3002}
+		reverse_proxy 127.0.0.1:{$API_PORT}
 	}
 
 	handle {
-		reverse_proxy 127.0.0.1:{$WEB_PORT:3003}
+		reverse_proxy 127.0.0.1:{$WEB_PORT}
 	}
 
 	log {

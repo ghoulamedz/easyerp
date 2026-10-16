@@ -7,6 +7,9 @@
     "jsx": "react-jsx",
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    // exactOptionalPropertyTypes is intentionally web-only: the API and
+    // contracts packages leave it off so server-side DTOs keep the default
+    // optional-property semantics.
     "exactOptionalPropertyTypes": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,

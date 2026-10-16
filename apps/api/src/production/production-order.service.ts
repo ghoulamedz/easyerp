@@ -7,6 +7,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import Decimal from 'decimal.js';
 import { Prisma } from '../generated/prisma';
 
 import {
@@ -27,6 +28,13 @@ import { DocumentNumberingService } from '../numbering/document-numbering.servic
 import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
 
 export const PRODUCTION_ORDER = 'PRODUCTION_ORDER';
+
+/**
+ * The finished quantity one issue produces. A BOM version names the component
+ * Items and their quantities for one unit of the finished Item (spec 002 story
+ * 85), so issuing a Production Order produces exactly one unit.
+ */
+const FINISHED_QUANTITY = '1';
 
 @Injectable()
 export class ProductionOrderService {
@@ -152,38 +160,46 @@ export class ProductionOrderService {
       const priced = await priceItems(this.prisma, input.lines);
       const totals = documentTotals(priced);
 
-      await this.prisma.documentLine.deleteMany({ where: { documentId: orderId } });
-      await this.prisma.documentTaxGroup.deleteMany({ where: { documentId: orderId } });
-      await this.prisma.productionOrderLine.deleteMany({
-        where: { productionOrderId: order.productionOrders?.[0]?.id },
-      });
+      // The child row is born with the Draft; without it there is nothing to
+      // re-price onto. Checked before the transaction opens, so a missing row
+      // refuses before any row is deleted — and never reaches a deleteMany as
+      // an undefined id, which Prisma would read as no filter at all.
+      const productionOrderId = order.productionOrders?.[0]?.id;
+      if (!productionOrderId) throw notFound('Production Order', orderId);
 
-      await this.prisma.document.update({
-        where: { id: orderId },
-        data: {
-          netAmount: totals.netAmount,
-          taxAmount: totals.taxAmount,
-          grossAmount: totals.grossAmount,
-          lines: {
-            create: priced.map((line, position) => lineRow(line, position)),
-          },
-          taxes: {
-            create: totals.taxGroups.map((group, position) => ({
-              position,
-              rate: group.rate,
-              base: group.base,
-              amount: group.amount,
-            })),
-          },
-        },
-      });
+      // One transaction: the document rows and the production-order rows are
+      // one fact, so a failure between them must roll both back.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.documentLine.deleteMany({ where: { documentId: orderId } });
+        await tx.documentTaxGroup.deleteMany({ where: { documentId: orderId } });
+        await tx.productionOrderLine.deleteMany({
+          where: { productionOrderId },
+        });
 
-      // Update production order lines (delete and recreate)
-      const poId = order.productionOrders?.[0]?.id;
-      if (poId) {
-        await this.prisma.productionOrderLine.deleteMany({ where: { productionOrderId: poId } });
-        await this.prisma.productionOrder.update({
-          where: { id: poId },
+        await tx.document.update({
+          where: { id: orderId },
+          data: {
+            netAmount: totals.netAmount,
+            taxAmount: totals.taxAmount,
+            grossAmount: totals.grossAmount,
+            lines: {
+              create: priced.map((line, position) => lineRow(line, position)),
+            },
+            taxes: {
+              create: totals.taxGroups.map((group, position) => ({
+                position,
+                rate: group.rate,
+                base: group.base,
+                amount: group.amount,
+              })),
+            },
+          },
+        });
+
+        // Update production order lines (delete and recreate). The lines were
+        // already cleared above, so this only recreates them.
+        await tx.productionOrder.update({
+          where: { id: productionOrderId },
           data: {
             lines: {
               create: priced.map((line, position) => ({
@@ -196,7 +212,7 @@ export class ProductionOrderService {
             },
           },
         });
-      }
+      });
     }
 
     await this.audit.record(
@@ -260,17 +276,36 @@ export class ProductionOrderService {
       });
       if (!bomVersion) throw notFound('BOM Version', po.bomVersionId);
 
+      // Serialise concurrent issues over the same Items: the availability read
+      // below is only authoritative for the duration of this lock.
+      const lockedItemIds = [
+        ...new Set([
+          ...bomVersion.lines.map((line) => line.itemId),
+          bomVersion.bom.finishedItemId,
+        ]),
+      ].sort();
+      if (lockedItemIds.length > 0) {
+        await tx.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM item WHERE "id" IN (${Prisma.join(lockedItemIds)}) FOR UPDATE
+        `;
+      }
+
       // Check backorder policy for components (STRICT/ALLOW)
       const business = await tx.business.findUnique({ where: { id: order.businessId } });
       if (!business) throw notFound('Business', order.businessId);
 
       if (business.backorderPolicy === 'STRICT') {
+        const positions = await this.stock.positions(
+          tx,
+          bomVersion.lines.map((line) => line.itemId),
+        );
         for (const component of bomVersion.lines) {
-          const onHand = await this.getOnHand(tx, component.itemId);
-          if (onHand < Number(component.quantity)) {
+          const available = positions.get(component.itemId)?.available ?? new Decimal(0);
+          const required = new Decimal(component.quantity.toString());
+          if (available.lt(required)) {
             throw conflict(
-              `Insufficient stock for component ${component.itemId}. Available: ${onHand}, Required: ${component.quantity}`,
-              { itemId: component.itemId, available: onHand, required: component.quantity },
+              `Insufficient stock for component ${component.itemId}. Available: ${available.toFixed(3)}, Required: ${required.toFixed(3)}`,
+              { itemId: component.itemId, available: available.toFixed(3), required: required.toFixed(3) },
             );
           }
         }
@@ -350,12 +385,14 @@ export class ProductionOrderService {
         );
       }
 
-      // Produce finished item
+      // Produce the finished Item. A BOM version names the components for one
+      // unit of the finished Item, so issuing produces exactly one unit — never
+      // a component line's quantity.
       await this.stock.appendEntry(
         tx,
         {
           itemId: bomVersion.bom.finishedItemId,
-          quantity: new Prisma.Decimal(bomVersion.lines[0]?.quantity.toString() ?? '1'),
+          quantity: new Prisma.Decimal(FINISHED_QUANTITY),
           reason: 'PRODUCTION_IN',
           documentType: PRODUCTION_ORDER,
           documentId: order.id,
@@ -410,37 +447,31 @@ export class ProductionOrderService {
         );
       }
 
-      // Reverse: return components, consume finished item
+      // Reverse: one REVERSAL entry per entry the issue appended, each naming
+      // the entry it undoes. The ledger refuses a REVERSAL without
+      // `reversesEntryId`, and derives the direction from the source, so the
+      // components return and the finished unit is consumed by construction.
       const po = order.productionOrders[0];
       if (!po) throw notFound('Production Order relation', orderId);
-      const bomVersion = po.bomVersion;
 
-      for (const component of bomVersion.lines) {
+      const sources = await tx.stockLedgerEntry.findMany({
+        where: { documentId: order.id },
+        orderBy: { seq: 'asc' },
+      });
+      for (const source of sources) {
         await this.stock.appendEntry(
           tx,
           {
-            itemId: component.itemId,
-            quantity: new Prisma.Decimal(component.quantity.toString()),
+            itemId: source.itemId,
+            quantity: new Prisma.Decimal(source.quantity.toString()),
             reason: 'REVERSAL',
             documentType: PRODUCTION_ORDER,
             documentId: order.id,
             reasonText: `Reversal of production: ${order.number}`,
+            reversesEntryId: source.id,
           },
         );
       }
-
-      // Consume finished item
-      await this.stock.appendEntry(
-        tx,
-        {
-          itemId: bomVersion.bom.finishedItemId,
-          quantity: new Prisma.Decimal(`-${bomVersion.lines[0]?.quantity.toString() ?? '1'}`),
-          reason: 'REVERSAL',
-          documentType: PRODUCTION_ORDER,
-          documentId: order.id,
-          reasonText: `Reversal of production output: ${order.number}`,
-        },
-      );
 
       await tx.document.update({
         where: { id: orderId },
@@ -512,14 +543,6 @@ export class ProductionOrderService {
         grossAmount: money(line.grossAmount.toString()),
       })),
     };
-  }
-
-  private async getOnHand(tx: Prisma.TransactionClient, itemId: string): Promise<number> {
-    const entries = await tx.stockLedgerEntry.findMany({
-      where: { itemId },
-      select: { quantity: true },
-    });
-    return entries.reduce((sum: number, e: { quantity: Prisma.Decimal }) => sum + Number(e.quantity), 0);
   }
 }
 

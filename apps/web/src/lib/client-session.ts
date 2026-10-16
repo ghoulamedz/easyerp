@@ -1,3 +1,5 @@
+'use client';
+
 import { useEffect, useState } from 'react';
 import type { SessionUser } from '@easyerp/contracts';
 
@@ -9,14 +11,27 @@ export interface ClientSession {
 /**
  * Fetch the current session user (including permissions) for client components.
  *
- * Reads `GET /api/users/me` — the `SessionUser` the guards enforce — never
- * Better Auth's raw `get-session`, which knows nothing about our roles. That
- * raw shape (`{ session, user: { name, emailVerified, … } }`) has no
- * `permissions`, so every `useHasPermission` returned false and every Add
- * button hid while the token sat valid in cookies.
+ * Probes `GET /api/auth/get-session` first and reads `GET /api/users/me` —
+ * the `SessionUser` the guards enforce — only when a session exists. The
+ * probe answers 200 with null when signed out, so a signed-out visitor never
+ * issues the `users/me` request whose 401 the browser logs as a console error.
+ * The probe's raw shape (`{ session, user: { name, emailVerified, … } }`)
+ * carries no `permissions`, so it never substitutes for `users/me`: every
+ * `useHasPermission` still reads the guards' `SessionUser`, and a valid token
+ * still resolves to the same Add buttons as before.
  */
 export async function fetchSession(): Promise<ClientSession | null> {
   try {
+    const probe = await fetch(`/api/auth/get-session`, {
+      credentials: 'include',
+    });
+    if (!probe.ok) return null;
+    const raw = (await probe.json()) as {
+      readonly session?: { readonly userId: string } | null;
+    } | null;
+    if (!raw || typeof raw !== 'object' || !('session' in raw) || !raw.session) {
+      return null;
+    }
     const response = await fetch(`/api/users/me`, {
       credentials: 'include',
     });

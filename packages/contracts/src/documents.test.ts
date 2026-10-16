@@ -177,6 +177,8 @@ describe('priced line and totals', () => {
   });
 
   it('rejects a priced line without its FODEC figure, so a client cannot drop it', () => {
+    // Omit-by-rest: the binding exists only to drop the key.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { fodecAmount: _dropped, ...withoutFodec } = line;
     expect(orderLineSchema.safeParse(withoutFodec).success).toBe(false);
   });
@@ -191,6 +193,8 @@ describe('priced line and totals', () => {
       stampDutyAmount: '0.000',
     };
     expect(documentTotalsSchema.parse(totals).fodecAmount).toBe('3.000');
+    // Omit-by-rest: the binding exists only to drop the key.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { fodecAmount: _dropped, ...withoutFodec } = totals;
     expect(documentTotalsSchema.safeParse(withoutFodec).success).toBe(false);
   });

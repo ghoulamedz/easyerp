@@ -83,7 +83,10 @@ export function CreditNoteForm({ locale }: { locale: Locale }) {
         setBusinessId(profile.id);
         const issued = asArray<DocumentSummary>(v).filter((doc) => doc.status === 'ISSUED');
         setInvoices(issued);
-        if (issued.length > 0) setInvoiceId(issued[0]?.id ?? '');
+        if (issued.length > 0) {
+          setInvoiceId(issued[0]?.id ?? '');
+          setLoadingLines(true);
+        }
         const names: Record<string, string> = {};
         for (const item of asArray<Item>(i)) names[item.id] = `${item.name} (${item.code})`;
         setItemNames(names);
@@ -100,14 +103,20 @@ export function CreditNoteForm({ locale }: { locale: Locale }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    if (!invoiceId) {
+  const onPickInvoice = (next: string): void => {
+    setInvoiceId(next);
+    if (next === '') {
+      // No corrected Invoice: its lines leave with it.
       setDetail(null);
       setRows([]);
-      return;
+    } else {
+      setLoadingLines(true);
     }
+  };
+
+  useEffect(() => {
+    if (!invoiceId) return;
     let cancelled = false;
-    setLoadingLines(true);
     apiGet<InvoiceDetail>(`/sales/invoices/${invoiceId}`)
       .then((data) => {
         if (cancelled) return;
@@ -167,7 +176,7 @@ export function CreditNoteForm({ locale }: { locale: Locale }) {
               id="note-invoice"
               required
               value={invoiceId}
-              onChange={(e) => setInvoiceId(e.target.value)}
+              onChange={(e) => onPickInvoice(e.target.value)}
               className={FIELD}
             >
               {invoices.map((invoice) => (
@@ -222,9 +231,22 @@ export function CreditNoteForm({ locale }: { locale: Locale }) {
             </p>
           ) : null}
 
-          <Button type="submit" variant="primary" disabled={working} className="w-full">
-            {working ? t('formCreating') : t('formCreate')}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                router.push(`/${locale}/credit-notes`);
+                router.refresh();
+              }}
+              className="w-full"
+            >
+              {t('cancel')}
+            </Button>
+            <Button type="submit" variant="primary" disabled={working} className="w-full">
+              {working ? t('formCreating') : t('formCreate')}
+            </Button>
+          </div>
         </form>
       </CardBody>
     </Card>

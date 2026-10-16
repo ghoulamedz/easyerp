@@ -1,3 +1,5 @@
+'use client';
+
 /**
  * The theme preference as an external store.
  *

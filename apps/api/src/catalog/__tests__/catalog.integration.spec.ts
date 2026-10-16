@@ -418,7 +418,10 @@ describe('Catalog & counterparties (spec 001 stories 25–32)', () => {
 
     const all = await api('GET', '/parties');
     const directory = (await all.json()) as { items: PartyRecord[]; total: number };
-    expect(directory.total).toBe(3); // 2 created in test + INTERNAL from Setup
+    // INTERNAL is Setup's bookkeeping row for production internals: it stays in
+    // the table (production resolves it by code) but the directory hides it.
+    expect(directory.total).toBe(2);
+    expect(directory.items.some((item) => item.code === 'INTERNAL')).toBe(false);
   });
 
   it('retires a Party and has no DELETE route for it either', async () => {

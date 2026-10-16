@@ -8,7 +8,8 @@ name: Deploy Demo (Vercel + Neon)
 # The demo is a real, working instance of easyERP that clients can
 # sign into and explore. It costs nothing on the free tiers.
 #
-# Prerequisites (one-time, in GitHub repo Settings → Secrets):
+# Prerequisites (one-time, in GitHub repo Settings → Secrets; names match
+# the Demo section of .env.example, which documents how to generate each):
 #   VERCEL_TOKEN          from vercel.com/account/tokens
 #   VERCEL_ORG_ID         from `vercel inspect <deployment>` or project settings
 #   VERCEL_PROJECT_ID_API from API project settings
@@ -17,6 +18,11 @@ name: Deploy Demo (Vercel + Neon)
 #   NEON_PROJECT_ID       from Neon project dashboard
 #   DEMO_FIRST_SETUP_TOKEN `openssl rand -base64 32`
 #   DEMO_BETTER_AUTH_SECRET `openssl rand -base64 48`
+#
+# Env ordering matters: Vercel bakes env vars into the deployment at build
+# time, so placeholder URLs are set BEFORE the first deploy, the real URLs
+# are set AFTER both projects have URLs, and both projects are then
+# redeployed so the live instances run with the real values.
 
 on:
   push:
@@ -49,8 +55,11 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - name: Install deps (needed for prisma:migrate:deploy below)
+        run: pnpm install --frozen-lockfile
+
       - name: Install neonctl
-        run: pnpm add -g neonctl@latest
+        run: pnpm add -g neonctl@8.7.2
 
       - name: Authenticate to Neon
         run: echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}" >> $GITHUB_ENV
@@ -60,17 +69,17 @@ jobs:
         run: |
           # Use a fixed branch name for the demo
           BRANCH="demo"
-          
+
           # Find the default branch to use as parent (first branch in project)
           PARENT_BRANCH=$(neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json | jq -r '.branches[0].name // "main"')
-          
+
           # Check if branch exists
           if neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json | jq -e ".branches[] | select(.name == \"$BRANCH\")" >/dev/null; then
             echo "Branch $BRANCH exists, ensuring it's up to date..."
             # Reset to parent branch
             neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --force
           fi
-          
+
           echo "Creating branch $BRANCH from $PARENT_BRANCH..."
           neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent $PARENT_BRANCH
 
@@ -78,6 +87,9 @@ jobs:
           POOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp --pooled)
           UNPOOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp)
 
+          # Mask both URLs before they appear in any log line.
+          echo "::add-mask::$POOLED"
+          echo "::add-mask::$UNPOOLED"
           echo "database_url=$POOLED" >> $GITHUB_OUTPUT
           echo "database_url_unpooled=$UNPOOLED" >> $GITHUB_OUTPUT
 
@@ -88,12 +100,58 @@ jobs:
         env:
           DATABASE_URL: ${{ steps.neon.outputs.database_url_unpooled }}
 
-  # 2. Deploy API to Vercel (serverless functions)
+  # 2. Set every runtime env var BEFORE the first deploy, with placeholder
+  # URLs for the values that only exist once both projects are deployed.
+  vercel-env-pre:
+    name: Pre-Deploy Env Vars (placeholders)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: neon-db
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install Vercel CLI
+        run: pnpm add -g vercel@latest
+
+      - name: Set API project environment variables
+        run: |
+          # Idempotent: remove then add each variable (--token flag form;
+          # a bare positional token would be parsed as a git-branch scope).
+          for var in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL CORS_ORIGINS FIRST_SETUP_TOKEN NODE_ENV API_PORT API_HOST LOG_LEVEL DOCUMENT_ARCHIVE_ROOT; do
+            vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} 2>/dev/null || true
+          done
+
+          vercel env add DATABASE_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.neon-db.outputs.database_url }}"
+          vercel env add BETTER_AUTH_SECRET production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_BETTER_AUTH_SECRET }}"
+          vercel env add BETTER_AUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "https://placeholder.invalid"
+          vercel env add CORS_ORIGINS production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "https://placeholder.invalid"
+          vercel env add FIRST_SETUP_TOKEN production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_FIRST_SETUP_TOKEN }}"
+          vercel env add NODE_ENV production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "production"
+          vercel env add API_PORT production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "3002"
+          vercel env add API_HOST production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "0.0.0.0"
+          vercel env add LOG_LEVEL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "info"
+          vercel env add DOCUMENT_ARCHIVE_ROOT production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "/tmp/easyerp-documents"
+
+      - name: Set Web project environment variables
+        run: |
+          for var in API_INTERNAL_URL NODE_ENV; do
+            vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} 2>/dev/null || true
+          done
+
+          vercel env add API_INTERNAL_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "https://placeholder.invalid"
+          vercel env add NODE_ENV production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "production"
+
+  # 3. Deploy API to Vercel (serverless functions)
   deploy-api:
     name: Deploy API → Vercel
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: neon-db
+    needs: [neon-db, vercel-env-pre]
     outputs:
       api_url: ${{ steps.save-url.outputs.api_url }}
     env:
@@ -111,6 +169,9 @@ jobs:
 
       - name: Install deps (including dev for build)
         run: pnpm install --frozen-lockfile
+
+      - name: Install Vercel CLI (used to read back the deployment URL)
+        run: pnpm add -g vercel@latest
 
       - name: Generate Prisma client
         run: pnpm --filter @easyerp/api prisma:generate
@@ -134,12 +195,14 @@ jobs:
           echo "api_url=https://$URL" >> $GITHUB_OUTPUT
           echo "API deployed to: https://$URL"
 
-  # 3. Deploy Web to Vercel (Next.js)
+  # 4. Deploy Web to Vercel (Next.js)
   deploy-web:
     name: Deploy Web → Vercel
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [neon-db, deploy-api]
+    needs: [neon-db, vercel-env-pre, deploy-api]
+    outputs:
+      web_url: ${{ steps.web_url.outputs.web_url }}
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
       # Web build needs API URL for proxy
@@ -156,6 +219,9 @@ jobs:
 
       - name: Install deps
         run: pnpm install --frozen-lockfile
+
+      - name: Install Vercel CLI (used to read back the deployment URL)
+        run: pnpm add -g vercel@latest
 
       - name: Build Web
         run: pnpm --filter @easyerp/web build
@@ -178,7 +244,7 @@ jobs:
           echo "web_url=https://$URL" >> $GITHUB_OUTPUT
           echo "Web deployed to: https://$URL"
 
-  # 4. Configure Neon branch env vars (Better Auth, etc.)
+  # 5. Configure Neon branch env vars (Better Auth, etc.)
   neon-config:
     name: Configure Demo Env Vars
     runs-on: ubuntu-latest
@@ -192,7 +258,7 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - name: Install neonctl
-        run: pnpm add -g neonctl@latest
+        run: pnpm add -g neonctl@8.7.2
 
       - name: Authenticate to Neon
         run: echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}" >> $GITHUB_ENV
@@ -206,9 +272,10 @@ jobs:
           echo "  API: ${{ needs.deploy-api.outputs.api_url }}"
           echo "  Web: ${{ needs.deploy-web.outputs.web_url }}"
 
-  # 5. Update Vercel project env vars with production values
-  vercel-env:
-    name: Set Vercel Production Env Vars
+  # 6. Replace the placeholder URLs with the real deployment URLs now that
+  # both projects have them. The redeploy job picks these up.
+  vercel-env-final:
+    name: Final Env Vars (real URLs)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: [deploy-api, deploy-web]
@@ -223,58 +290,101 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add -g vercel@latest
 
-      - name: Set API project environment variables
+      - name: Update API project URL environment variables
         run: |
-          # Idempotent: remove then add each variable
-          for var in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL CORS_ORIGINS FIRST_SETUP_TOKEN NODE_ENV API_PORT API_HOST LOG_LEVEL DOCUMENT_ARCHIVE_ROOT; do
+          for var in BETTER_AUTH_URL CORS_ORIGINS; do
             vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} 2>/dev/null || true
           done
 
-          vercel env add DATABASE_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.neon-db.outputs.database_url }}"
-          vercel env add BETTER_AUTH_SECRET production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_BETTER_AUTH_SECRET }}"
-          vercel env add BETTER_AUTH_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-web.outputs.web_url }}"
-          vercel env add CORS_ORIGINS production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-web.outputs.web_url }}"
-          vercel env add FIRST_SETUP_TOKEN production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_FIRST_SETUP_TOKEN }}"
-          vercel env add NODE_ENV production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "production"
-          vercel env add API_PORT production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "3000"
-          vercel env add API_HOST production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "0.0.0.0"
-          vercel env add LOG_LEVEL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "info"
-          vercel env add DOCUMENT_ARCHIVE_ROOT production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} <<< "/tmp/easyerp-documents"
+          vercel env add BETTER_AUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-web.outputs.web_url }}"
+          vercel env add CORS_ORIGINS production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-web.outputs.web_url }}"
 
-      - name: Set Web project environment variables
+      - name: Update Web project URL environment variables
         run: |
-          for var in API_INTERNAL_URL NODE_ENV; do
-            vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} 2>/dev/null || true
-          done
+          vercel env rm "API_INTERNAL_URL" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} 2>/dev/null || true
 
-          vercel env add API_INTERNAL_URL production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "${{ needs.deploy-api.outputs.api_url }}"
-          vercel env add NODE_ENV production ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "production"
+          vercel env add API_INTERNAL_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "${{ needs.deploy-api.outputs.api_url }}"
 
-  # 6. Run demo smoke tests
+  # 7. Redeploy both projects so the live instances run with the real URLs
+  # baked in (the first deploy only had placeholders).
+  redeploy:
+    name: Redeploy with Real URLs
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: vercel-env-final
+    outputs:
+      api_url: ${{ steps.save-api-url.outputs.api_url }}
+      web_url: ${{ steps.save-web-url.outputs.web_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install Vercel CLI
+        run: pnpm add -g vercel@latest
+
+      - name: Redeploy API to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_API }}
+          vercel-args: '--prod'
+          working-directory: ./apps/api
+
+      - name: Redeploy Web to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+          vercel-args: '--prod'
+          working-directory: ./apps/web
+
+      - name: Save final deployment URLs
+        id: save-api-url
+        run: |
+          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          echo "api_url=https://$URL" >> $GITHUB_OUTPUT
+          echo "API redeployed to: https://$URL"
+
+      - name: Save final Web deployment URL
+        id: save-web-url
+        run: |
+          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          echo "web_url=https://$URL" >> $GITHUB_OUTPUT
+          echo "Web redeployed to: https://$URL"
+
+  # 8. Run demo smoke tests
   demo-smoke:
     name: Demo Smoke Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [deploy-api, deploy-web, vercel-env]
+    needs: redeploy
     steps:
       - name: Wait for deployments to be ready
         run: sleep 30
 
       - name: Test API health
         run: |
-          curl -sf "${{ needs.deploy-api.outputs.api_url }}/api/health" | jq -e '.status == "ok"'
+          curl -sf "${{ needs.redeploy.outputs.api_url }}/api/health" | jq -e '.status == "ok"'
 
       - name: Test API ready
         run: |
-          curl -sf "${{ needs.deploy-api.outputs.api_url }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
+          curl -sf "${{ needs.redeploy.outputs.api_url }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
 
       - name: Test Web loads
         run: |
-          curl -sf "${{ needs.deploy-web.outputs.web_url }}/fr/setup" | grep -q "Premier démarrage"
+          # The page only has to answer: on an already-initialized instance
+          # Setup is closed, so its copy is never asserted here.
+          curl -sf "${{ needs.redeploy.outputs.web_url }}/fr/setup" -o /dev/null
 
       - name: Test Setup flow (API)
         run: |
-          curl -sf -X POST "${{ needs.deploy-api.outputs.api_url }}/api/setup/complete" \
+          curl -sf -X POST "${{ needs.redeploy.outputs.api_url }}/api/setup/complete" \
             -H "Content-Type: application/json" \
             -d '{
               "token": "'${{ secrets.DEMO_FIRST_SETUP_TOKEN }}'",
@@ -297,7 +407,7 @@ jobs:
 
       - name: Test Sign-in flow
         run: |
-          curl -sf -X POST "${{ needs.deploy-api.outputs.api_url }}/api/auth/sign-in/email" \
+          curl -sf -X POST "${{ needs.redeploy.outputs.api_url }}/api/auth/sign-in/email" \
             -H "Content-Type: application/json" \
             -d '{"email":"admin@demo.easyerp.tn","password":"demo-password-123"}' | jq -e '.user.email == "admin@demo.easyerp.tn"'
 
@@ -308,13 +418,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "| Component | URL |" >> $GITHUB_STEP_SUMMARY
           echo "|-----------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Web App** | ${{ needs.deploy-web.outputs.web_url }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **API** | ${{ needs.deploy-api.outputs.api_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Web App** | ${{ needs.redeploy.outputs.web_url }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **API** | ${{ needs.redeploy.outputs.api_url }} |" >> $GITHUB_STEP_SUMMARY
           echo "| **Setup Token** | `***REDACTED***` |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "The demo is fresh: Setup is open at /fr/setup and no accounts exist — the smoke-test account is wiped by demo-cleanup so the owner can demo the whole flow from first Setup." >> $GITHUB_STEP_SUMMARY
 
-  # 7. Wipe the smoke-test account so the demo is fresh (Setup open, no accounts)
+  # 9. Wipe the smoke-test account so the demo is fresh (Setup open, no accounts)
   demo-cleanup:
     name: Reset Demo DB (fresh Setup)
     runs-on: ubuntu-latest
@@ -333,7 +443,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Install neonctl
-        run: pnpm add -g neonctl@latest
+        run: pnpm add -g neonctl@8.7.2
 
       - name: Authenticate to Neon
         run: echo "NEON_API_KEY=${{ secrets.NEON_API_KEY }}" >> $GITHUB_ENV
@@ -344,15 +454,16 @@ jobs:
           # Wipe ALL rows: delete and recreate the demo branch.
           # Runs always (if: always()) to ensure fresh demo even on smoke failure.
           BRANCH="demo"
-          
+
           # Find the default branch to use as parent
           PARENT_BRANCH=$(neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json | jq -r '.branches[0].name // "main"')
-          
+
           neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --force || true
           neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name $BRANCH --parent $PARENT_BRANCH
 
           UNPOOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch $BRANCH --role easyerp)
 
+          echo "::add-mask::$UNPOOLED"
           echo "database_url_unpooled=$UNPOOLED" >> $GITHUB_OUTPUT
 
       - name: Apply migrations to fresh demo branch

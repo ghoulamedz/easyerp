@@ -5,7 +5,14 @@
  * This is the one-time setup + the repeatable deploy command.
  *
  * Usage:
+ *   SITE_DOMAIN=client-domain.tn pnpm --filter @easyerp/ops deploy [--skip-migrate]
  *   pnpm --filter @easyerp/ops deploy <domain> [--skip-migrate]
+ *
+ * Every placeholder value and secret comes from the host environment file
+ * (see .env.example, Production/VPS section): SITE_DOMAIN, API_PORT,
+ * WEB_PORT, ACME_EMAIL, DATABASE_URL, BETTER_AUTH_SECRET, BETTER_AUTH_URL,
+ * CORS_ORIGINS, FIRST_SETUP_TOKEN. The CLI domain argument is only a
+ * fallback for SITE_DOMAIN.
  *
  * Prerequisites (run once per VPS):
  *   1. sudo apt-get update && sudo apt-get install -y postgresql-17 caddy nodejs npm
@@ -27,6 +34,9 @@ $.verbose = false;
 const __dirname = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 interface Env {
+  SITE_DOMAIN: string | undefined;
+  API_PORT: string | undefined;
+  WEB_PORT: string | undefined;
   DATABASE_URL: string;
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
@@ -35,9 +45,8 @@ interface Env {
   ACME_EMAIL: string | undefined;
 }
 
-/** Minimal env loader for the deploy script — reads from .env file on the VPS. */
-function loadDeployEnv(): Env {
-  const envPath = resolve(__dirname, '..', '.env');
+/** Minimal env loader for the deploy script — reads from a .env file. */
+function loadDeployEnv(envPath: string): Env {
   const content = readFileSync(envPath, 'utf8');
   const env: Record<string, string | undefined> = {};
   for (const line of content.split('\n')) {
@@ -49,6 +58,9 @@ function loadDeployEnv(): Env {
     if (!env[key]) throw new Error(`Missing required env var: ${key}`);
   }
   return {
+    SITE_DOMAIN: env.SITE_DOMAIN,
+    API_PORT: env.API_PORT,
+    WEB_PORT: env.WEB_PORT,
     DATABASE_URL: env.DATABASE_URL!,
     BETTER_AUTH_SECRET: env.BETTER_AUTH_SECRET!,
     BETTER_AUTH_URL: env.BETTER_AUTH_URL!,
@@ -59,21 +71,27 @@ function loadDeployEnv(): Env {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  if (args.length === 0) {
+  const args = process.argv.slice(2).filter((arg) => arg !== '--skip-migrate');
+  const skipMigrate = process.argv.includes('--skip-migrate');
+
+  // The domain is a placeholder value like any other: it comes from the
+  // environment first, and the CLI argument is only a fallback.
+  const domain = process.env.SITE_DOMAIN ?? args[0];
+  if (!domain) {
     // eslint-disable-next-line no-console
-    console.error('Usage: deploy.ts <domain> [--skip-migrate]');
+    console.error('Usage: SITE_DOMAIN=<domain> deploy [--skip-migrate] (or: deploy <domain> [--skip-migrate])');
     process.exit(1);
   }
-
-  const domain = args[0];
-  const skipMigrate = args.includes('--skip-migrate');
 
   // eslint-disable-next-line no-console
   console.log(`🚀 Deploying to ${domain}...`);
 
-  // Load production environment from .env on VPS
-  const env = loadDeployEnv();
+  // Load production environment from .env next to the repo (see .env.example).
+  const envPath = process.env.EASYERP_DEPLOY_ENV ?? resolve(__dirname, '..', '.env');
+  const env = loadDeployEnv(envPath);
+  const apiPort = process.env.API_PORT ?? env.API_PORT ?? '3002';
+  const webPort = process.env.WEB_PORT ?? env.WEB_PORT ?? '3003';
+  const acmeEmail = process.env.ACME_EMAIL ?? env.ACME_EMAIL ?? `admin@${domain}`;
 
   const apiDir = '/home/easyerp/easyerp-api';
   const webDir = '/home/easyerp/easyerp-web';
@@ -87,21 +105,40 @@ async function main() {
   // 2. Backup database
   // eslint-disable-next-line no-console
   console.log('💾 Backing up database...');
-  await $`/home/easyerp/ops/src/backup.sh`;
+  await $`/home/easyerp/easyerp/ops/src/backup.sh`;
 
   // 3. Pull latest code
   // eslint-disable-next-line no-console
   console.log('📥 Pulling latest code...');
   await $`cd ${repoDir} && git fetch && git checkout release/${domain} && git pull`;
 
-  // 4. Install API deps
+  // 4. Build from the checked-out source. The units serve prebuilt output,
+  // so the deploy ships compiled artifacts, not a bare git checkout: install
+  // (frozen lockfile), generate, and build both halves here on the host.
   // eslint-disable-next-line no-console
-  console.log('📦 Installing API dependencies...');
+  console.log('🔨 Building...');
+  await $`cd ${repoDir} && pnpm install --frozen-lockfile`;
+  await $`cd ${repoDir} && pnpm --filter @easyerp/api prisma:generate`;
+  await $`cd ${repoDir} && pnpm --filter @easyerp/api build`;
+  await $`cd ${repoDir} && pnpm --filter @easyerp/web build`;
+
+  // 5. Sync the build output into the unit directories. The API unit runs
+  // `dist/main.js` from its working directory, so the build output lands in
+  // a dist/ subdirectory — syncing it flat would leave ExecStart pointing
+  // at nothing. The lockfiles travel with package.json because install runs
+  // with --frozen-lockfile on the host.
+  // eslint-disable-next-line no-console
+  console.log('📦 Shipping API artifacts...');
+  await $`rsync -a --delete ${repoDir}/apps/api/dist/ ${apiDir}/dist/`;
+  await $`rsync -a --delete ${repoDir}/apps/api/prisma/ ${apiDir}/prisma/`;
+  await $`cp ${repoDir}/apps/api/package.json ${repoDir}/pnpm-lock.yaml ${repoDir}/pnpm-workspace.yaml ${apiDir}/`;
   await $`cd ${apiDir} && pnpm install --prod --frozen-lockfile`;
 
-  // 5. Install Web deps
   // eslint-disable-next-line no-console
-  console.log('📦 Installing Web dependencies...');
+  console.log('📦 Shipping Web artifacts...');
+  await $`rsync -a --delete ${repoDir}/apps/web/.next/ ${webDir}/.next/`;
+  await $`rsync -a --delete ${repoDir}/apps/web/public/ ${webDir}/public/`;
+  await $`cp ${repoDir}/apps/web/package.json ${repoDir}/apps/web/next.config.ts ${repoDir}/pnpm-lock.yaml ${repoDir}/pnpm-workspace.yaml ${webDir}/`;
   await $`cd ${webDir} && pnpm install --prod --frozen-lockfile`;
 
   // 6. Run database migrations
@@ -114,24 +151,22 @@ async function main() {
     console.log('⏭️ Skipping migrations');
   }
 
-  // 7. Generate Prisma client (in case schema changed)
-  // eslint-disable-next-line no-console
-  console.log('🔧 Generating Prisma client...');
-  await $`cd ${apiDir} && pnpm prisma:generate`;
-
-  // 8. Update Caddy config
+  // 7. Update Caddy config. Placeholders are bare {$VAR} (see the Caddyfile
+  // header); the \$ keeps zx from expanding the placeholder name.
   // eslint-disable-next-line no-console
   console.log('🌐 Updating Caddy config...');
   await $`sudo cp ${repoDir}/infra/caddy/Caddyfile /etc/caddy/Caddyfile`;
-  await $`sudo sed -i "s/{$EASYERP_EMAIL_DOMAIN}/${domain}/" /etc/caddy/Caddyfile`;
-  await $`sudo sed -i "s/{$ACME_EMAIL}/${env.ACME_EMAIL ?? `admin@${domain}`}/" /etc/caddy/Caddyfile`;
+  await $`sudo sed -i "s/{\\$SITE_DOMAIN}/${domain}/" /etc/caddy/Caddyfile`;
+  await $`sudo sed -i "s/{\\$ACME_EMAIL}/${acmeEmail}/" /etc/caddy/Caddyfile`;
+  await $`sudo sed -i "s/{\\$API_PORT}/${apiPort}/" /etc/caddy/Caddyfile`;
+  await $`sudo sed -i "s/{\\$WEB_PORT}/${webPort}/" /etc/caddy/Caddyfile`;
 
-  // 9. Write environment files
+  // 8. Write environment files
   // eslint-disable-next-line no-console
   console.log('📝 Writing environment files...');
   await $`cat > ${apiDir}/.env << 'ENVEOF'
 NODE_ENV=production
-API_PORT=3002
+API_PORT=${apiPort}
 API_HOST=0.0.0.0
 LOG_LEVEL=info
 DATABASE_URL=${env.DATABASE_URL}
@@ -145,28 +180,30 @@ ENVEOF`;
 
   await $`cat > ${webDir}/.env << 'ENVEOF'
 NODE_ENV=production
-API_INTERNAL_URL=http://127.0.0.1:3002
+API_INTERNAL_URL=http://127.0.0.1:${apiPort}
 ENVEOF`;
 
-  // 10. Restart services
+  // 9. Restart services
   // eslint-disable-next-line no-console
   console.log('🔄 Restarting services...');
   await $`sudo systemctl daemon-reload`;
   await $`sudo systemctl restart easyerp-api easyerp-web caddy`;
 
-  // 11. Health checks
+  // 10. Health checks. The API gates the deploy; the web page only has to
+  // answer — on an already-initialized Business Setup is closed, so its copy
+  // is never asserted here.
   // eslint-disable-next-line no-console
   console.log('🏥 Running health checks...');
   await new Promise((r) => setTimeout(r, 5000));
 
-  const apiHealth = String(await $`curl -sf http://127.0.0.1:3002/api/health`.catch(() => ''));
+  const apiHealth = String(await $`curl -sf http://127.0.0.1:${apiPort}/api/health`.catch(() => ''));
   if (!apiHealth.includes('ok')) throw new Error('API health check failed');
 
-  const apiReady = String(await $`curl -sf http://127.0.0.1:3002/api/ready`.catch(() => ''));
+  const apiReady = String(await $`curl -sf http://127.0.0.1:${apiPort}/api/ready`.catch(() => ''));
   if (!apiReady.includes('ok')) throw new Error('API ready check failed');
 
-  const webCheck = String(await $`curl -sf https://${domain}/fr/setup`.catch(() => ''));
-  if (!webCheck.includes('Premier démarrage')) throw new Error('Web check failed');
+  const webCheck = String(await $`curl -sf https://${domain}/fr/setup -o /dev/null`.catch(() => 'FAIL'));
+  if (webCheck.includes('FAIL')) throw new Error('Web check failed');
 
   // eslint-disable-next-line no-console
   console.log('✅ Deployment successful!');

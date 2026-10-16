@@ -1,7 +1,14 @@
 # One Business per entry: one host, one published port, one database.
 #
 # This file is the deployment inventory. Nothing here is a secret: credentials live
-# in the host's `infra/compose/.env`, which never enters Git.
+# in the host's unit env files (/home/easyerp/easyerp-{api,web}/.env), which never
+# enter Git.
+#
+# NOTE on `port`: no listener is bound to it today. Caddy terminates TLS on 443
+# and proxies to the API/web loopback ports (API_PORT/WEB_PORT in .env.example),
+# so `port` is reserved, not served — it stays in the schema (and in status
+# origins) for a future per-Business healthcheck or multi-tenant listener, but
+# opening it on a host or in a firewall is currently a no-op.
 #
 # Validate before deploying:  pnpm --filter @easyerp/ops status
 

@@ -1,0 +1,32 @@
+{
+  "id": "investigate-b4fd6f0685763fa63f3ff02db7719b88",
+  "name": "fusion investigate",
+  "command": "fusion_investigate",
+  "description": "{\"background\":[\"easyERP is a multi-tenant ERP with two deployment paths: Demo (Vercel + Neon) and Production (VPS)\",\"DEPLOY.md documents the deployment process, required secrets, and verification steps\",\"Three workflow files exist: deploy-d",
+  "status": "failed",
+  "outputPath": ".pi/tasks/01a13f68-10cc-7457-be58-d67c0232897b-1359243/investigate-b4fd6f0685763fa63f3ff02db7719b88.output",
+  "cwd": "/home/medo/Projects/easyerp",
+  "startTime": 1792065293330,
+  "endTime": 1792065294804,
+  "exitCode": null,
+  "signal": null,
+  "bytesWritten": 715,
+  "isAgent": true,
+  "surviveReload": false,
+  "error": "Fusion failed (stage=candidate, slot=3, attempt=1): Pi child exited with code 1\nRun progress from durable attempts: candidates=incomplete (3 created, 0 completed, 3 failed, 0 cancelled, 0 slot(s) not started); evaluation=not_started (0 created, 0 completed, 0 failed, 0 cancelled); merge=not_started (0 created, 0 completed, 0 failed, 0 cancelled). Usage so far: input=0, output=0, cacheRead=0, cacheWrite=0, totalTokens=0, cost.input=0, cost.output=0, cost.cacheRead=0, cost.cacheWrite=0, cost.total=0.\nArtifacts: .pi/fusion/01a13f68-10cc-7457-be58-d67c0232897b-1359243/investigate-b4fd6f0685763fa63f3ff02db7719b88",
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "fusion": {
+    "runId": "investigate-b4fd6f0685763fa63f3ff02db7719b88",
+    "workflow": "investigate",
+    "artifactDir": ".pi/fusion/01a13f68-10cc-7457-be58-d67c0232897b-1359243/investigate-b4fd6f0685763fa63f3ff02db7719b88",
+    "artifactDirAbs": "/home/medo/Projects/easyerp/.pi/fusion/01a13f68-10cc-7457-be58-d67c0232897b-1359243/investigate-b4fd6f0685763fa63f3ff02db7719b88",
+    "state": "failed",
+    "usageDelivered": false,
+    "outcome": {
+      "status": "failed",
+      "error": "Fusion failed (stage=candidate, slot=3, attempt=1): Pi child exited with code 1\nRun progress from durable attempts: candidates=incomplete (3 created, 0 completed, 3 failed, 0 cancelled, 0 slot(s) not started); evaluation=not_started (0 created, 0 completed, 0 failed, 0 cancelled); merge=not_started (0 created, 0 completed, 0 failed, 0 cancelled). Usage so far: input=0, output=0, cacheRead=0, cacheWrite=0, totalTokens=0, cost.input=0, cost.output=0, cost.cacheRead=0, cost.cacheWrite=0, cost.total=0.\nArtifacts: .pi/fusion/01a13f68-10cc-7457-be58-d67c0232897b-1359243/investigate-b4fd6f0685763fa63f3ff02db7719b88"
+    }
+  }
+}

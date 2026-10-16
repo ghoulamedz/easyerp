@@ -18,7 +18,7 @@ import {
 } from '@easyerp/contracts';
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
-import { conflict, notFound, validationFailed } from '../common/errors.js';
+import { conflict, invariant, notFound, validationFailed } from '../common/errors.js';
 import { Amount } from '../finance/amount.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
@@ -161,46 +161,52 @@ export class PurchaseOrderService {
       const totals = documentTotals(priced);
       lineCountForAudit = priced.length;
 
-      await this.prisma.documentLine.deleteMany({ where: { documentId: orderId } });
-      await this.prisma.documentTaxGroup.deleteMany({ where: { documentId: orderId } });
-      await this.prisma.purchaseOrderLine.deleteMany({
-        where: { purchaseOrderId: order.purchaseOrders?.[0]?.id },
-      });
-
-      await this.prisma.document.update({
-        where: { id: orderId },
-        data: {
-          netAmount: totals.netAmount,
-          taxAmount: totals.taxAmount,
-          grossAmount: totals.grossAmount,
-          lines: {
-            create: priced.map((line, position) => lineRow(line, position)),
-          },
-          taxes: {
-            create: totals.taxGroups.map((group, position) => ({
-              position,
-              rate: group.rate,
-              base: group.base,
-              amount: group.amount,
-            })),
-          },
-        },
-      });
-
-      // Create new purchase order lines
+      // The child row is born with the Draft; without it there is nothing to
+      // re-price onto. Checked before the transaction opens, so a missing row
+      // refuses before any row is deleted.
       const purchaseOrderId = order.purchaseOrders?.[0]?.id;
-      if (!purchaseOrderId) {
-        throw new Error('Purchase order not found');
-      }
-      await this.prisma.purchaseOrderLine.createMany({
-        data: priced.map((line, position) => ({
-          purchaseOrderId,
-          position,
-          itemId: line.itemId,
-          description: line.description,
-          quantity: line.quantity,
-          unitOfMeasureId: line.unitOfMeasureId,
-        })),
+      if (!purchaseOrderId) throw notFound('Purchase Order', orderId);
+
+      // One transaction: the document rows and the purchase-order rows are one
+      // fact, so a failure between them must roll both back.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.documentLine.deleteMany({ where: { documentId: orderId } });
+        await tx.documentTaxGroup.deleteMany({ where: { documentId: orderId } });
+        await tx.purchaseOrderLine.deleteMany({
+          where: { purchaseOrderId },
+        });
+
+        await tx.document.update({
+          where: { id: orderId },
+          data: {
+            netAmount: totals.netAmount,
+            taxAmount: totals.taxAmount,
+            grossAmount: totals.grossAmount,
+            lines: {
+              create: priced.map((line, position) => lineRow(line, position)),
+            },
+            taxes: {
+              create: totals.taxGroups.map((group, position) => ({
+                position,
+                rate: group.rate,
+                base: group.base,
+                amount: group.amount,
+              })),
+            },
+          },
+        });
+
+        // Create new purchase order lines
+        await tx.purchaseOrderLine.createMany({
+          data: priced.map((line, position) => ({
+            purchaseOrderId,
+            position,
+            itemId: line.itemId,
+            description: line.description,
+            quantity: line.quantity,
+            unitOfMeasureId: line.unitOfMeasureId,
+          })),
+        });
       });
     } else {
       // No input lines, so line count is the existing lines
@@ -218,17 +224,21 @@ export class PurchaseOrderService {
         );
       }
       partyId = newParty.id;
-      await this.prisma.document.update({
-        where: { id: orderId },
-        data: { partyId },
-      });
-      // Also update the PurchaseOrder's partyId
-      if (order.purchaseOrders?.[0]) {
-        await this.prisma.purchaseOrder.update({
-          where: { id: order.purchaseOrders[0].id },
+      // One transaction: the document and its child name the same party, so
+      // the two writes commit together or not at all.
+      await this.prisma.$transaction(async (tx) => {
+        await tx.document.update({
+          where: { id: orderId },
           data: { partyId },
         });
-      }
+        // Also update the PurchaseOrder's partyId
+        if (order.purchaseOrders?.[0]) {
+          await tx.purchaseOrder.update({
+            where: { id: order.purchaseOrders[0].id },
+            data: { partyId },
+          });
+        }
+      });
     }
 
     await this.audit.record(
@@ -293,7 +303,7 @@ export class PurchaseOrderService {
 
       for (const [position, line] of priced.entries()) {
         const stored = order.lines[position];
-        if (!stored) throw new Error(`Line ${position} vanished while issuing ${orderId}.`);
+        invariant(stored, `Line ${position} vanished while issuing ${orderId}.`);
 
         await tx.documentLine.update({
           where: { id: stored.id },
@@ -342,7 +352,7 @@ export class PurchaseOrderService {
     });
 
     const found = await this.findById(issued.orderId);
-    if (!found) throw new Error(`Order ${issued.orderId} vanished immediately after issuing.`);
+    invariant(found, `Order ${issued.orderId} vanished immediately after issuing.`);
     return found;
   }
 
@@ -389,7 +399,7 @@ export class PurchaseOrderService {
     });
 
     const found = await this.findById(cancelled.orderId);
-    if (!found) throw new Error(`Order ${cancelled.orderId} vanished after cancelling.`);
+    invariant(found, `Order ${cancelled.orderId} vanished after cancelling.`);
     return found;
   }
 

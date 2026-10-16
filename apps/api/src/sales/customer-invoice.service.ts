@@ -34,7 +34,7 @@
  * That ordering is the one concession, and it is argued in `document-archive.ts`.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { readFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 
@@ -66,6 +66,7 @@ export const CUSTOMER_INVOICE = 'CUSTOMER_INVOICE';
 
 @Injectable()
 export class CustomerInvoiceService {
+  private readonly logger = new Logger(CustomerInvoiceService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
@@ -280,14 +281,18 @@ export class CustomerInvoiceService {
         },
         // Only Item-derived inputs are handed over. The builder re-derives the totals
         // from these same lines with the same `sumLines`, so what it prints and what
-        // was stored cannot drift apart.
+        // was stored cannot drift apart. `fodecSubject` travels with them: without
+        // it the builder prices every line as non-subject while the stored figures
+        // carry FODEC, and the re-render disagrees with the stored rows.
         lines: priced.map((line) => ({
           description: line.description,
           quantity: line.quantity,
           unitPrice: line.unitPrice,
           taxRate: line.taxRate,
+          fodecSubject: line.fodecSubject,
         })),
         stampDuty: null,
+        fodec: storedFodecTotal(priced),
       });
 
       return { view, year, invoiceId: invoice.id };
@@ -301,7 +306,10 @@ export class CustomerInvoiceService {
     try {
       await this.archivePdf(issued.view, issued.invoiceId, issued.year);
     } catch (error) {
-      console.error(`Archiving invoice ${issued.invoiceId} failed, will retry on View:`, error);
+      this.logger.error(
+        `Archiving invoice ${issued.invoiceId} failed, will retry on View.`,
+        error instanceof Error ? error.stack : String(error),
+      );
     }
 
     const found = await this.findById(issued.invoiceId);
@@ -416,7 +424,7 @@ export class CustomerInvoiceService {
     currency: string;
     business: { legalName: string; taxIdentifier: string; addressLine1: string | null; city: string | null; countryCode: string | null };
     party: { name: string; taxIdentifier: string | null; address: string | null; city: string | null };
-    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string } }[];
+    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string }; fodecAmount: { toString(): string } }[];
     taxes: readonly { rate: { toString(): string }; base: { toString(): string }; amount: { toString(): string } }[];
     netAmount: { toString(): string };
     taxAmount: { toString(): string };
@@ -457,15 +465,20 @@ export class CustomerInvoiceService {
           Boolean(part),
         ),
       },
+      // The stored rows are the authority here, not the Items: a flag changed
+      // since issuing must not alter the re-render. Subject-ness is read back
+      // from the stored figure — a line that carries FODEC was subject — so
+      // the builder re-derives exactly the stored tax and gross.
       lines: invoice.lines.map((line) => ({
         description: line.description,
         quantity: line.quantity.toString(),
         unitPrice: line.unitPrice.toString(),
         taxRate: line.taxRate.toString(),
+        fodecSubject: !Amount.parse(line.fodecAmount.toString()).isZero(),
       })),
       stampDuty: invoice.stampDutyAmount.toString() === '0' ? null : invoice.stampDutyAmount.toString(),
       withholdingTax: invoice.withholdingTaxAmount.toString() === '0' ? null : invoice.withholdingTaxAmount.toString(),
-      fodec: null, // FODEC total not stored on document; would need line-level recomputation.
+      fodec: storedFodecTotal(invoice.lines),
       formattedNumber: invoice.number ?? '',
     });
 
@@ -609,6 +622,16 @@ function lineRow(line: DocumentPricedLine, position: number): LineRow {
     taxAmount: line.taxAmount,
     grossAmount: line.grossAmount,
   };
+}
+
+/**
+ * The stored FODEC total for an archive render: the sum of the stored line
+ * figures, never recomputed. `null` when zero, so documents without FODEC
+ * render exactly as before (the template prints no FODEC row for `null`).
+ */
+function storedFodecTotal(lines: readonly { fodecAmount: { toString(): string } }[]): string | null {
+  const total = fodecTotal(lines);
+  return Amount.parse(total).isZero() ? null : total;
 }
 
 /**

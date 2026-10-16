@@ -47,10 +47,17 @@ jobs:
       - uses: ./.github/actions/setup
 
       - name: Prisma schema is valid
-        # `pnpm verify` already builds, and building generates the client — which
-        # would report a broken schema as a confusing TypeScript error. This asks
-        # the schema question directly and answers it first.
+        # The API build hard-requires `src/generated` (gitignored Prisma client
+        # output), and building does not generate it — so a missing client shows
+        # up as a confusing TypeScript error. This asks the schema question
+        # directly and answers it first.
         run: pnpm db:validate
+
+      - name: Generate Prisma client
+        # The verify gate builds the API, which imports from `src/generated`.
+        # That directory is gitignored, so the client must be generated here
+        # before the gates run.
+        run: pnpm db:generate
 
       - name: Gates
         # One command rather than four steps: turbo knows that lint, typecheck and

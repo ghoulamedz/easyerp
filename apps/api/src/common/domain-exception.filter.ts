@@ -38,9 +38,17 @@ export class DomainExceptionFilter implements ExceptionFilter {
       );
     }
 
-    response
-      .status(body.error.code === 'INTERNAL_ERROR' ? 500 : statusOf(body.error.code))
-      .json(body);
+    // An HttpException names its own status; the body code (`REQUEST_FAILED`)
+    // carries no status, so mapping it back through `statusOf` would answer
+    // every such failure with the wrong one (500).
+    const status =
+      exception instanceof HttpException
+        ? exception.getStatus()
+        : body.error.code === 'INTERNAL_ERROR'
+          ? 500
+          : statusOf(body.error.code);
+
+    response.status(status).json(body);
   }
 
   private toBody(exception: unknown, request: Request): ErrorBody {

@@ -21,6 +21,7 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service.js';
 import { Prisma } from '../generated/prisma';
+import { conflict, notFound, validationFailed } from '../common/errors.js';
 import { Amount } from '../finance/amount';
 
 /** The set of Document types that can be settled by a Payment. */
@@ -92,7 +93,9 @@ export class PaymentsService {
       ? Amount.parse(unallocatedResult[0].sum)
       : Amount.zero();
 
-    const outstanding = invoiced.minus(credited);
+    // Credit Note figures are stored negated, so the credited sum is negative
+    // and adding it subtracts what was credited.
+    const outstanding = invoiced.plus(credited);
 
     return {
       invoiced: invoiced.toMoney(),
@@ -199,50 +202,89 @@ export class PaymentsService {
    * the created Payment with its allocations.
    */
   async create(input: DraftPayment): Promise<Payment> {
-    const totalAmount = input.allocations.reduce((sum, alloc) => {
-      const amount = Amount.parse(alloc.amount.toString());
-      return sum.plus(amount);
-    }, Amount.zero());
+    const paymentAmount = Amount.parse(input.amount.toString());
+    const totalAllocated = input.allocations.reduce(
+      (sum, alloc) => sum.plus(Amount.parse(alloc.amount.toString())),
+      Amount.zero(),
+    );
 
-    if (totalAmount.isGreaterThan(Amount.parse(input.amount.toString()))) {
-      throw new Error(
-        'The sum of allocations exceeds the payment amount',
+    if (totalAllocated.isGreaterThan(paymentAmount)) {
+      throw validationFailed(
+        'The sum of allocations exceeds the payment amount.',
+        { amount: input.amount.toString() },
       );
     }
 
-    const unallocatedCredit = Amount.parse(input.amount.toString())
-      .minus(totalAmount);
+    const unallocatedCredit = paymentAmount.minus(totalAllocated);
 
-    const payment = await this.prisma.payment.create({
-      data: {
-        businessId: input.businessId,
-        partyId: input.partyId,
-        amount: input.amount.toString(),
-        receivedAt: input.receivedAt ? new Date(input.receivedAt) : new Date(),
-        method: input.method,
-        reference: input.reference,
-        note: input.note,
-        unallocatedCredit: unallocatedCredit.toString(),
-        allocations: {
-          create: input.allocations.map((allocation, index) => ({
-            documentId: allocation.documentId,
-            amount: allocation.amount.toString(),
-            position: index,
-          })),
+    return this.prisma.$transaction(async (tx) => {
+      const documentIds = [...new Set(input.allocations.map((allocation) => allocation.documentId))];
+      if (documentIds.length > 0) {
+        // Serialise concurrent payments over the same Documents: the checks
+        // below are only authoritative for the duration of this lock.
+        await tx.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM document WHERE "id" IN (${Prisma.join(documentIds)}) FOR UPDATE
+        `;
+        const documents = await tx.document.findMany({
+          where: { id: { in: documentIds } },
+          select: { id: true, type: true, status: true, businessId: true, partyId: true },
+        });
+        const byId = new Map(documents.map((document) => [document.id, document]));
+        for (const allocation of input.allocations) {
+          const document = byId.get(allocation.documentId);
+          if (!document) throw notFound('Document', allocation.documentId);
+          if (document.type !== 'CUSTOMER_INVOICE' && document.type !== 'CREDIT_NOTE') {
+            throw validationFailed(
+              `Only an Issued Customer Invoice or Credit Note can be settled; ${allocation.documentId} is a ${document.type}.`,
+              { documentId: allocation.documentId, type: document.type },
+            );
+          }
+          if (document.status !== 'ISSUED') {
+            throw conflict(
+              `Document ${allocation.documentId} is ${document.status}; only an Issued document can be settled.`,
+              { documentId: allocation.documentId, status: document.status },
+            );
+          }
+          if (document.businessId !== input.businessId || document.partyId !== input.partyId) {
+            throw validationFailed(
+              `Document ${allocation.documentId} does not belong to this payment's business and party.`,
+              { documentId: allocation.documentId },
+            );
+          }
+        }
+      }
+
+      const payment = await tx.payment.create({
+        data: {
+          businessId: input.businessId,
+          partyId: input.partyId,
+          amount: input.amount.toString(),
+          receivedAt: input.receivedAt ? new Date(input.receivedAt) : new Date(),
+          method: input.method,
+          reference: input.reference,
+          note: input.note,
+          unallocatedCredit: unallocatedCredit.toString(),
+          allocations: {
+            create: input.allocations.map((allocation, index) => ({
+              documentId: allocation.documentId,
+              amount: allocation.amount.toString(),
+              position: index,
+            })),
+          },
         },
-      },
-      include: {
-        allocations: {
-          include: {
-            document: {
-              select: { type: true, number: true, currency: true },
+        include: {
+          allocations: {
+            include: {
+              document: {
+                select: { type: true, number: true, currency: true },
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    return this.toPayment(payment);
+      return this.toPayment(payment);
+    });
   }
 
   /**
@@ -316,8 +358,10 @@ export class PaymentsService {
       ? Amount.parse(unallocatedResult[0].sum)
       : Amount.zero();
 
+    // Credit Note figures are stored negated, so the credited sum is negative
+    // and adding it subtracts what was credited.
     const outstanding = invoiced
-      .minus(credited)
+      .plus(credited)
       .minus(allocatedToInvoices)
       .plus(allocatedToCreditNotes);
 

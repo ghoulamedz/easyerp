@@ -233,7 +233,17 @@ export class UsersService {
         }
       }
 
-      await tx.authUser.update({ where: { id: userId }, data: { deletedAt: new Date() } });
+      // Deactivate as well as soft-delete, then revoke the Better Auth identity
+      // in the same transaction: without this the credential row and any live
+      // session survive, and Better Auth — which knows nothing of `deletedAt` —
+      // keeps signing the removed user in. Removal is permanent (there is no
+      // restore endpoint), so deleting the credential and sessions is safe.
+      await tx.authUser.update({
+        where: { id: userId },
+        data: { deletedAt: new Date(), isActive: false },
+      });
+      await tx.authSession.deleteMany({ where: { userId } });
+      await tx.authAccount.deleteMany({ where: { userId } });
     });
   }
 

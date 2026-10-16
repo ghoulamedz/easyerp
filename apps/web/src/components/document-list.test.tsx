@@ -53,6 +53,9 @@ function stubFetch({ permissions, listItems = listBody, onIssue, onCancel }: Stu
   global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
+    if (url === '/api/auth/get-session') {
+      return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+    }
     if (url === '/api/users/me') {
       return { ok: true, status: 200, json: async () => sessionUserWith(permissions) };
     }
@@ -176,7 +179,7 @@ describe('DocumentList actions', () => {
     expect(state.posts()).toEqual(['/api/sales/orders/o-1/cancel']);
   });
 
-  it('localizes the "already issued" error with the document number', async () => {
+  it('shows the generic conflict message for an already-issued order', async () => {
     const user = userEvent.setup();
     const state = stubFetch({
       permissions: ['sales-order:create', 'sales-order:issue', 'sales-order:cancel'],
@@ -195,15 +198,16 @@ describe('DocumentList actions', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Issue' }));
 
-    // The CONFLICT + "already issued" message should be localized with the document number
+    // A known code renders the dictionary generic: the server detail (ids,
+    // numbers) never reaches the screen, so no document number is asserted.
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Sales order FT-2026-0001 is already issued. Issued documents are immutable.',
+      'The action conflicts with the current state.',
     );
     expect(state.listCalls()).toBe(1);
     expect(state.posts()).toEqual(['/api/sales/orders/o-1/issue']);
   });
 
-  it('localizes the "already issued" error for an invoice', async () => {
+  it('shows the generic conflict message for an already-issued invoice', async () => {
     const user = userEvent.setup();
     const invoiceRow = { ...draftRow, type: 'CUSTOMER_INVOICE', id: 'inv-1' };
     let listCalls = 0;
@@ -211,6 +215,9 @@ describe('DocumentList actions', () => {
     global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
+      if (url === '/api/auth/get-session') {
+        return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+      }
       if (url === '/api/users/me') {
         return {
           ok: true,
@@ -254,7 +261,7 @@ describe('DocumentList actions', () => {
     await user.click(await screen.findByRole('button', { name: 'Issue' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Invoice INV-2026-0001 is already issued. Issued documents are immutable.',
+      'The action conflicts with the current state.',
     );
     expect(listCalls).toBe(1);
     expect(posts).toEqual(['/api/sales/invoices/inv-1/issue']);
@@ -288,6 +295,9 @@ describe('DocumentList view/print', () => {
     global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
+      if (url === '/api/auth/get-session') {
+        return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+      }
       if (url === '/api/users/me') {
         return {
           ok: true,
@@ -379,6 +389,9 @@ describe('DocumentList filtering', () => {
     global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
+      if (url === '/api/auth/get-session') {
+        return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+      }
       if (url === '/api/users/me') {
         return {
           ok: true,
@@ -471,6 +484,9 @@ describe('DocumentList button visibility by status', () => {
     global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
+      if (url === '/api/auth/get-session') {
+        return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+      }
       if (url === '/api/users/me') {
         return {
           ok: true,

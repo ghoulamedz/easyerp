@@ -74,9 +74,10 @@ export class DocumentNumberingService {
 
   /** Allocate the next sequence for a Document type and year. Call inside a transaction. */
   async allocate(client: NumberingClient, code: string, year: number): Promise<number> {
-    // Lock the numbering row to prevent concurrent allocations from producing duplicate sequences.
-    await client.$executeRawUnsafe('SELECT 1 FROM number_series WHERE code = $1 AND year = $2 FOR UPDATE', code, year);
-
+    // No `SELECT ... FOR UPDATE` here: the single `INSERT ... ON CONFLICT DO
+    // UPDATE` below is the whole guarantee, and a locking read in front of it
+    // serialises nothing (it locks no row when the series year is new) while
+    // adding a deadlock edge under concurrency.
     // One statement, so the allocation is atomic and the row cannot be created twice.
     //
     // An `upsert` was the obvious spelling and it is wrong here: Prisma's upsert is a
@@ -117,9 +118,8 @@ export class DocumentNumberingService {
     sequence: number,
     year: number,
   ): Promise<AllocatedNumber> {
-    // Lock the numbering row to prevent concurrent renders from using stale sequences.
-    await client.$executeRawUnsafe('SELECT 1 FROM number_series WHERE code = $1 AND year = $2 FOR UPDATE', code, year);
-
+    // No row lock: rendering only reads the pattern, and a locking read would
+    // serialise every concurrent issue of this Document type for no benefit.
     const stored = await client.numberPattern.findUnique({ where: { code } });
     const raw = stored?.pattern ?? (DEFAULT_PATTERNS as Readonly<Record<string, string>>)[code];
 

@@ -1,0 +1,27 @@
+{
+  "id": "bfe04cbab",
+  "name": "pnpm dev unattended",
+  "command": "pnpm dev 2>&1",
+  "status": "killed",
+  "outputPath": ".pi/tasks/01a130ce-3630-72af-8469-4e05c48560fd-4169/bfe04cbab.output",
+  "cwd": "/home/medo/Projects/easyerp",
+  "startTime": 1791888983999,
+  "endTime": 1791889603956,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 401565,
+  "bytesWritten": 69679,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/usr/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

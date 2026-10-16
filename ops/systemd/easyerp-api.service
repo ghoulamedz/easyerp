@@ -21,10 +21,13 @@ StandardOutput=journal
 StandardError=journal
 
 # Security hardening
+# ProtectHome hides /home, which also hides the nvm Node binary this unit
+# executes — so the nvm tree is re-exposed read-only, and only read-only.
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+ReadOnlyPaths=/home/easyerp/.nvm
 ReadWritePaths=/home/easyerp/easyerp-api /var/lib/easyerp/documents
 
 [Install]

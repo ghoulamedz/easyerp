@@ -94,11 +94,14 @@ export function PaymentForm({ locale }: { locale: Locale }) {
     [documents, partyId],
   );
 
+  const onPickParty = (next: string): void => {
+    setPartyId(next);
+    // The credit hint belongs to the picked party; without one there is nothing to show.
+    if (next === '') setBalance(null);
+  };
+
   useEffect(() => {
-    if (partyId === '') {
-      setBalance(null);
-      return;
-    }
+    if (partyId === '') return;
     let cancelled = false;
     apiGet<PartyBalance>(`/payments/party/${partyId}/balance`)
       .then((result) => {
@@ -171,7 +174,7 @@ export function PaymentForm({ locale }: { locale: Locale }) {
                 id="payment-party"
                 required
                 value={partyId}
-                onChange={(e) => setPartyId(e.target.value)}
+                onChange={(e) => onPickParty(e.target.value)}
                 className={FIELD}
               >
                 {parties.map((party) => (
@@ -278,9 +281,22 @@ export function PaymentForm({ locale }: { locale: Locale }) {
             </p>
           ) : null}
 
-          <Button type="submit" variant="primary" disabled={working} className="w-full">
-            {working ? t('formCreating') : t('formCreate')}
-          </Button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                router.push(`/${locale}/payments`);
+                router.refresh();
+              }}
+              className="w-full"
+            >
+              {t('cancel')}
+            </Button>
+            <Button type="submit" variant="primary" disabled={working} className="w-full">
+              {working ? t('formCreating') : t('formCreate')}
+            </Button>
+          </div>
         </form>
       </CardBody>
     </Card>

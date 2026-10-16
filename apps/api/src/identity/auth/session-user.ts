@@ -19,6 +19,22 @@ export interface RoleAssignment {
   readonly permissions: readonly string[];
 }
 
+/**
+ * Whether a stored auth record may still obtain a session. A removed user
+ * keeps its row (soft-delete), so `isActive` alone cannot answer this: the
+ * row must also have no `deletedAt`. Both are checked here and not in a
+ * guard, so every session resolution enforces the same rule.
+ */
+export function mayObtainSession(record: unknown): boolean {
+  const candidate = record as {
+    isActive?: unknown;
+    deletedAt?: unknown;
+  } | null;
+  if (!candidate || typeof candidate !== 'object') return false;
+  if (candidate.isActive !== true) return false;
+  return candidate.deletedAt === null || candidate.deletedAt === undefined;
+}
+
 export function toSessionUser(
   record: unknown,
   assignments: readonly RoleAssignment[],
@@ -28,9 +44,10 @@ export function toSessionUser(
     email?: unknown;
     name?: unknown;
     isActive?: unknown;
+    deletedAt?: unknown;
   } | null;
   if (!candidate || typeof candidate.id !== 'string') return null;
-  if (candidate.isActive !== true) return null;
+  if (!mayObtainSession(candidate)) return null;
 
   const parsed = sessionUserSchema.safeParse({
     id: candidate.id,

@@ -1,3 +1,5 @@
+'use client';
+
 import { useSession } from './client-session';
 
 /** Hook to get the current user's permissions. */

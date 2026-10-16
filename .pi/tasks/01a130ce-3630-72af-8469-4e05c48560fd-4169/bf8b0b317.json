@@ -1,0 +1,27 @@
+{
+  "id": "bf8b0b317",
+  "name": "pnpm dev fix stock",
+  "command": "pnpm dev 2>&1",
+  "status": "killed",
+  "outputPath": ".pi/tasks/01a130ce-3630-72af-8469-4e05c48560fd-4169/bf8b0b317.output",
+  "cwd": "/home/medo/Projects/easyerp",
+  "startTime": 1791883960064,
+  "endTime": 1791884439487,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 351493,
+  "bytesWritten": 55983,
+  "isAgent": false,
+  "surviveReload": false,
+  "notified": true,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/usr/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

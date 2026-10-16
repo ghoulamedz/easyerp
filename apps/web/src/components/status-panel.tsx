@@ -83,17 +83,28 @@ export function StatusPanel({
     // leave the panel claiming "checking" for a quarter of a minute on a page
     // nobody refreshes — and a status that only refreshes when you come back is
     // not a status.
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    //
+    // Every probe gets its own controller: the 15s interval outlives the 4s
+    // abort, so a controller shared across polls would abort every poll after
+    // the first and the panel would report Degraded forever.
+    let current: AbortController | null = null;
+    let disposed = false;
     const poll = (): void => {
-      void read(controller.signal).then(apply);
+      const controller = new AbortController();
+      current = controller;
+      const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+      void read(controller.signal)
+        .then((result) => {
+          if (!disposed) apply(result);
+        })
+        .finally(() => clearTimeout(timeout));
     };
     poll();
     const timer = setInterval(poll, POLL_MS);
     return () => {
-      clearTimeout(timeout);
+      disposed = true;
       clearInterval(timer);
-      controller.abort();
+      current?.abort();
     };
   }, [read, t]);
 

@@ -9,6 +9,7 @@
  * navigation, theme switch, locale switch — before any JavaScript runs.
  */
 
+import { useCallback, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AppNav, navItemsFor } from './app-nav';
 import { LocaleSwitcher } from './locale-switcher';
@@ -18,16 +19,27 @@ import { isNavVisible, useModuleStates } from '../lib/use-modules';
 import { translatorFor, type Locale } from '../i18n/config';
 import { IconLogout } from './icons';
 
-function handleSignOut(locale: Locale) {
-  fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' }).then(() => {
-    window.location.href = `/${locale}/sign-in`;
-  });
-}
-
 export function AppShell({ locale, children }: { locale: Locale; children: React.ReactNode }) {
   const t = translatorFor(locale);
   const currentPath = usePathname();
   const moduleStates = useModuleStates();
+  const [signOutFailed, setSignOutFailed] = useState(false);
+
+  // A failed sign-out must say so: silently staying signed in while the person
+  // walks away is worse than an error line next to the button.
+  const handleSignOut = useCallback(async (): Promise<void> => {
+    setSignOutFailed(false);
+    try {
+      const response = await fetch('/api/auth/sign-out', { method: 'POST', credentials: 'include' });
+      if (!response.ok) {
+        setSignOutFailed(true);
+        return;
+      }
+      window.location.href = `/${locale}/sign-in`;
+    } catch {
+      setSignOutFailed(true);
+    }
+  }, [locale]);
   const items = navItemsFor(t, locale).filter((item) => isNavVisible(item.key, moduleStates));
   const active = items.find(
     (item) => currentPath === item.href || currentPath.startsWith(`${item.href}/`),
@@ -84,13 +96,18 @@ export function AppShell({ locale, children }: { locale: Locale; children: React
               <LocaleSwitcher locale={locale} label={t('localeLabel')} />
               <button
                 type="button"
-                onClick={() => handleSignOut(locale)}
+                onClick={() => void handleSignOut()}
                 className="inline-flex items-center justify-center rounded-lg px-2 py-1.5 text-sm text-ink-subtle hover:text-ink hover:bg-surface-sunken transition-colors"
                 aria-label={t('navSignOut')}
                 title={t('navSignOut')}
               >
                 <IconLogout className="size-5" />
               </button>
+              {signOutFailed ? (
+                <p role="alert" className="text-xs text-danger">
+                  {t('signOutFailed')}
+                </p>
+              ) : null}
             </div>
           </div>
         </header>

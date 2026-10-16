@@ -38,10 +38,10 @@ export default async function LocaleRoot({ params }: { params: Promise<{ locale:
   if (!isLocale(locale)) redirect('/fr');
 
   const status = await readSetupStatusWithRetry();
-  // If the API is still unreachable after retries, assume setup is needed.
-  // This handles the case where a fresh deployment's API hasn't started yet.
-  // In production, the API should always be reachable if the web app is running.
-  if (status?.needsSetup ?? true) {
+  // An unreachable API must not route a live Business back through first-run
+  // Setup: with no answer the dashboard is the safe landing — its session gate
+  // funnels strangers to sign-in — matching setup/page.tsx.
+  if (status?.needsSetup) {
     redirect(`/${locale}/setup`);
   }
 

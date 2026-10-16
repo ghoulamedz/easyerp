@@ -28,7 +28,7 @@ async function drillClient(client: Client): Promise<boolean> {
   // 1. Find the newest dump. Nothing to drill is a failure, not a skip.
   const newest = await ssh(
     client,
-    `ls -1t ${REMOTE_BACKUP_ROOT}/${client.id}/${dbname}-*.dump 2>/dev/null | head -n 1`,
+    `ls -1t ${REMOTE_BACKUP_ROOT}/daily/${dbname}_*.dump 2>/dev/null | head -n 1`,
   );
   const dump = newest.stdout.trim();
   if (newest.code !== 0 || dump === '') {
@@ -57,7 +57,7 @@ async function drillClient(client: Client): Promise<boolean> {
     // 3. Load the dump.
     const restored = await ssh(
       client,
-      `sudo -u postgres pg_restore -d ${scratch} --no-owner --no-privileges < ${dump}`,
+      `sudo -u postgres pg_restore -d ${scratch} --no-owner --no-privileges ${dump}`,
     );
     if (!report('restore', restored)) return false;
 

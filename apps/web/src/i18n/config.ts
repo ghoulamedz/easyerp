@@ -37,6 +37,7 @@ const messages = {
     navSettings: 'Paramètres',
     navSignIn: 'Se connecter',
     navSignOut: 'Se déconnecter',
+    signOutFailed: 'La déconnexion a échoué. Réessayez.',
     navMain: 'Navigation principale',
     navSkipToContent: 'Aller au contenu',
 
@@ -494,6 +495,7 @@ const messages = {
     navSettings: 'Settings',
     navSignIn: 'Sign in',
     navSignOut: 'Sign out',
+    signOutFailed: 'Sign-out failed. Try again.',
     navMain: 'Main navigation',
     navSkipToContent: 'Skip to content',
 
@@ -951,6 +953,7 @@ const messages = {
     navSettings: 'الإعدادات',
     navSignIn: 'تسجيل الدخول',
     navSignOut: 'تسجيل الخروج',
+    signOutFailed: 'فشل تسجيل الخروج. حاول مرة أخرى.',
     navMain: 'التنقل الرئيسي',
     navSkipToContent: 'تخطَّ إلى المحتوى',
 

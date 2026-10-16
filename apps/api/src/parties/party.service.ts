@@ -149,10 +149,17 @@ export class PartyService {
     }
   }
 
-  /** The paged, searchable directory (Q10, story 32). */
+  /**
+   * The paged, searchable directory (Q10, story 32).
+   *
+   * The INTERNAL party is Setup's bookkeeping row for production's internal
+   * movements — it must never appear in the user-facing directory. It stays
+   * in the table (production resolves it by code) and stays reachable by id
+   * for any internal caller holding the id; only the directory hides it.
+   */
   async list(query: unknown): Promise<Paged<Party>> {
     const parsed = partyListQuerySchema.parse(query);
-    const where = this.searchWhere(parsed);
+    const where = { ...this.searchWhere(parsed), code: { not: 'INTERNAL' } };
     if (parsed.role) {
       where.roles = { has: parsed.role };
     }

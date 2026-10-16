@@ -8,7 +8,6 @@ out/
 .env
 .env.local
 .env.*.local
-.pi/
 # Prisma client is generated from schema.prisma (Prisma 7 emits TypeScript sources)
 apps/api/src/generated/
 

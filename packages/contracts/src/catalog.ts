@@ -6,6 +6,7 @@
 
 import { z } from 'zod';
 import { moneySchema, quantitySchema, rateSchema } from './numeric.js';
+import { pageQuerySchema } from './pagination.js';
 
 export const ITEM_TYPES = [
   'RAW_MATERIAL',
@@ -134,8 +135,6 @@ export const partyInputSchema = partySchema
   })
   .strict();
 export type PartyInput = z.infer<typeof partyInputSchema>;
-
-import { pageQuerySchema } from './pagination.js';
 
 /** Query parameters for listing Items. */
 export const itemListQuerySchema = pageQuerySchema.extend({

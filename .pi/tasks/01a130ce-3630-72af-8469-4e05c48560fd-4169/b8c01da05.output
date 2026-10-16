@@ -1,0 +1,435 @@
+[WARN] The "pnpm" field in package.json is no longer read by pnpm. The following keys were ignored: "pnpm.onlyBuiltDependencies". See https://pnpm.io/settings for the new home of each setting.
+
+> easyerp@0.0.0 dev /home/medo/Projects/easyerp
+> test -f apps/api/.env || cp apps/api/.env.example apps/api/.env && pnpm db:generate && pnpm db:up && turbo run dev
+
+
+> easyerp@0.0.0 db:generate /home/medo/Projects/easyerp
+> pnpm --filter @easyerp/api prisma:generate
+
+
+> @easyerp/api@0.0.0 prisma:generate /home/medo/Projects/easyerp/apps/api
+> prisma generate
+
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+
+✔ Generated Prisma Client (v7.10.0) to ./src/generated/prisma in 446ms
+
+Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+
+
+
+> easyerp@0.0.0 db:up /home/medo/Projects/easyerp
+> node scripts/db.mjs up
+
+ Container easyerp_local-postgres-1 Running 
+ Container easyerp_local-postgres-1 Waiting 
+ Container easyerp_local-postgres-1 Healthy 
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "easyerp", schema "public" at "localhost:55432"
+
+10 migrations found in prisma/migrations
+
+
+┌─────────────────────────────────────────────────────────┐
+│  Update available 7.10.0 -> 8.0.0-rc.22                 │
+│                                                         │
+│  This is a major update - please follow the guide at    │
+│  https://pris.ly/d/major-version-upgrade                │
+│                                                         │
+│  Run the following to update                            │
+│    npm i --save-dev prisma@latest                       │
+│    npm i @prisma/client@latest                          │
+└─────────────────────────────────────────────────────────┘
+No pending migrations to apply.
+Loaded Prisma config from prisma.config.ts.
+
+Prisma schema loaded from prisma/schema.prisma.
+Datasource "db": PostgreSQL database "easyerp_test", schema "public" at "localhost:55432"
+
+10 migrations found in prisma/migrations
+
+
+No pending migrations to apply.
+
+PostgreSQL is up on localhost:55432.
+  easyerp        development — already migrated
+  easyerp_test   integration — already migrated
+
+Next: pnpm dev, or pnpm test:integration.
+
+   • turbo 2.11.5
+   • Packages in scope: @easyerp/api, @easyerp/contracts, @easyerp/ops, @easyerp/web
+   • Running dev in 4 packages
+   • Remote caching disabled
+
+@easyerp/api:dev: cache bypass, force executing 32c18ecb567d8117
+@easyerp/web:dev: cache bypass, force executing 56df993497cc66fb
+@easyerp/contracts:dev: cache bypass, force executing bc56ece96f706120
+@easyerp/ops:dev: cache bypass, force executing d3a20a37cfa21e9a
+@easyerp/contracts:dev: 
+@easyerp/contracts:dev: > @easyerp/contracts@0.0.0 dev /home/medo/Projects/easyerp/packages/contracts
+@easyerp/contracts:dev: > tsc -p tsconfig.build.json --watch
+@easyerp/contracts:dev: 
+@easyerp/ops:dev: 
+@easyerp/ops:dev: > @easyerp/ops@0.0.0 dev /home/medo/Projects/easyerp/ops
+@easyerp/ops:dev: > echo "@easyerp/ops has no dev server"
+@easyerp/ops:dev: 
+@easyerp/api:dev: 
+@easyerp/api:dev: > @easyerp/api@0.0.0 dev /home/medo/Projects/easyerp/apps/api
+@easyerp/api:dev: > mkdir -p dist && cp -R src/generated dist/generated 2>/dev/null; node --env-file-if-exists=.env node_modules/@nestjs/cli/bin/nest.js start --watch
+@easyerp/api:dev: 
+@easyerp/ops:dev: @easyerp/ops has no dev server
+@easyerp/web:dev: 
+@easyerp/web:dev: > @easyerp/web@0.0.0 dev /home/medo/Projects/easyerp/apps/web
+@easyerp/web:dev: > next dev --port 3003
+@easyerp/web:dev: 
+@easyerp/contracts:dev: [2J[3J[H8:21:27 AM - Starting compilation in watch mode...
+@easyerp/contracts:dev: 
+@easyerp/web:dev: ▲ Next.js 16.3.7 (Turbopack)
+@easyerp/web:dev: - Local:         http://localhost:3003
+@easyerp/web:dev: - Network:       http://192.168.1.196:3003
+@easyerp/web:dev: ✓ Ready in 471ms
+@easyerp/web:dev: ✓ Running next.config.ts took 50ms
+@easyerp/api:dev: [2J[3J[H[[90m8:21:28 AM[0m] Starting compilation in watch mode...
+@easyerp/api:dev: 
+@easyerp/web:dev: 
+@easyerp/contracts:dev: 
+@easyerp/contracts:dev: 8:21:28 AM - Found 0 errors. Watching for file changes.
+@easyerp/web:dev:  GET /fr/sign-in 200 in 1103ms (next.js: 282ms, generate-params: 477ms, application-code: 344ms)
+@easyerp/api:dev: [[90m8:21:33 AM[0m] Found 0 errors. Watching for file changes.
+@easyerp/api:dev: 
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[NestFactory] [39m[32mStarting Nest application...[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPrismaModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuthModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mDocumentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mNumberingModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAuditModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mHealthModule dependencies initialized[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPaymentsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mIdentityModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mAppModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSettingsModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mCatalogModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPartiesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mInventoryModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSetupModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mPurchasingModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mProductionModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[InstanceLoader] [39m[32mSalesModule dependencies initialized[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUsersController {/api/users}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/roles, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/users/:id/active, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mRolesController {/api/roles}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/permissions, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id/name, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/roles/:id, DELETE} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mHealthController {/api}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/health, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/ready, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mItemController {/api/items}:[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/items/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPartyController {/api/parties}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/parties/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mStockController {/api/inventory}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock.csv, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/open, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/adjust, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/reverse, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/inventory/stock/entries/:itemId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCustomerInvoiceController {/api/sales/invoices}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/invoices/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSalesController {/api/sales}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/open, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/sales/delivery-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mCreditNoteController {/api/credit-notes}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/credit-notes/:id/pdf, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBusinessSettingsController {/api/settings/business}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/business, PATCH} route[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTaxRateController {/api/settings/tax-rates}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/tax-rates/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mUnitController {/api/settings/units}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/units/:id, PATCH} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mNumberPatternController {/api/settings/number-patterns}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/number-patterns/:code, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mTerminologyController {/api/settings/labels}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/labels, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mModuleStateController {/api/settings/modules}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/settings/modules/:module, PUT} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPurchaseOrderController {/api/purchasing/orders}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mGoodsReceiptController {/api/purchasing/receipts}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/purchasing/receipts/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mBomController {/api/production/boms}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id/versions, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/item/:finishedItemId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/boms/versions/:versionId, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mProductionOrderController {/api/production/orders}:[39m[38;5;3m +1ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/issue, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id/cancel, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/production/orders/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mPaymentsController {/api/payments}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/:id, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/payments/party/:partyId/balance, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RoutesResolver] [39m[32mSetupController {/api/setup}:[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/status, GET} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[RouterExplorer] [39m[32mMapped {/api/setup/complete, POST} route[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: [32m[Nest] 277050  - [39m10/13/2026, 8:21:35 AM [32m    LOG[39m [38;5;3m[NestApplication] [39m[32mNest application successfully started[39m[38;5;3m +0ms[39m
+@easyerp/api:dev: easyERP api listening on 127.0.0.1:3002
+@easyerp/api:dev: [2m2026-10-13T07:22:28.498Z[0m [33mWARN[0m [1m[Better Auth]:[0m Invalid password
+@easyerp/web:dev:  GET /fr/dashboard 200 in 587ms (next.js: 26ms, generate-params: 449ms, application-code: 112ms)
+@easyerp/web:dev:  GET /fr/dashboard 200 in 131ms (next.js: 8ms, generate-params: 23ms, application-code: 100ms)
+@easyerp/web:dev:  GET /fr/permissions 200 in 1511ms (next.js: 944ms, generate-params: 539ms, application-code: 28ms)
+@easyerp/web:dev:  GET /fr/settings 200 in 992ms (next.js: 460ms, generate-params: 493ms, application-code: 39ms)
+@easyerp/web:dev:  GET /fr/sales-orders 200 in 1200ms (next.js: 299ms, generate-params: 843ms, application-code: 58ms)
+@easyerp/web:dev:  GET /fr/delivery-notes 200 in 753ms (next.js: 236ms, generate-params: 490ms, application-code: 27ms)
+@easyerp/web:dev:  GET /fr/customer-invoices 200 in 762ms (next.js: 224ms, generate-params: 509ms, application-code: 29ms)
+@easyerp/web:dev:  GET /fr/credit-notes 200 in 1125ms (next.js: 237ms, generate-params: 835ms, application-code: 53ms)
+@easyerp/web:dev:  GET /fr/items 200 in 1098ms (next.js: 254ms, generate-params: 799ms, application-code: 45ms)
+@easyerp/web:dev:  GET /fr/parties 200 in 795ms (next.js: 269ms, generate-params: 496ms, application-code: 30ms)
+@easyerp/web:dev:  GET /fr/stock 200 in 956ms (next.js: 431ms, generate-params: 499ms, application-code: 26ms)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:23:59 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:23:59 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/web:dev:  GET /fr/parties 200 in 56ms (next.js: 5ms, generate-params: 25ms, application-code: 26ms)
+@easyerp/web:dev:  GET /fr/stock 200 in 57ms (next.js: 4ms, generate-params: 28ms, application-code: 25ms)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:24:03 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:24:03 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/web:dev:  GET /fr/purchasing 200 in 802ms (next.js: 275ms, generate-params: 500ms, application-code: 27ms)
+@easyerp/web:dev:  GET /fr/production 200 in 814ms (next.js: 276ms, generate-params: 505ms, application-code: 33ms)
+@easyerp/web:dev:  GET /fr/boms 200 in 996ms (next.js: 465ms, generate-params: 506ms, application-code: 25ms)
+@easyerp/web:dev:  GET /fr/stock 200 in 55ms (next.js: 5ms, generate-params: 23ms, application-code: 27ms)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:24:22 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:24:22 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/web:dev:  GET /en/stock 200 in 111ms (next.js: 5ms, generate-params: 25ms, application-code: 81ms)
+@easyerp/web:dev: [browser] Encountered a script tag while rendering React component. Scripts inside React components are never executed when rendering on the client. Consider using template tag instead (https://developer.mozilla.org/en-US/docs/Web/HTML/Element/template). 
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:24:25 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:24:25 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/web:dev:  GET /en/purchasing 200 in 60ms (next.js: 7ms, generate-params: 27ms, application-code: 26ms)
+@easyerp/web:dev:  GET /en/parties 200 in 57ms (next.js: 7ms, generate-params: 25ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/stock 200 in 62ms (next.js: 5ms, generate-params: 32ms, application-code: 24ms)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:25:06 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 8:25:06 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/web:dev:  GET /en/parties 200 in 56ms (next.js: 4ms, generate-params: 24ms, application-code: 28ms)
+@easyerp/web:dev:  GET /en/items 200 in 55ms (next.js: 7ms, generate-params: 24ms, application-code: 24ms)
+@easyerp/web:dev:  GET /en/credit-notes 200 in 58ms (next.js: 7ms, generate-params: 26ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 53ms (next.js: 6ms, generate-params: 24ms, application-code: 23ms)
+@easyerp/web:dev:  GET /en/delivery-notes 200 in 53ms (next.js: 5ms, generate-params: 22ms, application-code: 26ms)
+@easyerp/web:dev:  GET /en/sales-orders 200 in 52ms (next.js: 5ms, generate-params: 23ms, application-code: 24ms)
+@easyerp/web:dev:  GET /en/items 200 in 57ms (next.js: 4ms, generate-params: 26ms, application-code: 28ms)
+@easyerp/web:dev:  GET /en/credit-notes 200 in 52ms (next.js: 4ms, generate-params: 23ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 56ms (next.js: 4ms, generate-params: 27ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/settings 200 in 58ms (next.js: 5ms, generate-params: 27ms, application-code: 26ms)
+@easyerp/web:dev:  GET /en/permissions 200 in 61ms (next.js: 5ms, generate-params: 27ms, application-code: 28ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 69ms (next.js: 6ms, generate-params: 28ms, application-code: 35ms)
+@easyerp/web:dev:  GET /fr/dashboard 200 in 95ms (next.js: 4ms, generate-params: 23ms, application-code: 67ms)
+@easyerp/web:dev:  GET /ar/dashboard 200 in 82ms (next.js: 4ms, generate-params: 25ms, application-code: 52ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 90ms (next.js: 5ms, generate-params: 26ms, application-code: 58ms)
+@easyerp/web:dev:  GET /fr/dashboard 200 in 82ms (next.js: 4ms, generate-params: 24ms, application-code: 55ms)
+@easyerp/web:dev:  GET /fr/permissions 200 in 64ms (next.js: 4ms, generate-params: 30ms, application-code: 30ms)
+@easyerp/web:dev:  GET /fr/settings 200 in 52ms (next.js: 4ms, generate-params: 23ms, application-code: 25ms)
+@easyerp/web:dev:  GET /fr/dashboard 200 in 67ms (next.js: 5ms, generate-params: 28ms, application-code: 34ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 110ms (next.js: 3ms, generate-params: 28ms, application-code: 79ms)
+@easyerp/web:dev: ✓ Compiled in 379ms
+@easyerp/web:dev:  GET /en/dashboard 200 in 96ms (next.js: 10ms, generate-params: 32ms, application-code: 54ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 68ms (next.js: 7ms, generate-params: 22ms, application-code: 39ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 77ms (next.js: 4ms, generate-params: 22ms, application-code: 51ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 71ms (next.js: 3ms, generate-params: 22ms, application-code: 46ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 32ms (next.js: 4ms, generate-params: 21ms, application-code: 7ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 36ms (next.js: 5ms, generate-params: 0.0ms, application-code: 31ms)
+@easyerp/web:dev:  GET /en/permissions 200 in 51ms (next.js: 7ms, generate-params: 19ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/settings 200 in 56ms (next.js: 8ms, generate-params: 21ms, application-code: 27ms)
+@easyerp/web:dev:  GET /en/sales-orders 200 in 49ms (next.js: 7ms, generate-params: 19ms, application-code: 24ms)
+@easyerp/web:dev:  GET /en/sales-orders 200 in 278ms (next.js: 4ms, generate-params: 23ms, application-code: 251ms)
+@easyerp/web:dev:  GET /favicon.ico 404 in 560ms (next.js: 23ms, generate-params: 486ms, application-code: 51ms)
+@easyerp/web:dev:  GET /en/delivery-notes 200 in 57ms (next.js: 9ms, generate-params: 20ms, application-code: 27ms)
+@easyerp/web:dev:  GET /en/sales-orders 200 in 49ms (next.js: 4ms, generate-params: 22ms, application-code: 23ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 65ms (next.js: 7ms, generate-params: 23ms, application-code: 34ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 129ms (next.js: 3ms, generate-params: 22ms, application-code: 104ms)
+@easyerp/web:dev:  GET /favicon.ico 404 in 143ms (next.js: 4ms, generate-params: 26ms, application-code: 113ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 75ms (next.js: 5ms, generate-params: 27ms, application-code: 42ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 68ms (next.js: 6ms, generate-params: 24ms, application-code: 38ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 67ms (next.js: 5ms, generate-params: 24ms, application-code: 38ms)
+@easyerp/web:dev: ✓ Compiled in 83ms
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 72ms (next.js: 9ms, generate-params: 24ms, application-code: 38ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 65ms (next.js: 4ms, generate-params: 23ms, application-code: 38ms)
+@easyerp/web:dev: ✓ Compiled in 67ms
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 67ms (next.js: 8ms, generate-params: 24ms, application-code: 35ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 158ms (next.js: 4ms, generate-params: 28ms, application-code: 126ms)
+@easyerp/web:dev:  GET /favicon.ico 404 in 110ms (next.js: 11ms, generate-params: 29ms, application-code: 71ms)
+@easyerp/web:dev:  GET /en/dashboard 200 in 79ms (next.js: 11ms, generate-params: 21ms, application-code: 46ms)
+@easyerp/web:dev:  GET /en/permissions 200 in 58ms (next.js: 8ms, generate-params: 24ms, application-code: 26ms)
+@easyerp/web:dev:  GET /en/settings 200 in 57ms (next.js: 9ms, generate-params: 21ms, application-code: 27ms)
+@easyerp/web:dev:  GET /en/sales-orders 200 in 59ms (next.js: 9ms, generate-params: 22ms, application-code: 27ms)
+@easyerp/web:dev:  GET /en/delivery-notes 200 in 55ms (next.js: 8ms, generate-params: 22ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/customer-invoices 200 in 50ms (next.js: 5ms, generate-params: 21ms, application-code: 24ms)
+@easyerp/web:dev:  GET /en/credit-notes 200 in 60ms (next.js: 8ms, generate-params: 26ms, application-code: 26ms)
+@easyerp/web:dev:  GET /en/items 200 in 63ms (next.js: 12ms, generate-params: 24ms, application-code: 27ms)
+@easyerp/web:dev:  GET /en/parties 200 in 57ms (next.js: 8ms, generate-params: 22ms, application-code: 28ms)
+@easyerp/web:dev:  GET /en/stock 200 in 55ms (next.js: 10ms, generate-params: 21ms, application-code: 24ms)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 10:20:02 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 10:20:02 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/web:dev:  GET /en/purchasing 200 in 53ms (next.js: 8ms, generate-params: 20ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/production 200 in 54ms (next.js: 8ms, generate-params: 21ms, application-code: 25ms)
+@easyerp/web:dev:  GET /en/stock 200 in 54ms (next.js: 5ms, generate-params: 24ms, application-code: 25ms)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 10:20:06 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+@easyerp/api:dev: [31m[Nest] 277050  - [39m10/13/2026, 10:20:06 AM [31m  ERROR[39m [38;5;3m[DomainExceptionFilter] [39m[31mGET /api/inventory/stock failed[39m
+@easyerp/api:dev: TypeError: Expected `join([])` to be called with an array of multiple elements, but got an empty array
+@easyerp/api:dev:     at Object.join (/home/medo/Projects/easyerp/node_modules/.pnpm/@prisma+client-runtime-utils@7.10.0/node_modules/@prisma/client-runtime-utils/dist/index.js:2510:11)
+@easyerp/api:dev:     at StockLedgerService.listPositions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock-ledger.service.ts:222:77)
+@easyerp/api:dev:     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+@easyerp/api:dev:     at async StockController.positions (/home/medo/Projects/easyerp/apps/api/src/inventory/stock.controller.ts:30:18)
+@easyerp/api:dev:     at async file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-execution-context.js:68:62
+@easyerp/api:dev:     at async StockController.positions (file:///home/medo/Projects/easyerp/node_modules/.pnpm/@nestjs+core@12.1.2_@nestjs+common@12.1.2_reflect-metadata@0.2.2_rxjs@7.8.2__@nestjs+pl_8587b2f0bb9500f707a8c9565636fd70/node_modules/@nestjs/core/router/router-proxy.js:6:17)
+Shutting down Turborepo tasks...
+Force killed Turborepo tasks: @easyerp/api#dev, @easyerp/contracts#dev, @easyerp/web#dev
+
+ Tasks:    1 successful, 4 total
+Cached:    0 cached, 4 total
+  Time:    2h0m23.804s 
+

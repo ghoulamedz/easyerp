@@ -90,7 +90,7 @@ describe('PaymentForm', () => {
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Allocations exceed the payment amount',
+      'The action conflicts with the current state.',
     );
     expect(push).not.toHaveBeenCalled();
   });
@@ -119,5 +119,22 @@ describe('PaymentForm', () => {
 
     expect(await screen.findByLabelText('Customer')).toBeInTheDocument();
     expect(await screen.findByText('Unallocated credit: 20.000')).toBeInTheDocument();
+  });
+
+  it('cancel returns to the list without creating anything', async () => {
+    const user = userEvent.setup();
+    const posts: string[] = [];
+    global.fetch = vi.fn(async (url: unknown, init?: RequestInit) => {
+      if (init?.method === 'POST') {
+        posts.push(String(url));
+        return { ok: true, status: 201, json: async () => ({ id: 'x-1' }) };
+      }
+      return refs()(url);
+    }) as unknown as typeof fetch;
+    render(<PaymentForm locale="en" />);
+    const cancel = await screen.findByRole('button', { name: 'Cancel' });
+    await user.click(cancel);
+    expect(push).toHaveBeenCalledWith('/en/payments');
+    expect(posts).toHaveLength(0);
   });
 });

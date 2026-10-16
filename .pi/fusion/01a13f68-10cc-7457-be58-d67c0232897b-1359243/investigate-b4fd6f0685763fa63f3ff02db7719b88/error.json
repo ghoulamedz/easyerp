@@ -1,0 +1,4 @@
+{
+  "state": "failed",
+  "error": "Pi child exited with code 1\nRun progress from durable attempts: candidates=incomplete (3 created, 0 completed, 3 failed, 0 cancelled, 0 slot(s) not started); evaluation=not_started (0 created, 0 completed, 0 failed, 0 cancelled); merge=not_started (0 created, 0 completed, 0 failed, 0 cancelled). Usage so far: input=0, output=0, cacheRead=0, cacheWrite=0, totalTokens=0, cost.input=0, cost.output=0, cost.cacheRead=0, cost.cacheWrite=0, cost.total=0."
+}

@@ -1,0 +1,28 @@
+{
+  "id": "b86d3600f",
+  "name": "pnpm dev after slice",
+  "command": "pnpm dev 2>&1",
+  "status": "killed",
+  "outputPath": ".pi/tasks/01a130ce-3630-72af-8469-4e05c48560fd-4169/b86d3600f.output",
+  "cwd": "/home/medo/Projects/easyerp",
+  "startTime": 1791899473098,
+  "endTime": 1791989389074,
+  "exitCode": null,
+  "signal": "SIGTERM",
+  "pid": 487267,
+  "bytesWritten": 1296747,
+  "isAgent": false,
+  "surviveReload": false,
+  "error": "Killed during Pi session shutdown (new)",
+  "notified": false,
+  "notifyOnCompletion": true,
+  "triggerOnCompletion": true,
+  "shellPolicy": {
+    "policy": "inherit",
+    "executable": "/usr/bin/bash",
+    "argvPrefix": [
+      "-c"
+    ],
+    "dialect": "bash"
+  }
+}

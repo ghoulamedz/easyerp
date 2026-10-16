@@ -13,10 +13,12 @@ name: Deploy VPS (Production)
 #   - easyerp system user with sudo for systemd/Caddy
 #   - SSH key for GitHub Actions runner
 #
-# GitHub Secrets required:
+# GitHub Secrets required (names match the Production/VPS section of
+# .env.example — that file documents each value and how to generate it):
 #   VPS_HOST            VPS IP or hostname
 #   VPS_USER            SSH user (e.g., easyerp)
 #   VPS_SSH_KEY         Private key for SSH
+#   VPS_KNOWN_HOSTS     `ssh-keyscan -t ed25519 $VPS_HOST` (see DEPLOY.md)
 #   PROD_DATABASE_URL   postgresql://user:pass@localhost/easyerp?schema=public
 #   PROD_BETTER_AUTH_SECRET  `openssl rand -base64 48`
 #   PROD_BETTER_AUTH_URL  https://client-domain.tn
@@ -45,6 +47,10 @@ concurrency:
 env:
   CI: 'true'
   NEXT_TELEMETRY_DISABLED: '1'
+  # Loopback ports the systemd units listen on. Rendered into the Caddyfile
+  # and the unit env files from here so no port literal lives in a script.
+  API_PORT: '3002'
+  WEB_PORT: '3003'
 
 jobs:
   build:
@@ -116,8 +122,40 @@ jobs:
           name: prisma
           path: apps/api/prisma/
 
+      # The runner built the code; the host only runs it. Pack everything the
+      # host needs — build output plus the workspace files `pnpm install`
+      # requires — into one tarball so the transfer below is a single file.
+      - name: Pack build artifacts
+        run: |
+          tar -czf easyerp-deploy.tar.gz \
+            apps/api/dist \
+            apps/web/.next \
+            apps/api/prisma \
+            apps/api/package.json \
+            apps/web/package.json \
+            apps/web/next.config.ts \
+            apps/web/public \
+            pnpm-lock.yaml \
+            pnpm-workspace.yaml \
+            infra/caddy/Caddyfile
+
+      # Without this step the SSH script would operate on whatever the host
+      # already had: the artifacts above exist only on the runner until they
+      # are uploaded here.
+      - name: Upload artifacts to VPS
+        uses: appleboy/scp-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: 22
+          known_hosts: ${{ secrets.VPS_KNOWN_HOSTS }}
+          source: "easyerp-deploy.tar.gz"
+          target: "/home/easyerp/"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        envs: GITHUB_REF_NAME
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
@@ -126,13 +164,26 @@ jobs:
           known_hosts: ${{ secrets.VPS_KNOWN_HOSTS }}
           script: |
             set -euo pipefail
+
+            # workflow_dispatch carries the domain as an input; a push to
+            # release/<domain> leaves inputs.domain empty, so derive it from
+            # the branch name once, up front.
+            DOMAIN="${{ github.event.inputs.domain }}"
+            if [ -z "$DOMAIN" ]; then
+              DOMAIN="${GITHUB_REF_NAME#release/}"
+            fi
+            echo "Deploying $DOMAIN ..."
+
+            # Unpack the tarball the previous step uploaded.
+            mkdir -p /home/easyerp/easyerp
+            tar -xzf /home/easyerp/easyerp-deploy.tar.gz -C /home/easyerp/easyerp
             cd /home/easyerp/easyerp
 
             # 1. Stop services
             sudo systemctl stop easyerp-api easyerp-web
 
             # 2. Backup current database (ops script)
-            /home/easyerp/ops/src/backup.sh
+            /home/easyerp/easyerp/ops/src/backup.sh
 
             # 3. Apply database migrations
             if [ "${{ github.event.inputs.skip_db_migrate }}" != "true" ]; then
@@ -140,62 +191,70 @@ jobs:
               pnpm --filter @easyerp/api prisma:migrate:deploy
             fi
 
-            # 4. Update API
-            rsync -a --delete /home/easyerp/easyerp/apps/api/dist/ /home/easyerp/easyerp-api/
-            rsync -a /home/easyerp/easyerp/apps/api/prisma/ /home/easyerp/easyerp-api/prisma/
-            cp /home/easyerp/easyerp/apps/api/package.json /home/easyerp/easyerp-api/
+            # 4. Update API. The unit runs `dist/main.js` from its working
+            # directory, so the build output lands in a dist/ subdirectory —
+            # rsyncing it flat would leave ExecStart pointing at nothing.
+            rsync -a --delete /home/easyerp/easyerp/apps/api/dist/ /home/easyerp/easyerp-api/dist/
+            rsync -a --delete /home/easyerp/easyerp/apps/api/prisma/ /home/easyerp/easyerp-api/prisma/
+            cp /home/easyerp/easyerp/apps/api/package.json /home/easyerp/easyerp/pnpm-lock.yaml /home/easyerp/easyerp/pnpm-workspace.yaml /home/easyerp/easyerp-api/
             cd /home/easyerp/easyerp-api && pnpm install --prod --frozen-lockfile
 
-            # 5. Update Web
+            # 5. Update Web (`next start` serves .next/ from its working dir)
             rsync -a --delete /home/easyerp/easyerp/apps/web/.next/ /home/easyerp/easyerp-web/.next/
-            rsync -a /home/easyerp/easyerp/apps/web/public/ /home/easyerp/easyerp-web/public/
-            cp /home/easyerp/easyerp/apps/web/package.json /home/easyerp/easyerp-web/
-            cp /home/easyerp/easyerp/apps/web/next.config.ts /home/easyerp/easyerp-web/
+            rsync -a --delete /home/easyerp/easyerp/apps/web/public/ /home/easyerp/easyerp-web/public/
+            cp /home/easyerp/easyerp/apps/web/package.json /home/easyerp/easyerp/apps/web/next.config.ts /home/easyerp/easyerp/pnpm-lock.yaml /home/easyerp/easyerp/pnpm-workspace.yaml /home/easyerp/easyerp-web/
             cd /home/easyerp/easyerp-web && pnpm install --prod --frozen-lockfile
 
-            # 6. Update Caddy config
+            # 6. Update Caddy config. Placeholders are bare {$VAR} (see the
+            # Caddyfile header); the \$ keeps the shell from expanding the
+            # placeholder name before sed sees it.
             sudo cp /home/easyerp/easyerp/infra/caddy/Caddyfile /etc/caddy/Caddyfile
-            sudo sed -i "s/{$EASYERP_EMAIL_DOMAIN}/${{ github.event.inputs.domain }}/" /etc/caddy/Caddyfile
-            sudo sed -i "s/{$ACME_EMAIL}/${{ secrets.PROD_ACME_EMAIL }}/" /etc/caddy/Caddyfile
-            sudo sed -i "s/{$API_PORT}/3002/" /etc/caddy/Caddyfile
-            sudo sed -i "s/{$WEB_PORT}/3003/" /etc/caddy/Caddyfile
+            sudo sed -i "s/{\$SITE_DOMAIN}/$DOMAIN/" /etc/caddy/Caddyfile
+            sudo sed -i "s/{\$ACME_EMAIL}/${{ secrets.PROD_ACME_EMAIL }}/" /etc/caddy/Caddyfile
+            sudo sed -i "s/{\$API_PORT}/${{ env.API_PORT }}/" /etc/caddy/Caddyfile
+            sudo sed -i "s/{\$WEB_PORT}/${{ env.WEB_PORT }}/" /etc/caddy/Caddyfile
 
-            # 7. Update systemd environment files
+            # 7. Update systemd environment files. The heredoc is quoted so
+            # secret values are written verbatim; the domain placeholder is
+            # filled in afterwards because a quoted heredoc never expands it.
             cat > /home/easyerp/easyerp-api/.env << 'ENVEOF'
             NODE_ENV=production
-            API_PORT=3002
+            API_PORT=${{ env.API_PORT }}
             API_HOST=0.0.0.0
             LOG_LEVEL=info
             DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
             DATABASE_POOL_MAX=10
             DOCUMENT_ARCHIVE_ROOT=/var/lib/easyerp/documents
             BETTER_AUTH_SECRET=${{ secrets.PROD_BETTER_AUTH_SECRET }}
-            BETTER_AUTH_URL=https://${{ github.event.inputs.domain }}
-            CORS_ORIGINS=https://${{ github.event.inputs.domain }}
+            BETTER_AUTH_URL=https://__DOMAIN__
+            CORS_ORIGINS=https://__DOMAIN__
             FIRST_SETUP_TOKEN=${{ secrets.PROD_FIRST_SETUP_TOKEN }}
             ENVEOF
+            sed -i "s/__DOMAIN__/$DOMAIN/g" /home/easyerp/easyerp-api/.env
 
             cat > /home/easyerp/easyerp-web/.env << 'ENVEOF'
             NODE_ENV=production
-            API_INTERNAL_URL=http://127.0.0.1:3002
+            API_INTERNAL_URL=http://127.0.0.1:${{ env.API_PORT }}
             ENVEOF
 
             # 8. Restart services
             sudo systemctl daemon-reload
             sudo systemctl restart easyerp-api easyerp-web caddy
 
-            # 9. Health check with retry
+            # 9. Health check with retry. The API gates the deploy; the web
+            # page only has to answer — on an already-initialized Business
+            # Setup is closed, so its copy is never asserted here.
             for i in {1..10}; do
-              if curl -sf http://127.0.0.1:3002/api/health | jq -e '.status == "ok"' >/dev/null 2>&1; then
+              if curl -sf http://127.0.0.1:${{ env.API_PORT }}/api/health | jq -e '.status == "ok"' >/dev/null 2>&1; then
                 echo "API health check passed"
                 break
               fi
               echo "Waiting for API... (attempt $i/10)"
               sleep 3
             done
-            curl -sf http://127.0.0.1:3002/api/health | jq -e '.status == "ok"'
-            curl -sf http://127.0.0.1:3002/api/ready | jq -e '.status == "ok"'
-            curl -sf https://${{ github.event.inputs.domain }}/fr/setup | grep -q "Premier démarrage"
+            curl -sf http://127.0.0.1:${{ env.API_PORT }}/api/health | jq -e '.status == "ok"'
+            curl -sf http://127.0.0.1:${{ env.API_PORT }}/api/ready | jq -e '.status == "ok"'
+            curl -sf "https://$DOMAIN/fr/setup" -o /dev/null
 
             echo "Deployment successful!"
 
@@ -205,21 +264,34 @@ jobs:
     timeout-minutes: 15
     needs: deploy
     steps:
+      # Same derivation as the deploy script: an input on manual runs, the
+      # release/<domain> branch name on pushes.
+      - name: Resolve domain
+        id: domain
+        run: |
+          DOMAIN="${{ github.event.inputs.domain }}"
+          if [ -z "$DOMAIN" ]; then DOMAIN="${GITHUB_REF_NAME#release/}"; fi
+          echo "domain=$DOMAIN" >> $GITHUB_OUTPUT
+
       - name: Verify API health
         run: |
-          curl -sf "https://${{ github.event.inputs.domain }}/api/health" | jq -e '.status == "ok"'
+          curl -sf "https://${{ steps.domain.outputs.domain }}/api/health" | jq -e '.status == "ok"'
 
       - name: Verify API ready
         run: |
-          curl -sf "https://${{ github.event.inputs.domain }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
+          curl -sf "https://${{ steps.domain.outputs.domain }}/api/ready" | jq -e '.status == "ok" and .checks.database == "ok"'
 
       - name: Verify Web loads
         run: |
-          curl -sf "https://${{ github.event.inputs.domain }}/fr/setup" | grep -q "Premier démarrage"
+          curl -sf "https://${{ steps.domain.outputs.domain }}/fr/setup" -o /dev/null
 
       - name: Verify TLS
         run: |
-          curl -sfI "https://${{ github.event.inputs.domain }}" | grep -q "HTTP/2 200"
+          CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://${{ steps.domain.outputs.domain }}/")
+          case "$CODE" in
+            200|301|302|307|308) echo "TLS ok (HTTP $CODE)" ;;
+            *) echo "Unexpected HTTP status: $CODE"; exit 1 ;;
+          esac
 
       - name: Post verification summary
         run: |
@@ -232,5 +304,5 @@ jobs:
           echo "| Web App | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "| TLS/HTTPS | ✅ |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Domain: https://${{ github.event.inputs.domain }}" >> $GITHUB_STEP_SUMMARY
+          echo "Domain: https://${{ steps.domain.outputs.domain }}" >> $GITHUB_STEP_SUMMARY
           echo "Setup Token: (stored in server env, not exposed)" >> $GITHUB_STEP_SUMMARY

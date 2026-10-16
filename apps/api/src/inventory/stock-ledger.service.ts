@@ -163,21 +163,41 @@ export class StockLedgerService {
     ipAddress?: string | null,
   ): Promise<StockLedgerEntry> {
     const parsed = stockReversalSchema.parse(input);
-    const source = await this.prisma.stockLedgerEntry.findUnique({
-      where: { id: parsed.entryId },
-    });
-    if (!source) throw notFound('Stock Ledger Entry', parsed.entryId);
 
-    return this.write(source.itemId, actor, ipAddress, async (tx) =>
-      this.appendEntry(tx, {
+    // The source lookup lives inside the transaction: a lookup outside it can
+    // name an entry that is reversed by a concurrent transaction before this
+    // one's `appendEntry` runs, and the refusal would then be a surprise.
+    const row = await this.prisma.$transaction(async (tx) => {
+      const source = await tx.stockLedgerEntry.findUnique({
+        where: { id: parsed.entryId },
+      });
+      if (!source) throw notFound('Stock Ledger Entry', parsed.entryId);
+
+      const created = await this.appendEntry(tx, {
         itemId: source.itemId,
         reason: 'REVERSAL',
         quantity: source.quantity,
         reversesEntryId: source.id,
         reasonText: parsed.reasonText,
         createdByUserId: actor.id ?? null,
-      }),
-    );
+      });
+      await this.audit.record(
+        tx,
+        {
+          action: 'stock.reversal',
+          entityType: 'ITEM',
+          entityId: source.itemId,
+          after: { entryId: created.id, reason: created.reason, quantity: created.quantity },
+        },
+        { ...actor, ipAddress: ipAddress ?? null },
+      );
+      return created;
+    });
+
+    const found = await this.prisma.stockLedgerEntry.findUniqueOrThrow({
+      where: { id: row.id },
+    });
+    return toLedgerEntry(found);
   }
 
   /**
@@ -187,7 +207,8 @@ export class StockLedgerService {
    * mistyped id reads as an empty inventory, which is a lie.
    */
   async entries(itemId: string): Promise<StockLedgerEntry[]> {
-    await this.prisma.$executeRaw`SELECT 1 FROM "item" WHERE "id" = ${itemId} FOR UPDATE`;
+    // A read-only read takes no row lock: `FOR UPDATE` here would serialize
+    // every stock screen and export against every concurrent writer.
     const item = await this.prisma.item.findUnique({ where: { id: itemId } });
     if (!item) throw notFound('Item', itemId);
     const rows = await this.prisma.stockLedgerEntry.findMany({ where: { itemId }, orderBy: { seq: 'asc' } });
@@ -219,9 +240,8 @@ export class StockLedgerService {
 
     const ids = items.map((item) => item.id);
     if (ids.length === 0) return [];
-    // Lock the Item rows to prevent stale reads from concurrent stock changes
-    await this.prisma.$executeRaw`SELECT id FROM item WHERE id IN (${Prisma.join(ids)}) FOR UPDATE`;
-
+    // A read-only read takes no row lock: `FOR UPDATE` here would serialize
+    // every stock screen and export against every concurrent writer.
     const positions = await this.positions(
       this.prisma,
       ids,

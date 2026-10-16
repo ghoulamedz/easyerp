@@ -58,6 +58,9 @@ function stubFetch(handlers: { onDelete?: (url: string) => { status: number; bod
     const body = init?.body === undefined ? undefined : JSON.parse(String(init.body));
     calls.push({ method, url, body });
 
+    if (url === '/api/auth/get-session') {
+      return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+    }
     if (url === '/api/users/me') {
       return {
         ok: true,
@@ -207,7 +210,7 @@ describe('UsersList row actions', () => {
     await user.click(screen.getAllByRole('button', { name: 'Remove' })[0]!);
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'The last active administrator cannot be removed',
+      'The action conflicts with the current state.',
     );
   });
 
@@ -216,6 +219,9 @@ describe('UsersList row actions', () => {
     global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
       const url = String(input);
       const method = init?.method ?? 'GET';
+      if (url === '/api/auth/get-session') {
+        return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+      }
       if (url === '/api/users/me') {
         return {
           ok: true,
@@ -263,7 +269,7 @@ describe('UsersList row actions', () => {
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'The last administrator must keep the Administrator role',
+      'The action conflicts with the current state.',
     );
   });
 });

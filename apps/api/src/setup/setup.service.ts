@@ -141,9 +141,18 @@ export class SetupService {
       const offByDefault = (module: string): boolean =>
         module === 'PRODUCTION' || module === 'E_INVOICING';
       const modulesToWrite = (input.modules as Record<string, boolean> | undefined) ?? defaultModules;
+      // Upsert, not create: the migration history backfills rows (e.g.
+      // E_INVOICING) onto databases that predate a Module, so a create here
+      // can hit a primary-key conflict on a real deployment. Setup is still
+      // exactly-once — the advisory lock plus the business-count guard above
+      // own that — this only makes the row-writing idempotent within it.
       for (const module of MODULES) {
         const isEnabled = modulesToWrite[module] ?? !offByDefault(module);
-        await tx.moduleState.create({ data: { module, isEnabled } });
+        await tx.moduleState.upsert({
+          where: { module },
+          create: { module, isEnabled },
+          update: { isEnabled },
+        });
       }
 
       const { hashPassword } = await import('better-auth/crypto');

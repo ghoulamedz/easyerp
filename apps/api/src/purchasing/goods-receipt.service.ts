@@ -18,7 +18,7 @@ import {
 } from '@easyerp/contracts';
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
-import { notFound, validationFailed } from '../common/errors.js';
+import { invariant, notFound, validationFailed } from '../common/errors.js';
 import { Amount } from '../finance/amount.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
@@ -131,7 +131,7 @@ export class GoodsReceiptService {
           status: 'ISSUED',
           businessId: business.id,
           partyId: documentPartyId,
-          locale: 'fr',
+          locale: business.countryCode === 'TN' ? 'fr' : 'en',
           vatRegime: business.vatRegime,
           currency: business.currency,
           netAmount: totals.netAmount,
@@ -215,7 +215,7 @@ export class GoodsReceiptService {
     });
 
     const found = await this.findById(issued.receiptId);
-    if (!found) throw new Error(`Goods Receipt ${issued.receiptId} vanished immediately after issuing.`);
+    invariant(found, `Goods Receipt ${issued.receiptId} vanished immediately after issuing.`);
     return found;
   }
 
@@ -225,10 +225,11 @@ export class GoodsReceiptService {
     receiptLines: { itemId: string; quantity: Prisma.Decimal; unitOfMeasureId: string; description: string; purchaseOrderLineId: string | null; position: number; id: string }[],
     purchaseOrder: { purchaseOrders: { id: string; lines: { id: string; quantity: Prisma.Decimal; unitOfMeasureId: string }[] }[] } | null,
   ): Promise<void> {
-    // Map purchase order lines by position for discrepancy comparison
+    // Map purchase order lines by position for discrepancy comparison, read
+    // through the caller's transaction so the comparison sees its own rows.
     const poLinesByPosition = new Map();
     if (purchaseOrder?.purchaseOrders?.[0]) {
-      const purchaseOrderLines = await this.prisma.purchaseOrderLine.findMany({
+      const purchaseOrderLines = await tx.purchaseOrderLine.findMany({
         where: { purchaseOrderId: purchaseOrder.purchaseOrders[0].id },
         orderBy: { position: 'asc' },
       });
@@ -255,17 +256,17 @@ export class GoodsReceiptService {
 
       // Create discrepancy if linked to a purchase order line
       if (poLine) {
-        const expected = Number(poLine.quantity);
-        const actual = Number(receiptLine.quantity);
-        if (expected !== actual) {
-          const direction = actual > expected ? 'OVER' : 'SHORT';
+        const expected = Amount.parse(poLine.quantity.toString());
+        const actual = Amount.parse(receiptLine.quantity.toString());
+        if (!expected.equals(actual)) {
+          const direction = actual.compare(expected) > 0 ? 'OVER' : 'SHORT';
           await tx.discrepancy.create({
             data: {
               documentType: GOODS_RECEIPT,
               documentId: receiptId,
               lineId: receiptLine.id,
-              expectedQuantity: expected.toFixed(3),
-              actualQuantity: actual.toFixed(3),
+              expectedQuantity: expected.toString(),
+              actualQuantity: actual.toString(),
               direction,
             },
           });
@@ -298,7 +299,7 @@ export class GoodsReceiptService {
     if (!receipt) return null;
 
     const gr = receipt.goodsReceipts[0];
-    if (!gr) throw new Error(`Goods Receipt ${id} has no goodsReceipt relation`);
+    invariant(gr, `Goods Receipt ${id} has no goodsReceipt relation`);
 
     return {
       id: receipt.id,

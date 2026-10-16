@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import Script from 'next/script';
 import { ThemeProvider } from '../../lib/theme-provider';
 import { THEME_BOOTSTRAP_SCRIPT } from '../../lib/theme';
 import { directionOf, isLocale, LOCALES, type Locale, translatorFor } from '@/i18n/config';
@@ -44,8 +45,15 @@ export default async function LocaleLayout({
     <html lang={locale} dir={directionOf(locale)} suppressHydrationWarning>
       <body className="antialiased">
         {/* Sets the theme class before the first paint. Without it a dark-mode
-            user gets a white flash on every navigation. */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP_SCRIPT }} />
+            user gets a white flash on every navigation. `next/script` with
+            `beforeInteractive` inlines it into the initial HTML before
+            hydration, so React never renders a raw `<script>` on the client
+            (which is what the dev-only "Encountered a script tag" warning
+            complains about) and the script still runs before anything
+            paints. */}
+        <Script id="theme-bootstrap" strategy="beforeInteractive">
+          {THEME_BOOTSTRAP_SCRIPT}
+        </Script>
         <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
