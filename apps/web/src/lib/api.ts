@@ -79,7 +79,7 @@ async function request<T>(
     // Localize here, at the single choke point every screen reads through:
     // server messages arrive in English, the interface language lives on
     // <html lang>, and no caller should have to remember to translate.
-    const { localizeErrorMessage } = await import('./error-messages.js');
+    const { localizeErrorMessage } = await import('./error-messages');
     throw new ApiError(response.status, code, localizeErrorMessage(code, message));
   }
 
