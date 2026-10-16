@@ -68,7 +68,7 @@ jobs:
             else false end
           ' >/dev/null; then
             echo "Branch $BRANCH exists — resetting..."
-            neonctl branches delete --project-id ${{ secrets.NEON_PROJECT_ID }} --name "$BRANCH" --force
+            neonctl branches delete "$BRANCH" --project-id ${{ secrets.NEON_PROJECT_ID }} --force
           fi
 
           echo "Creating branch $BRANCH from $PARENT_BRANCH..."
