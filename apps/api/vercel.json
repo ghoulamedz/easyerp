@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "pnpm --filter @easyerp/api build",
+  "buildCommand": "pnpm --filter @easyerp/contracts build && pnpm --filter @easyerp/api build",
   "outputDirectory": "dist",
   "devCommand": "pnpm --filter @easyerp/api dev",
   "installCommand": "pnpm install --frozen-lockfile",
