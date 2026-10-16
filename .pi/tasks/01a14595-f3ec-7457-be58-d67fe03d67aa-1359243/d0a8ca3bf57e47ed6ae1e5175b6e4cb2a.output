@@ -1,0 +1,2 @@
+Warning: No project session found with id 'delegate-2f2ecad6a9ba8809cd45648e32516291'; creating a new session with that id.
+Warning: Extension package "/home/medo/.pi/agent/npm/node_modules/remote-pi/package.json": Host-provided extension packages must be declared in peerDependencies with a "*" range, not dependencies: @earendil-works/pi-coding-agent, @earendil-works/pi-tui, typebox. Installed copies can bypass the extension loader and create duplicate runtime modules.

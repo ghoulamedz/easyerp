@@ -159,7 +159,10 @@ export class PartyService {
    */
   async list(query: unknown): Promise<Paged<Party>> {
     const parsed = partyListQuerySchema.parse(query);
-    const where = { ...this.searchWhere(parsed), code: { not: 'INTERNAL' } };
+    const where: Prisma.PartyWhereInput = {
+      ...this.searchWhere(parsed),
+      code: { not: 'INTERNAL' },
+    };
     if (parsed.role) {
       where.roles = { has: parsed.role };
     }
@@ -278,7 +281,7 @@ export class PartyService {
     }
   }
 
-  private searchWhere(query: PageQuery): Record<string, unknown> {
+  private searchWhere(query: PageQuery): Prisma.PartyWhereInput {
     if (!query.q) return {};
     return {
       OR: [
