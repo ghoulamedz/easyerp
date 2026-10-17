@@ -10,18 +10,25 @@ Date: 2026-10-17
 - Removed the invalid `runtime: nodejs22` custom runtime from
   `apps/api/vercel.json`. Vercel manages the Node.js runtime; custom runtime
   identifiers require the `package@version` form.
+- Fixed the follow-up `unused_function` error: Vercel only discovers function
+  entries under `api/`, while the config pointed at `dist/`. Added
+  `apps/api/api/index.js` as a thin forwarder to the existing compiled
+  `dist/main.serverless.js`, configured it as the function, and routed `/api/*`
+  requests to it.
 - Updated `docs/deploy-vercel-neon-free.md` to document both deployment details.
 
 ## Verified
 
-- The deployment workflow passes Prettier formatting.
-- `apps/api/vercel.json` parses as JSON.
-- `git diff --check` passes; no deploy command retains an explicit app path and
-  the API config has no custom `runtime`.
+- Contracts and API builds, API lint, typecheck, and unit tests pass (57 tests).
+- A local check confirms the configured function file exists and exports the
+  compiled handler; `apps/api/vercel.json` parses as JSON.
+- Prettier passes for the new function file and deployment workflow. `git diff
+  --check` passes.
 
 ## Not verified
 
-- A live Vercel deployment was not run; Vercel credentials and project access are
-  not available in this session.
-- Prettier's combined check also flagged formatting in `apps/api/vercel.json` and
-  this deployment guide; those files were not broadly reformatted.
+- A live Vercel build/deployment was not run; Vercel credentials and project
+  access are not available in this session.
+- Prettier's combined check flagged pre-existing formatting in
+  `apps/api/vercel.json` and this deployment guide; those files were not broadly
+  reformatted.

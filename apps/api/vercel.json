@@ -6,18 +6,14 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": null,
   "functions": {
-    "dist/main.serverless.js": {
+    "api/index.js": {
       "maxDuration": 30
     }
   },
   "rewrites": [
     {
-      "source": "/api/auth/(.*)",
-      "destination": "/api/auth/$1"
-    },
-    {
       "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "destination": "/api"
     }
   ],
   "headers": [
