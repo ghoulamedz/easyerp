@@ -5,7 +5,7 @@
  * default to the billed figures, and an overdraw refusal stays put.
  */
 
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CreditNoteForm } from './credit-note-form';
@@ -109,7 +109,7 @@ describe('CreditNoteForm', () => {
 
   it('cancel returns to the list without creating anything', async () => {
     const user = userEvent.setup();
-    const fetchMock = global.fetch as ReturnType<typeof vi.fn>;
+    const fetchMock = global.fetch as Mock;
     const baseImpl = fetchMock.getMockImplementation();
     const posts: string[] = [];
     fetchMock.mockImplementation(async (url: unknown, init?: RequestInit) => {

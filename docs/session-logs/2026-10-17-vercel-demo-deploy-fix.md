@@ -20,12 +20,18 @@ Date: 2026-10-17
   available to Vercel's remote build; compiling without regeneration caused the
   reported missing Prisma imports and model properties.
 - Updated `docs/deploy-vercel-neon-free.md` to document both deployment details.
+- Fixed the subsequent web-build TypeScript failure in nine form tests. They
+  typed the mocked `fetch` as `ReturnType<typeof vi.fn>`, which under Vitest 5
+  gives `mockImplementation` an unusable callable-or-constructor union. They now
+  use Vitest's `Mock` type.
 
 ## Verified
 
 - Contracts and API builds, API lint, typecheck, and unit tests pass (57 tests).
 - `prisma:generate` followed by the API build succeeds, matching the new Vercel
   build command.
+- Web typecheck and production build pass; web unit tests pass (174 tests).
+- Web lint completes with eight existing warnings and no errors.
 - A local check confirms the configured function file exists and exports the
   compiled handler; `apps/api/vercel.json` parses as JSON.
 - Prettier passes for the new function file and deployment workflow. `git diff
