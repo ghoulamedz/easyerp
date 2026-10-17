@@ -38,11 +38,19 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
 ### B. Vercel — two projects, one repo
 
 5. **Import repo → project `easyerp-api`.** Framework: **Other**. Root Directory:
-   `apps/api`. Build Command: `pnpm --filter @easyerp/api build`. Output
-   Directory: `dist`. Install Command: `pnpm install --frozen-lockfile`.
+   `apps/api`. Build Command:
+
+   ```sh
+   pnpm --filter @easyerp/contracts build &&
+     pnpm --filter @easyerp/api prisma:generate &&
+     pnpm --filter @easyerp/api build
+   ```
+
+   Output Directory: `dist`. Install Command: `pnpm install --frozen-lockfile`.
    (Matches `apps/api/vercel.json` + `apps/api/package.json` `build` script,
    which runs `tsc` then copies `src/generated` into `dist/` — so `prisma
-   generate` must run before build; CI does this explicitly.)
+   generate` must run before build; the workflow does this locally and
+   `vercel.json` repeats it in Vercel's own remote build.)
 6. **Import repo again → project `easyerp-web`.** Framework: **Next.js**
    (auto-detected). Root Directory: `apps/web`. Leave build/output defaults
    (`next build`). No `vercel.json` needed for web — `next.config.ts`

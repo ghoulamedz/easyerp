@@ -15,11 +15,17 @@ Date: 2026-10-17
   `apps/api/api/index.js` as a thin forwarder to the existing compiled
   `dist/main.serverless.js`, configured it as the function, and routed `/api/*`
   requests to it.
+- Added Prisma client generation to Vercel's own build command. The generated
+  client is gitignored, so the local workflow build's generated files are not
+  available to Vercel's remote build; compiling without regeneration caused the
+  reported missing Prisma imports and model properties.
 - Updated `docs/deploy-vercel-neon-free.md` to document both deployment details.
 
 ## Verified
 
 - Contracts and API builds, API lint, typecheck, and unit tests pass (57 tests).
+- `prisma:generate` followed by the API build succeeds, matching the new Vercel
+  build command.
 - A local check confirms the configured function file exists and exports the
   compiled handler; `apps/api/vercel.json` parses as JSON.
 - Prettier passes for the new function file and deployment workflow. `git diff
@@ -29,6 +35,8 @@ Date: 2026-10-17
 
 - A live Vercel build/deployment was not run; Vercel credentials and project
   access are not available in this session.
-- Prettier's combined check flagged pre-existing formatting in
-  `apps/api/vercel.json` and this deployment guide; those files were not broadly
-  reformatted.
+- The Neon `P1001` is not confirmed fixed. The workflow uses the `demo` branch
+  and produces an endpoint hostname different from the one reported on the
+  dashboard; verify the selected dashboard branch and `NEON_PROJECT_ID` secret.
+- Prettier's combined check still flags existing table/list formatting in the
+  deployment guide; it was not broadly reformatted.
