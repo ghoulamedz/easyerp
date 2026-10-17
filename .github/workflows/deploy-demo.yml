@@ -189,9 +189,10 @@ jobs:
         run: pnpm --filter @easyerp/api build
 
       - name: Deploy API to Vercel
+        working-directory: ./apps/api
         env:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-        run: vercel deploy ./apps/api --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
+        run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
       - name: Save API deployment URL
         id: save-url
@@ -233,9 +234,10 @@ jobs:
           API_INTERNAL_URL: ${{ needs.deploy-api.outputs.api_url }}
 
       - name: Deploy Web to Vercel
+        working-directory: ./apps/web
         env:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-        run: vercel deploy ./apps/web --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
+        run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
       - name: Get Web deployment URL
         id: web_url
@@ -295,14 +297,16 @@ jobs:
         run: pnpm add -g vercel@latest
 
       - name: Redeploy API to Vercel
+        working-directory: ./apps/api
         env:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-        run: vercel deploy ./apps/api --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
+        run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
       - name: Redeploy Web to Vercel
+        working-directory: ./apps/web
         env:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-        run: vercel deploy ./apps/web --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
+        run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
       - name: Save final deployment URLs
         id: save-api-url
