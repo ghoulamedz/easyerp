@@ -52,27 +52,35 @@ jobs:
 
           JSON=$(neonctl branches list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json)
 
-          # Neon API has changed shape over time: sometimes {branches:[]}, sometimes [].
-          # Handle both so `jq: Cannot index array with string "branches"` never happens.
-          PARENT_BRANCH=$(echo "$JSON" | jq -r '
-            if type == "array" then .[0].name // "main"
-            elif has("branches") then .branches[0].name // "main"
-            elif has("data") then .data[0].name // "main"
-            else "main" end
-          ')
-
+          # Demo branch is persistent — identical to prod: keep data across deploys.
+          # Create only if missing; never delete/reset. Migrations handle schema drift.
           if echo "$JSON" | jq -e --arg b "$BRANCH" '
             if type == "array" then any(.[]; .name == $b)
             elif has("branches") then any(.branches[]; .name == $b)
             elif has("data") then any(.data[]; .name == $b)
             else false end
           ' >/dev/null; then
-            echo "Branch $BRANCH exists — resetting..."
-            neonctl branches delete "$BRANCH" --project-id ${{ secrets.NEON_PROJECT_ID }} --force
+            echo "Branch $BRANCH already exists — reusing (data preserved)."
+          else
+            # Pick a parent that is NOT the demo branch itself. Prefer primary.
+            PARENT_BRANCH=$(echo "$JSON" | jq -r --arg b "$BRANCH" '
+              (if type == "array" then . elif has("branches") then .branches elif has("data") then .data else [] end)
+              | (map(select(.primary == true))[0] // map(select(.name != $b))[0] // .[0])
+              | .name // "main"
+            ')
+            if [ "$PARENT_BRANCH" = "$BRANCH" ]; then PARENT_BRANCH=""; fi
+            if [ -n "$PARENT_BRANCH" ]; then
+              echo "Creating branch $BRANCH from $PARENT_BRANCH..."
+              if ! neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name "$BRANCH" --parent "$PARENT_BRANCH" 2>/tmp/neon-create.err; then
+                cat /tmp/neon-create.err
+                echo "Parent $PARENT_BRANCH not found — retrying from primary branch..."
+                neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name "$BRANCH"
+              fi
+            else
+              echo "Creating branch $BRANCH from primary..."
+              neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name "$BRANCH"
+            fi
           fi
-
-          echo "Creating branch $BRANCH from $PARENT_BRANCH..."
-          neonctl branches create --project-id ${{ secrets.NEON_PROJECT_ID }} --name "$BRANCH" --parent "$PARENT_BRANCH"
 
           # Resolve DB role: prefer "easyerp" if it exists, otherwise use the project's
           # default role (often the owner). This avoids "role does not exist" on new Neon projects.
