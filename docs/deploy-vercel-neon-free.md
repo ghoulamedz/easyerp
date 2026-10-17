@@ -86,7 +86,9 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
     deploy — it prompts and hangs.
 12. **Trigger:** push to `master` or `gh workflow run deploy-demo.yml`.
     The workflow creates/uses the Neon `demo` branch, migrates, deploys API,
-    then web, then smoke-tests.
+    then web, then smoke-tests. Its CLI deploy commands omit a path because
+    each Vercel project already has its Root Directory set (`apps/api` or
+    `apps/web`); passing that same directory again makes Vercel append it twice.
 
 ### E. First-run setup + verify
 
@@ -109,11 +111,10 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
    `/tmp/easyerp-documents` (ephemeral — fine for demo, never for clients).
    Related: PDF archive on Vercel is ephemeral by nature (session log
    2026-10-05 open question) — issued PDFs won't survive cold starts/redeploys.
-3. **`apps/api/vercel.json` points the function at `dist/main.js`** (the
-   `server.listen` systemd bootstrap) instead of the serverless entry
-   `src/main.serverless.ts` (→ `dist/main.serverless.js`). Also pins
-   `runtime: nodejs20.x` while `.nvmrc` is Node 24.21.0 and
-   `engines` requires ≥24 — expect a runtime/build-image mismatch warning.
+3. **Do not set a custom `runtime` for the API function.** Vercel manages the
+   Node.js runtime; a value such as `nodejs22` is invalid because `runtime`
+   expects a custom runtime identifier in `package@version` form. The function
+   entry remains `dist/main.serverless.js`, not the VPS `dist/main.js`.
    Its two `rewrites` are identity mappings (`/api/*` → `/api/*`), i.e. no-ops.
 4. **Workflow order bug: env vars are set AFTER deploy.** The `vercel-env` job
    (`vercel env add …`) runs after both deploys, so the just-deployed
