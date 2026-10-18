@@ -14,7 +14,7 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
 | Piece | Where | Notes |
 |---|---|---|
 | Postgres | Neon free tier, branch `demo` | Pooled URL for the app, direct URL for migrations |
-| API | Vercel project `easyerp-api`, root `apps/api` | Serverless, Vercel entry `api/index.js` forwards to `src/main.serverless.ts` |
+| API | Vercel project `easyerp-api`, root `apps/api` | Serverless, Vercel entry `api/index.mjs` (ESM) dynamically imports `dist/main.serverless.js` |
 | Web | Vercel project `easyerp-web`, root `apps/web` | Next.js, proxies `/api/*` → API URL |
 
 ## Steps
@@ -122,7 +122,7 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
 3. **Do not set a custom `runtime` for the API function.** Vercel manages the
    Node.js runtime; a value such as `nodejs22` is invalid because `runtime`
    expects a custom runtime identifier in `package@version` form. Vercel
-   discovers functions under `api/`, so `api/index.js` forwards requests to the
+   discovers functions under `api/`, so `api/index.mjs` dynamically imports the
    compiled `dist/main.serverless.js`; rewrites send `/api/*` to that function.
 4. **Workflow order bug: env vars are set AFTER deploy.** The `vercel-env` job
    (`vercel env add …`) runs after both deploys, so the just-deployed
