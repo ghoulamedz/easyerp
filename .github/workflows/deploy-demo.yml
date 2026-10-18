@@ -197,15 +197,17 @@ jobs:
         id: save-url
         run: |
           set -euo pipefail
-          # Vercel CLI 63+ removed --project/--output; VERCEL_PROJECT_ID selects the project.
-          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
+          head -c 1200 /tmp/vercel_ls.json; echo
+          URL=$(jq -r '
+            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
+            first_deploy | (.alias[0] // .url // empty)
+          ' /tmp/vercel_ls.json)
           if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve API deployment URL" >&2
+            echo "Failed to resolve API deployment URL from:" >&2
+            cat /tmp/vercel_ls.json >&2
             exit 1
           fi
-          # canonicalize via inspect so we store the aliased production host, not the ephemeral deployment id host
-          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
-          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "api_url=https://$URL" >> $GITHUB_OUTPUT
           echo "API deployed to: https://$URL"
 
@@ -250,13 +252,17 @@ jobs:
         id: web_url
         run: |
           set -euo pipefail
-          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
+          head -c 1200 /tmp/vercel_ls.json; echo
+          URL=$(jq -r '
+            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
+            first_deploy | (.alias[0] // .url // empty)
+          ' /tmp/vercel_ls.json)
           if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve Web deployment URL" >&2
+            echo "Failed to resolve Web deployment URL from:" >&2
+            cat /tmp/vercel_ls.json >&2
             exit 1
           fi
-          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
-          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "web_url=https://$URL" >> $GITHUB_OUTPUT
           echo "Web deployed to: https://$URL"
 
@@ -326,13 +332,17 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
         run: |
           set -euo pipefail
-          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
+          head -c 1200 /tmp/vercel_ls.json; echo
+          URL=$(jq -r '
+            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
+            first_deploy | (.alias[0] // .url // empty)
+          ' /tmp/vercel_ls.json)
           if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve API deployment URL" >&2
+            echo "Failed to resolve API deployment URL from:" >&2
+            cat /tmp/vercel_ls.json >&2
             exit 1
           fi
-          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
-          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "api_url=https://$URL" >> $GITHUB_OUTPUT
           echo "API redeployed to: https://$URL"
 
@@ -342,13 +352,17 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
         run: |
           set -euo pipefail
-          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
+          head -c 1200 /tmp/vercel_ls.json; echo
+          URL=$(jq -r '
+            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
+            first_deploy | (.alias[0] // .url // empty)
+          ' /tmp/vercel_ls.json)
           if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve Web deployment URL" >&2
+            echo "Failed to resolve Web deployment URL from:" >&2
+            cat /tmp/vercel_ls.json >&2
             exit 1
           fi
-          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
-          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "web_url=https://$URL" >> $GITHUB_OUTPUT
           echo "Web redeployed to: https://$URL"
 
