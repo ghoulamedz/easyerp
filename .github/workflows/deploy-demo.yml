@@ -128,13 +128,41 @@ jobs:
       - name: Install Vercel CLI
         run: pnpm add -g vercel@latest
 
-      - name: Set API project environment variables
+      - name: Install neonctl
+        run: pnpm add -g neonctl@8.7.2
+
+      - name: Set API project environment variables (DATABASE_URL resolved via neonctl in same shell)
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
         run: |
+          set -euo pipefail
+          # Resolve DATABASE_URL here (same shell) so GitHub secret-output masking doesn't blank it.
+          # GitHub warns "Skip output database_url since it may contain secret" and blanks needs.neon-db.outputs.database_url.
+          ROLE="easyerp"
+          ROLES_JSON=$(neonctl roles list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json 2>/dev/null || echo '[]')
+          if ! echo "$ROLES_JSON" | jq -e --arg r "$ROLE" '
+            if type=="array" then any(.[]; .name==$r)
+            elif has("roles") then any(.roles[]; .name==$r)
+            elif has("data") then any(.data[]; .name==$r)
+            else false end' >/dev/null 2>&1; then
+            ROLE=$(echo "$ROLES_JSON" | jq -r '
+              if type=="array" then .[0].name // "" 
+              elif has("roles") then .roles[0].name // ""
+              elif has("data") then .data[0].name // ""
+              else "" end')
+            if [ -z "$ROLE" ] || [ "$ROLE" = "null" ]; then ROLE="neondb_owner"; fi
+            echo "Role easyerp not found, using $ROLE" >&2
+          fi
+          POOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch demo --role "$ROLE" --pooled)
+          echo "::add-mask::$POOLED"
+          echo "Resolved DATABASE_URL len=${#POOLED} head=${POOLED:0:50}..." >&2
+          if [ -z "$POOLED" ]; then echo "Failed to resolve DATABASE_URL via neonctl" >&2; exit 1; fi
+
           for var in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL CORS_ORIGINS FIRST_SETUP_TOKEN NODE_ENV API_PORT API_HOST LOG_LEVEL DOCUMENT_ARCHIVE_ROOT; do
             vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} 2>/dev/null || true
           done
 
-          vercel env add DATABASE_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.neon-db.outputs.database_url }}"
+          vercel env add DATABASE_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "$POOLED"
           vercel env add BETTER_AUTH_SECRET production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_BETTER_AUTH_SECRET }}"
           vercel env add BETTER_AUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "https://placeholder.invalid"
           vercel env add CORS_ORIGINS production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "https://placeholder.invalid"
