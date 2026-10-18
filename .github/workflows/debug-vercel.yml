@@ -12,42 +12,67 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm add -g vercel@latest
-      - name: Vercel runtime debug
+      - name: Dump API project
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
         run: |
           set -e
-          echo "=== vercel ls (api) ==="
-          vercel ls --scope "$VERCEL_ORG_ID" --json > /tmp/ls.json || true
-          cat /tmp/ls.json | head -c 5000; echo
-          echo "=== parse alias/url ==="
-          URL=$(jq -r 'def f: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] else . end; f | (.alias[0] // .url // empty)' /tmp/ls.json)
-          echo "URL=$URL"
-          echo "=== vercel inspect --json ==="
-          vercel inspect "$URL" --json > /tmp/inspect.json || true
-          cat /tmp/inspect.json | head -c 6000; echo
+          echo "=== envs (decrypted, keys+value head) ==="
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/env?decrypt=true&teamId=$VERCEL_ORG_ID" | jq -r '.envs[] | "\(.key) [\(.target|join(","))] len=\(.value|length) head=\(.value[0:50])"' | sort
+          echo "---"
+          echo "=== last 3 deployments ==="
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=3" | jq -r '.deployments[] | "\(.uid) \(.url) alias=\(.alias[0] // "-") state=\(.readyState) \(.createdAt)"'
+          DID=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=1" | jq -r '.deployments[0].uid')
+          DURL=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=1" | jq -r '.deployments[0].url')
+          ALIAS=$(curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=1" | jq -r '.deployments[0].alias[0]')
+          echo "DID=$DID DURL=$DURL ALIAS=$ALIAS"
           echo "=== build logs ==="
-          vercel inspect "$URL" --logs 2>&1 | head -n 400 || true
-          echo "=== env ls ==="
-          vercel env ls --scope "$VERCEL_ORG_ID" 2>&1 | head -n 150 || true
-          echo "=== curl health (no auth) ==="
-          curl -s -i "https://$URL/api/health" 2>&1 | head -n 100 || true
+          vercel inspect "$DURL" --logs 2>&1 | tail -n 300 || true
+          echo "=== runtime logs (vercel logs) ==="
+          vercel logs --deployment "$DID" 2>&1 | tail -n 800 || true
+          echo "=== curl ALIAS/api/health ==="
+          curl -s -i "https://$ALIAS/api/health" 2>&1 | head -n 80 || true
           echo "=== curl easyerp-api-three ==="
-          curl -s -i "https://easyerp-api-three.vercel.app/api/health" 2>&1 | head -n 100 || true
-          echo "=== vercel logs ==="
-          vercel logs "$URL" 2>&1 | head -n 400 || true
-      - name: Env pull check
+          curl -s -i "https://easyerp-api-three.vercel.app/api/health" 2>&1 | head -n 80 || true
+          echo "=== curl setup/status ==="
+          curl -s -i "https://$ALIAS/api/setup/status" 2>&1 | head -n 80 || true
+          echo "=== vercel env pull prod ==="
+          vercel env pull /tmp/.env.prod --environment=production 2>&1 | head -n 20 || true
+          echo "keys in prod:"; cut -d= -f1 /tmp/.env.prod 2>&1 | head -n 40 || true
+          for k in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL CORS_ORIGINS FIRST_SETUP_TOKEN DOCUMENT_ARCHIVE_ROOT NODE_ENV; do
+            if grep -q "^$k=" /tmp/.env.prod 2>/dev/null; then echo "have $k"; else echo "MISSING $k"; fi
+          done
+      - name: Neon DB check
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+        run: |
+          pnpm add -g neonctl@8.7.2 2>&1 | tail -n 3
+          neonctl branches list --project-id "$NEON_PROJECT_ID" --output json | jq '.[]? // .branches[]? // .data[]? | {name, primary}' 2>&1 | head -n 80 || neonctl branches list --project-id "$NEON_PROJECT_ID" --output json | head -c 2000; echo
+          POOLED=$(neonctl connection-string --project-id "$NEON_PROJECT_ID" --branch demo --pooled 2>&1 | tail -n 1)
+          echo "=== DB ping via pooled ==="
+          POOLED="$POOLED" node --input-type=module <<'NODE'
+          import pg from 'pg';
+          const cs = process.env.POOLED;
+          console.log('cs head', cs.slice(0,60));
+          const c = new pg.Client({connectionString: cs});
+          try {
+            await c.connect();
+            const r = await c.query('select count(*) as business_count from business');
+            console.log('business_count', r.rows[0]);
+            const m = await c.query("select name from _prisma_migrations order by finished_at desc limit 5");
+            console.log('migrations', m.rows.map(x=>x.name));
+            await c.end();
+          } catch(e){ console.error('DB FAIL', e.message); console.error(e.stack?.slice(0,3000)); process.exit(0); }
+          NODE
+          echo "=== done ==="
+      - name: Web envs
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
         run: |
-          vercel env pull /tmp/.env.vercel 2>&1 | head -n 20 || true
-          echo "=== pulled env keys ==="
-          cat /tmp/.env.vercel 2>&1 | cut -d= -f1 | head -n 30 || true
-          echo "=== check required keys ==="
-          for k in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL CORS_ORIGINS FIRST_SETUP_TOKEN DOCUMENT_ARCHIVE_ROOT NODE_ENV; do
-            if grep -q "^$k=" /tmp/.env.vercel 2>/dev/null; then echo "have $k"; else echo "MISSING $k"; fi
-          done
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID/env?decrypt=true&teamId=$VERCEL_ORG_ID" | jq -r '.envs[] | "\(.key)=\(.value[0:60]) target=\(.target|join(","))"' | head -n 40 || true
+          curl -s -H "Authorization: Bearer $VERCEL_TOKEN" "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=3" | jq -r '.deployments[] | "\(.url) alias=\(.alias[0]) state=\(.readyState)"' | head -n 10 || true
