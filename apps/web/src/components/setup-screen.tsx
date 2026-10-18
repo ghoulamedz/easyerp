@@ -47,7 +47,7 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-export function SetupScreen({ locale }: { locale: Locale }) {
+export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: string | null }) {
   const t = translatorFor(locale);
 
   // Prefill is a development convenience only: production ships empty fields
@@ -191,6 +191,17 @@ export function SetupScreen({ locale }: { locale: Locale }) {
       <Card>
         <CardHeader title={t('setupTitle')} description={t('setupIntro')} />
         <CardBody>
+          {dbError ? (
+            <div
+              role="alert"
+              className="mb-6 flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200"
+            >
+              <IconAlert className="mt-0.5 size-4 shrink-0" />
+              <span>
+                The API cannot reach the database yet — Setup is shown because this is assumed to be a fresh deployment. Fix the database connection and retry. <span className="font-mono text-xs break-all">{dbError.slice(0, 400)}</span>
+              </span>
+            </div>
+          ) : null}
           {/* Language and Theme switchers in the header */}
           <div className="mb-6 flex items-center justify-between">
             <div className="flex items-center gap-3">

@@ -10,14 +10,12 @@ import { readSetupStatus } from '../../lib/server-api';
  * `GET /api/setup/status` answers `needsSetup`. Otherwise the dashboard owns
  * the visit — and its layout sends anyone without a session to sign-in.
  *
- * If the API is temporarily unreachable (e.g. during dev startup where the
- * web app may boot before the API), we retry a few times before deciding.
- * This avoids incorrectly redirecting to sign-in when the database is empty
- * but the API hasn't finished booting yet.
+ * If the API is unreachable we assume a fresh deployment and route to Setup
+ * (per product requirement: "redirection to /setup should happen even if
+ * there is no db connection — we assume it's first setup"). Setup itself
+ * will surface the DB error so the operator sees why the form cannot submit.
  */
 async function readSetupStatusWithRetry(): Promise<{ needsSetup: boolean } | null> {
-  // In development, the API might not be ready when the web app first receives
-  // a request. Retry a few times with a short delay.
   const maxRetries = 3;
   const baseDelayMs = 200;
 
@@ -38,10 +36,10 @@ export default async function LocaleRoot({ params }: { params: Promise<{ locale:
   if (!isLocale(locale)) redirect('/fr');
 
   const status = await readSetupStatusWithRetry();
-  // An unreachable API must not route a live Business back through first-run
-  // Setup: with no answer the dashboard is the safe landing — its session gate
-  // funnels strangers to sign-in — matching setup/page.tsx.
-  if (status?.needsSetup) {
+  // Null = API unreachable → treat as fresh deployment (needsSetup) so the
+  // visitor lands on /setup where the DB error is shown, not on /sign-in
+  // where there is nobody to sign in as.
+  if (status === null || status.needsSetup) {
     redirect(`/${locale}/setup`);
   }
 

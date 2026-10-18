@@ -61,8 +61,21 @@ export class AppModule implements OnModuleInit {
   /**
    * Repair the Administrator role at boot. If a role was emptied or unprotected
    * by hand, the next restart puts it back, before any request is served.
+   *
+   * On Vercel the database may be unreachable during a cold start (mis-configured
+   * DATABASE_URL, Neon branch not ready, pooler cold). Throwing here would
+   * crash every route — including GET /api/health which must stay answerable
+   * while the database is down — and drag the whole function into
+   * FUNCTION_INVOCATION_FAILED. Log and continue: the readiness probe and
+   * GET /api/setup/status (which assumes a fresh DB → needsSetup:true) will
+   * surface the problem where the product can explain it.
    */
   async onModuleInit(): Promise<void> {
-    await this.roles.ensureAdministrator();
+    try {
+      await this.roles.ensureAdministrator();
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[AppModule] ensureAdministrator skipped (DB not ready): ${msg}\n`);
+    }
   }
 }

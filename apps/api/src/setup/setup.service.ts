@@ -64,8 +64,20 @@ export class SetupService {
     // A count, not a flag: a restored backup that already holds a Business leaves
     // Setup closed with no manual step (ADR 0012). `Business` is the single tenant
     // row, so "is there any" is the whole check and needs no where clause.
-    const businesses = await this.prisma.business.count();
-    return setupStatusSchema.parse({ needsSetup: businesses === 0 });
+    //
+    // If the database is unreachable (fresh deploy with no DATABASE_URL, Neon
+    // branch switching, cold pooler) we assume a fresh deployment and answer
+    // needsSetup:true so the web app can route to /setup and show the DB error
+    // there instead of bouncing the visitor to /signin where there is nothing
+    // to sign in to. The error is logged server-side for the function logs.
+    try {
+      const businesses = await this.prisma.business.count();
+      return setupStatusSchema.parse({ needsSetup: businesses === 0 });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[setup/status] DB unreachable — assuming fresh deployment (needsSetup:true): ${msg}\n`);
+      return setupStatusSchema.parse({ needsSetup: true });
+    }
   }
 
   async complete(payload: unknown, ipAddress?: string | null): Promise<SetupResult> {

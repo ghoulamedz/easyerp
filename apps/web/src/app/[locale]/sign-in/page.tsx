@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { SignInScreen } from '@/components/sign-in-screen';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
-import { readSession, readSetupStatus } from '../../../lib/server-api';
+import { readSession, readSetupStatusSafe } from '../../../lib/server-api';
 
 export async function generateMetadata({
   params,
@@ -18,8 +18,9 @@ export default async function SignInPage({ params }: { params: Promise<{ locale:
   const typedLocale: Locale = isLocale(locale) ? locale : 'fr';
 
   // Before Setup there is nobody to sign in as: send the visitor to Setup.
-  const status = await readSetupStatus();
-  if (status?.needsSetup) redirect(`/${typedLocale}/setup`);
+  // If the API is unreachable we also assume a fresh deployment → /setup.
+  const safeStatus = await readSetupStatusSafe();
+  if (safeStatus.needsSetup) redirect(`/${typedLocale}/setup`);
 
   // A signed-in visitor has no business on this screen.
   if (await readSession()) redirect(`/${typedLocale}/dashboard`);

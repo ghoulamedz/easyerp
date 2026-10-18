@@ -22,7 +22,17 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit(): Promise<void> {
-    await this.$connect();
+    try {
+      await this.$connect();
+    } catch (error) {
+      // On Vercel a fresh deploy may have a bad DATABASE_URL or a cold pooler —
+      // crashing here would take down every route including GET /api/health
+      // (liveness) and GET /api/setup/status (which assumes a fresh DB).
+      // Log and continue; /ready will report the failure and setup will assume
+      // needsSetup:true so the web app can show the error on /setup.
+      const msg = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`[PrismaService] $connect failed — continuing without DB: ${msg}\n`);
+    }
   }
 
   async onModuleDestroy(): Promise<void> {

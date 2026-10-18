@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { AppShell } from '@/components/app-shell';
 import { isLocale, type Locale } from '@/i18n/config';
-import { readSession, readSetupStatus } from '../../../lib/server-api';
+import { readSession, readSetupStatusSafe } from '../../../lib/server-api';
 
 /**
  * The application frame, shared by every signed-in page.
@@ -26,8 +26,10 @@ export default async function AppLayout({
   const typedLocale: Locale = locale;
   // No Business yet: every app URL funnels to first-run Setup, even sign-in —
   // there is nobody to sign in as until Setup creates the Administrator.
-  const status = await readSetupStatus();
-  if (status?.needsSetup) redirect(`/${typedLocale}/setup`);
+  // If the API is unreachable we assume a fresh deployment → /setup (so the
+  // operator lands where the DB error is shown, not behind a sign-in wall).
+  const status = await readSetupStatusSafe();
+  if (status.needsSetup) redirect(`/${typedLocale}/setup`);
 
   const session = await readSession();
   if (!session) redirect(`/${typedLocale}/sign-in`);
