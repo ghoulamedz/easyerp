@@ -5,10 +5,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          cache: pnpm
       - run: pnpm add -g vercel@latest
       - name: Vercel runtime debug
         env:
@@ -27,26 +29,25 @@ jobs:
           vercel inspect "$URL" --json > /tmp/inspect.json || true
           cat /tmp/inspect.json | head -c 6000; echo
           echo "=== build logs ==="
-          vercel inspect "$URL" --logs 2>&1 | head -n 300 || true
+          vercel inspect "$URL" --logs 2>&1 | head -n 400 || true
           echo "=== env ls ==="
-          vercel env ls --scope "$VERCEL_ORG_ID" 2>&1 | head -n 100 || true
-          echo "=== try to fetch runtime logs via vercel logs ==="
+          vercel env ls --scope "$VERCEL_ORG_ID" 2>&1 | head -n 150 || true
+          echo "=== curl health (no auth) ==="
+          curl -s -i "https://$URL/api/health" 2>&1 | head -n 100 || true
+          echo "=== curl easyerp-api-three ==="
+          curl -s -i "https://easyerp-api-three.vercel.app/api/health" 2>&1 | head -n 100 || true
+          echo "=== vercel logs ==="
           vercel logs "$URL" 2>&1 | head -n 400 || true
-          echo "=== curl health (with protection bypass if needed) ==="
-          # try direct curl; Vercel protection may block, but we try both domains
-          curl -i "https://$URL/api/health" 2>&1 | head -n 100 || true
-          curl -i "https://easyerp-api-three.vercel.app/api/health" 2>&1 | head -n 100 || true
-      - name: Vercel API via vercel env pull check
+      - name: Env pull check
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
         run: |
           vercel env pull /tmp/.env.vercel 2>&1 | head -n 20 || true
-          echo "=== pulled env keys (no values) ==="
+          echo "=== pulled env keys ==="
           cat /tmp/.env.vercel 2>&1 | cut -d= -f1 | head -n 30 || true
           echo "=== check required keys ==="
           for k in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL CORS_ORIGINS FIRST_SETUP_TOKEN DOCUMENT_ARCHIVE_ROOT NODE_ENV; do
             if grep -q "^$k=" /tmp/.env.vercel 2>/dev/null; then echo "have $k"; else echo "MISSING $k"; fi
           done
-
