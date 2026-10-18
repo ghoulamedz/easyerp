@@ -24,10 +24,21 @@ const BODY_LIMIT = '1mb';
 
 let cachedApp: ReturnType<typeof express> | null = null;
 
+let lastInitError: string | null = null;
+
 export async function createServerlessApp(): Promise<express.Express> {
   if (cachedApp) return cachedApp;
+  if (lastInitError) throw new Error(lastInitError);
 
-  const env = loadEnv();
+  let env;
+  try {
+    env = loadEnv();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    lastInitError = msg;
+    console.error('[serverless] loadEnv failed:', msg);
+    throw e;
+  }
   const server = express();
 
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server), {
@@ -68,6 +79,30 @@ export async function createServerlessApp(): Promise<express.Express> {
 
 // Vercel expects a default export of the Express app
 export default async function handler(req: express.Request, res: express.Response) {
-  const app = await createServerlessApp();
-  return app(req, res);
+  // Fast debug endpoint - bypasses Nest init, shows which envs are present (no values leaked)
+  if (req.url?.startsWith('/api/debug-env') || req.url?.startsWith('/debug-env')) {
+    const keys = ['DATABASE_URL','DATABASE_URL_UNPOOLED','BETTER_AUTH_SECRET','BETTER_AUTH_URL','CORS_ORIGINS','FIRST_SETUP_TOKEN','DOCUMENT_ARCHIVE_ROOT','NODE_ENV','API_PORT','API_HOST'];
+    const present: Record<string, string> = {};
+    for (const k of keys) {
+      const v = process.env[k];
+      present[k] = v ? `present len=${v.length} head=${v.slice(0,30)}...` : 'MISSING';
+    }
+    // Also try loadEnv validation without leaking
+    let envError: string | null = null;
+    try { loadEnv(); } catch (e) { envError = e instanceof Error ? e.message : String(e); }
+    res.status(200).json({ present, envError, lastInitError, nodeVersion: process.version });
+    return;
+  }
+  try {
+    const app = await createServerlessApp();
+    return app(req, res);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const stack = e instanceof Error ? e.stack : '';
+    console.error('[serverless] handler failed:', msg, stack?.slice(0,3000));
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'FUNCTION_INIT_FAILED', message: msg, lastInitError });
+    }
+    return;
+  }
 }
