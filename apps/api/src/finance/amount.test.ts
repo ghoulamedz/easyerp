@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Amount, amount, roundToScale, sum } from './amount.js';
 import { priceLine, sumLines } from './pricing.js';
-import Decimal from 'decimal.js';
+import { Decimal } from 'decimal.js';
 
 describe('Amount', () => {
   it('parses an exact decimal string and always renders the column scale', () => {

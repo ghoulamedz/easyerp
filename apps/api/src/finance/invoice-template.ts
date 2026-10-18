@@ -27,7 +27,7 @@
  * subtle layout drift to be discovered by a client.
  */
 
-import Decimal from 'decimal.js';
+import { Decimal } from 'decimal.js';
 
 import type { CustomerInvoiceView, DocumentParty } from './invoice-document.js';
 import { SCALE } from '@easyerp/contracts';

@@ -8,7 +8,7 @@
  */
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import Decimal from 'decimal.js';
+import { Decimal } from 'decimal.js';
 
 import { AuditService } from '../../audit/audit.service.js';
 import { prisma, resetDatabase } from '../../identity/__tests__/harness.js';

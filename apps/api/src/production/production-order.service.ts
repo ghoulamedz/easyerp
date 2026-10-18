@@ -7,8 +7,8 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import Decimal from 'decimal.js';
-import { Prisma } from '../generated/prisma';
+import { Decimal } from 'decimal.js';
+import { Prisma } from '../generated/prisma/index.js';
 
 import {
   draftProductionOrderSchema,

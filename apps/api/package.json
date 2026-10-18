@@ -50,5 +50,6 @@
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.0",
     "vitest": "^5.0.2"
-  }
+  },
+  "type": "module"
 }

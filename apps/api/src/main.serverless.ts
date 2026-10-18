@@ -36,7 +36,7 @@ export async function createServerlessApp(): Promise<express.Express> {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     lastInitError = msg;
-    console.error('[serverless] loadEnv failed:', msg);
+    process.stderr.write(`[serverless] loadEnv failed: ${msg}\n`);
     throw e;
   }
   const server = express();
@@ -99,7 +99,7 @@ export default async function handler(req: express.Request, res: express.Respons
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     const stack = e instanceof Error ? e.stack : '';
-    console.error('[serverless] handler failed:', msg, stack?.slice(0,3000));
+    process.stderr.write(`[serverless] handler failed: ${msg} ${stack ? stack.slice(0, 3000) : ''}\n`);
     if (!res.headersSent) {
       res.status(500).json({ error: 'FUNCTION_INIT_FAILED', message: msg, lastInitError });
     }

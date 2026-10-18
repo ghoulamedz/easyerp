@@ -6,7 +6,7 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "framework": null,
   "functions": {
-    "api/index.js": {
+    "api/index.mjs": {
       "maxDuration": 30
     }
   },

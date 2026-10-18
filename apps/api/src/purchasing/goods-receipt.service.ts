@@ -8,7 +8,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '../generated/prisma';
+import { Prisma } from '../generated/prisma/index.js';
 
 import {
   draftGoodsReceiptSchema,

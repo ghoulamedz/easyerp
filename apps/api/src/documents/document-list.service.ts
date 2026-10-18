@@ -12,7 +12,7 @@ import {
 } from '@easyerp/contracts';
 
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma';
+import { Prisma } from '../generated/prisma/index.js';
 
 export interface DocumentPage {
   readonly items: readonly DocumentSummary[];

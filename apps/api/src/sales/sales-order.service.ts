@@ -29,7 +29,7 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import Decimal from 'decimal.js';
+import { Decimal } from 'decimal.js';
 
 import {
   canTransition,

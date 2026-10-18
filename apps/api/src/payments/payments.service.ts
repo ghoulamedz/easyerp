@@ -20,9 +20,9 @@ import {
 } from '@easyerp/contracts';
 
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma';
+import { Prisma } from '../generated/prisma/index.js';
 import { conflict, notFound, validationFailed } from '../common/errors.js';
-import { Amount } from '../finance/amount';
+import { Amount } from '../finance/amount.js';
 
 /** The set of Document types that can be settled by a Payment. */
 export type SettlementableDocumentType =

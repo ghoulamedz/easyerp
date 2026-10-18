@@ -7,7 +7,7 @@
  * rounded once, HALF_UP, to the column scale.
  */
 
-import Decimal from 'decimal.js';
+import { Decimal } from 'decimal.js';
 import { SCALE, type Money, money as parseMoney } from '@easyerp/contracts';
 
 /** HALF_UP: 0.005 becomes 0.01, not 0.00. Chosen because a tax authority rounds half up. */

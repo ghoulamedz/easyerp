@@ -17,7 +17,7 @@ import { StockLedgerService } from '../../inventory/stock-ledger.service.js';
 import { prisma, resetDatabase } from '../../identity/__tests__/harness.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { DocumentNumberingService } from '../../numbering/document-numbering.service.js';
-import { SalesOrderService } from '../sales-order.service';
+import { SalesOrderService } from '../sales-order.service.js';
 
 const prismaService = new PrismaService();
 const numbering = new DocumentNumberingService(prismaService);
