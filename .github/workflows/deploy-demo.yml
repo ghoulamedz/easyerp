@@ -196,7 +196,16 @@ jobs:
       - name: Save API deployment URL
         id: save-url
         run: |
-          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          set -euo pipefail
+          # Vercel CLI 63+ removed --project/--output; VERCEL_PROJECT_ID selects the project.
+          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "Failed to resolve API deployment URL" >&2
+            exit 1
+          fi
+          # canonicalize via inspect so we store the aliased production host, not the ephemeral deployment id host
+          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
+          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "api_url=https://$URL" >> $GITHUB_OUTPUT
           echo "API deployed to: https://$URL"
 
@@ -240,7 +249,14 @@ jobs:
       - name: Get Web deployment URL
         id: web_url
         run: |
-          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          set -euo pipefail
+          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "Failed to resolve Web deployment URL" >&2
+            exit 1
+          fi
+          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
+          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "web_url=https://$URL" >> $GITHUB_OUTPUT
           echo "Web deployed to: https://$URL"
 
@@ -306,15 +322,33 @@ jobs:
 
       - name: Save final deployment URLs
         id: save-api-url
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
         run: |
-          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_API }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          set -euo pipefail
+          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "Failed to resolve API deployment URL" >&2
+            exit 1
+          fi
+          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
+          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "api_url=https://$URL" >> $GITHUB_OUTPUT
           echo "API redeployed to: https://$URL"
 
       - name: Save final Web deployment URL
         id: save-web-url
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
         run: |
-          URL=$(vercel inspect $(vercel list --scope ${{ secrets.VERCEL_ORG_ID }} --project ${{ secrets.VERCEL_PROJECT_ID_WEB }} --output json | jq -r '.[0].url') --output json | jq -r '.url')
+          set -euo pipefail
+          URL=$(vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json | jq -r '.[0].url // empty')
+          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
+            echo "Failed to resolve Web deployment URL" >&2
+            exit 1
+          fi
+          CANON=$(vercel inspect "$URL" --json | jq -r '.url // empty')
+          if [ -n "$CANON" ] && [ "$CANON" != "null" ]; then URL="$CANON"; fi
           echo "web_url=https://$URL" >> $GITHUB_OUTPUT
           echo "Web redeployed to: https://$URL"
 
