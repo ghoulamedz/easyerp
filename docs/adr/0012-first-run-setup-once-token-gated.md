@@ -6,5 +6,10 @@ A fresh deployment has no Business, no User and therefore nothing to sign in to,
 
 - The token is single-use and read from the host's `.env`, never committed. Consuming it writes an `AuditEntry` whose actor is null, because the person completing setup has no User yet — the one event in the audit trail with no actor, and it is the only legitimate one.
 - Because the setup form grows over time, a Business provisioned on an older version is completed by backfill rather than by re-running setup; Settings stays permanently available under `business-settings:update` so backfill guarantees nothing is _missing_ without ever having to reopen the path.
-- Archived document PDFs live on the host's disk, under a directory setup creates with restricted ownership, and are not covered by `pg_dump` — `ops/backup.sh` backs up the database only. Retaining an issued invoice for ten years is therefore the client's responsibility, discharged by downloading the archive to their own machine. This extends ADR 0010, which fixed that documents are rendered and archived server-side but not who owns the copy or for how long; there is no server-side second copy of a PDF.
+- **Every issued document is covered by the database dump.** There is no archived PDF
+  and no file beside the row (ADR 0010): an invoice's number, party, lines and totals
+  are columns, `ops/backup.sh` dumps the database daily, and `pnpm ops:restore-drill`
+  proves the dump loads. The record that answers an inspection is the printed A4 page,
+  so the Business discharges the ten-year obligation by filing the paper, and a
+  reprint reproduces the figures from the row.
 - Setup's guard is a count, not a flag, so restoring a backup that already contains a Business closes setup without any manual step, and a Business can never be provisioned twice by any means including a direct database edit.

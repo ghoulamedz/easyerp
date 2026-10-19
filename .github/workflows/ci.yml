@@ -110,3 +110,48 @@ jobs:
       - name: Integration tests
         run: pnpm test:integration
 
+  e2e:
+    name: browser tests (real API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: easyerp
+          POSTGRES_PASSWORD: easyerp
+          POSTGRES_DB: easyerp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U easyerp -d easyerp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # The API needs its whole environment, or `loadEnv` refuses to start — which
+      # is the point of that validation. Ports are the ones
+      # `apps/web/playwright.config.ts` starts the two processes on, so the web
+      # app's /api proxy and CORS point somewhere real.
+      DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp?schema=public
+      BETTER_AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only-1234
+      BETTER_AUTH_URL: http://localhost:3100
+      CORS_ORIGINS: http://localhost:3100
+      API_HOST: 127.0.0.1
+      API_PORT: '3102'
+    steps:
+      - uses: ./.github/actions/setup
+
+      - name: Install Chromium
+        run: pnpm --filter @easyerp/web exec playwright install --with-deps chromium
+
+      - name: Generate client
+        run: pnpm db:generate
+
+      - name: Migrations apply cleanly from empty
+        run: pnpm --filter @easyerp/api prisma:migrate:deploy
+
+      - name: Browser tests
+        # Playwright starts both the API and the production web build itself; see
+        # the `webServer` array in apps/web/playwright.config.ts.
+        run: pnpm --filter @easyerp/web test:e2e

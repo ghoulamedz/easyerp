@@ -30,8 +30,22 @@ Migrations never run inside an application bootstrap. On the demo they are a CI 
 
 ## Amendment: one more configured difference, and why it is not a branch
 
-"No code branches on the target" still holds, but the list of things that differ between the targets is longer than the two this ADR names. The document archive is the addition: production keeps filed copies on the VPS's disk under `DOCUMENT_ARCHIVE_ROOT`, while the demo keeps them in Vercel Blob, because a serverless function's `/tmp` is emptied between invocations and a copy filed there is a 404 waiting to happen.
+**Amended again: the document archive is gone, and with it the third difference.** This ADR
+used to list filed document copies as a target difference — production kept them under
+`DOCUMENT_ARCHIVE_ROOT`, the demo in Vercel Blob, chosen by whether a blob token was
+supplied rather than by asking which platform was running. That was a correct
+implementation of ADR 0010 and it rested on a premise ADR 0010 has since retracted: the
+artifact is not a file we render but the row we store and the page the visitor prints, so
+there is nothing to file and no storage backend to choose. The only two differences left
+are the two this ADR was written about — the connection string, and Neon's pooler.
 
-The distinction that matters is that this is a **configuration fact, not a target check**. `archiveFromConfig` reads whether a blob token was supplied; a VPS could supply one, and a serverless host without one falls back to a filesystem it will lose. Nothing in a service asks which platform it runs on, both backends implement one interface, and both deployments execute the same services.
+The rule it illustrated still holds and is worth keeping for the next such case:
+**a difference is a configuration fact, not a target check.** The archive chose its
+backend by reading whether a token had been supplied — nothing asked which platform it
+ran on, one interface had two implementations, and both deployments executed the same
+services.
 
-`BLOB_READ_WRITE_TOKEN` joins `DATABASE_URL` and TLS termination on the short list of things a deployment supplies. It is in `env.ts` with the others, so the list stays enumerable — the point of the rule was never that the list is short, it was that the list is explicit and that no branch reaches into business logic.
+`DATABASE_URL` and TLS termination are now the whole list of things one deployment
+supplies and the other does not. They are in `env.ts` with the rest of the environment,
+so the list stays enumerable — the point of the rule was never that the list is short, it
+was that the list is explicit and that no branch reaches into business logic.

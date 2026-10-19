@@ -104,3 +104,55 @@ customer's actual `name` and all three stored totals.
 - **The earlier session logs** describe the archive and the print goldens as
   implemented. They are superseded, not wrong for their date; a reader following them
   today would rebuild what this session deleted.
+
+
+## Follow-up the same evening: a gate I deleted by accident, and the three questions
+
+**I deleted the `e2e` CI job along with the `golden` job.** `ci.yml` had four jobs side
+by side, and removing a 50-line golden job took the 45-line e2e job below it too. CI went
+green with two jobs and no browser test at all, which is the failure mode a gate's absence
+produces: nothing fails. Restored byte-identically from `f703539` and verified by
+comparing the two job blocks as strings, not by eye.
+
+**Answering "does a redeploy ever reset or lose data?" — verified, not asserted:**
+
+- `deploy-demo.yml` creates the Neon branch only if it is missing, then runs
+  `prisma migrate deploy` (line 111). `migrate deploy` applies committed SQL and never
+  drops a table or a row.
+- There is no seed file anywhere: `apps/api/prisma/` holds `schema.prisma` and
+  `migrations/` only. No `migrate reset` and no `db push` in any script in the repository.
+- The integration harness refuses any database whose name does not end in `_test`.
+- `ops/src/deploy.ts` runs `pg_dump` (via `backup.sh`) *before* it migrates.
+- `number_series` is only ever created by the init migration; nothing deletes its rows
+  except the documented reset.
+
+**"Is the schema lost when I reset from the Neon dashboard?" — yes, and regenerating it is
+one command.** *Reset from parent* replaces a branch's data *and schema* with the parent's,
+and `main` has never been migrated, so the branch comes back empty. Verified against a
+scratch database created empty (`CREATE DATABASE easyerp_schema_check`): pointing
+`DATABASE_URL` at it and running `pnpm --filter @easyerp/api prisma:migrate:deploy` alone
+rebuilt all 38 models (39 tables including `_prisma_migrations`) from the 14 committed
+migrations.
+`docs/deploy-vercel-neon-free.md` gains the regeneration command, the note that it wants
+the **unpooled** string, the fact that the branch keeps its connection string, and a
+"keeping the demo's data / moving it to a client's VPS" section: dump with
+`pg_dump -Fc --no-owner --no-privileges` against the direct string *before* the client
+sees it, stop resetting after that, and restore on the VPS (the dump carries
+`_prisma_migrations` and `number_series`, so the schema version travels and the next
+invoice continues the sequence).
+
+**Two stale ADR clauses found while answering it:** ADR 0012 still promised archived PDFs
+on disk outside the dump (the record is now the row, so `pg_dump` covers it), and ADR 0013
+still listed the archive as a third target difference. Both amended.
+
+**Pagination and glyph shaping: measured, then recommended.** The DOM is not paginated in
+print emulation — three 200mm divs report one 756px rect each under `media: print`, so
+`getClientRects()` cannot see a page break — which means pagination must be observed from a
+real PDF. `page.pdf()` from the web suite's Chromium is enough: page count reads cleanly
+off the bytes (`/Count N` and one `/Type /Page` per page; 10 rows → 1 page, 40 → 2, 80 → 3),
+and no dependency is needed. Glyph shaping is measurable in-page: with Noto Naskh Arabic,
+`measureText('لا')` is 17px against `measureText('ل')` 19px + `measureText('ا')` 8px, so the
+lam-alef ligature being narrower than its two letters is a shaping assertion with no
+browser screenshot and no PDF parsing. Both belong in the existing `apps/web` e2e suite,
+which already starts a real API and a real Postgres, and which would need
+`fonts-noto-core` added to its CI job before the Arabic assertion means anything.

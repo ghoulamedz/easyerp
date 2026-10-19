@@ -146,19 +146,38 @@ migrations, so the Business you created survives every deploy
 deploys"). Resetting is therefore a deliberate act, and there are three ways to do
 it, cheapest first.
 
-**1. Reset the Neon branch to its parent (schema and data both go).** Console →
-project → Branches → `demo` → *Reset from parent* (or *Restore* to an earlier point,
-which is the reversible version). CLI equivalent:
+**1. Reset the Neon branch to its parent (the schema goes too).** Console → project →
+Branches → `demo` → *Reset from parent*. CLI equivalent — `--parent` is a flag with no
+value, and `demo`'s parent is `main`, which has never been migrated:
 
 ```bash
-neonctl branches reset demo --parent main --project-id "$NEON_PROJECT_ID"
+neonctl branches reset demo --parent --project-id "$NEON_PROJECT_ID"
 ```
 
-Neon then re-runs migrations on the next deploy; the API answers `/api/ready` with a
-database error until it does, and the web app redirects to `/setup` because
-`getStatus()` reports `needsSetup` rather than failing.
+**A reset leaves an empty schema, not an empty database.** "Reset from parent" means
+"replace this branch's data *and schema* with the parent's", and `main` holds nothing,
+so `document`, `number_series` and the other 36 tables are gone until migrations run
+again. That is routine rather than a problem: the migrations are in git under
+`apps/api/prisma/migrations/`, and regenerating the whole schema from an empty database
+is one command against the **unpooled** connection string:
 
-**2. Delete the branch and let the workflow recreate it.** The `neon-db` job creates
+```bash
+DATABASE_URL="$(neonctl connection-string --project-id "$NEON_PROJECT_ID" --branch demo --role neondb_owner)" \
+  pnpm --filter @easyerp/api prisma:migrate:deploy
+```
+
+That is exactly what `deploy-demo.yml`'s `neon-db` job runs on every deploy, so the
+easier route is to push anything or run `gh workflow run deploy-demo.yml` and let it
+migrate. Either way the branch keeps its connection string — the API's
+`DATABASE_URL` does not change — and the API answers `/api/ready` with a database error
+until migrations are back, while the web app redirects to `/setup` because
+`getStatus()` reports `needsSetup` rather than failing. Use the unpooled string for
+migrations: the pooled one is a transaction pooler, and a migration that takes an
+advisory lock through it can block instead of failing loudly.
+
+**2. Delete the branch and let the workflow recreate it.** This is route 1 with a
+different mechanism — the branch, its schema and its data all go — and the `neon-db` job
+creates `demo` and migrates it when it is missing: The `neon-db` job creates
 `demo` when it is missing, then migrates it:
 
 ```bash
@@ -166,7 +185,8 @@ neonctl branches delete demo --project-id "$NEON_PROJECT_ID"
 gh workflow run deploy-demo.yml
 ```
 
-**3. Empty the rows, keep the schema.** Paste into the Neon SQL editor, or run against
+**3. Empty the rows, keep the schema.** This is the one that leaves the schema intact,
+so nothing has to be regenerated: Paste into the Neon SQL editor, or run against
 the **unpooled** connection string. The order is dependency order — children before
 parents — and the `TRUNCATE … CASCADE` is required because Issued documents refuse
 `DELETE` in a trigger:
@@ -198,6 +218,67 @@ correct for a demo being re-run from scratch and wrong for a live Business, whic
 the whole reason this is a documented, deliberate act rather than something a deploy
 does on its own. `RESTART IDENTITY` in the statement above only affects the surrogate
 `id` sequences; it can be dropped without changing the document numbering either way.
+
+## Keeping the demo's data, and moving it to a client's VPS
+
+Resetting is fine while the demo is ours to break. The moment a client is looking at it,
+the data stops being disposable: the Business, its Parties, its Items and its
+`number_series` are what a migration to the VPS carries over, and a reset reuses numbers
+that a customer may already be holding on paper.
+
+**Why a redeploy cannot lose any of it.** Nothing in the deploy path writes downwards.
+`deploy-demo.yml`'s `neon-db` job only creates a branch *if it is missing* and then runs
+`prisma migrate deploy`, which applies committed migrations and never drops a table or a
+row; there is no seed file in the repository, no `prisma migrate reset` and no
+`prisma db push` in any script, and the integration harness refuses any database whose
+name does not end in `_test`. `ops/src/deploy.ts` on the VPS backs the database up with
+`pg_dump` *before* it migrates. Vercel and a code change touch the application, not the
+database.
+
+**Before the client sees it, take a dump and keep it off Neon.** Neon's free plan keeps a
+six-hour history window, so an hour spent resetting is recoverable and last week is not.
+
+```bash
+# The unpooled string: `pg_dump` needs a direct connection (ADR 0013).
+UNPOOLED="$(neonctl connection-string --project-id "$NEON_PROJECT_ID" --branch demo --role neondb_owner)"
+pg_dump "$UNPOOLED" -Fc --no-owner --no-privileges -f easyerp-demo-$(date +%F).dump
+```
+
+Custom format (`-Fc`) is what `pg_restore` reads directly, and it is the same shape
+`ops/src/backup.sh` writes on the VPS — so the file is one the existing restore drill can
+already prove. Do not commit it: a dump of a customer's database belongs on the machine
+that will own it.
+
+**Then stop resetting.** From that point the demo is a copy of a client's data, and route
+3 of the reset recipe is the only one that leaves a database worth keeping. Route 1 and
+route 2 both delete rows a customer created. If the demo is to stay up while the client
+types, `neonctl branches set-expiration demo` (no value) is worth running once, so a
+branch that looks abandoned is not auto-archived out from under a live evaluation.
+
+**Moving it to the VPS is one restore, not a re-entry.**
+
+```bash
+# On the VPS, after `pnpm ops:deploy` has created the database and the units.
+scp easyerp-demo-2026-10-20.dump easyerp@<host>:/home/easyerp/
+ssh easyerp@<host> 'pg_restore -U easyerp -d easyerp --no-owner --no-privileges \
+  /home/easyerp/easyerp-demo-2026-10-20.dump'
+ssh easyerp@<host> 'cd /home/easyerp/easyerp && git checkout release/<domain> && \
+  DATABASE_URL=postgresql:///easyerp pnpm --filter @easyerp/api prisma:migrate:deploy'
+```
+
+Three things make this safe rather than hopeful:
+
+- The dump carries `_prisma_migrations`, so Prisma reads the schema version off the
+  restored rows instead of assuming one; the `migrate deploy` above is a no-op when the
+  two are level, and applies only what the VPS is behind on.
+- The dump carries `number_series`, so the next invoice on the VPS continues the
+  sequence instead of restarting it — `FA-2026-0018` follows `FA-2026-0017`. This is the
+  one thing a re-typed demo could not reproduce.
+- `--no-owner --no-privileges` drops Neon's role names, which do not exist on the VPS.
+
+Afterwards, check the counts rather than the deploy log — `SELECT count(*) FROM document;`
+on both sides, and `SELECT code, year, "nextValue" FROM number_series;` — and print one
+invoice that already exists, to confirm the paper still carries the row's figures.
 
 ## Stale / missing in repo docs (flags)
 
