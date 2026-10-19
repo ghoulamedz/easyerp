@@ -113,4 +113,4 @@ Running a migration over the pooled string fails with `prepared statement "s0" a
 
 Prisma 7 cannot fix this for you: `prisma.config.ts` accepts `url` and `shadowDatabaseUrl` and nothing else, and `directUrl` was removed from the datasource block. So `scripts/direct-url.mjs` holds the rule and every migration path calls it. Production has no pooler and one string, which is why falling back to `DATABASE_URL` is correct rather than convenient.
 
-See [ADR 0013](adr/0013-two-deployment-targets.md).
+See `docs/deploy-vercel-neon-free.md` for the two connection strings, and ADR 0002 for why client data never lives there.

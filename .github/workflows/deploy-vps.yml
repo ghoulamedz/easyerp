@@ -21,8 +21,9 @@ name: Deploy VPS (Production)
 #   VPS_KNOWN_HOSTS     `ssh-keyscan -t ed25519 $VPS_HOST` (see DEPLOY.md)
 #   PROD_DATABASE_URL   postgresql://user:pass@localhost/easyerp?schema=public
 #   PROD_BETTER_AUTH_SECRET  `openssl rand -base64 48`
-#   PROD_BETTER_AUTH_URL  https://client-domain.tn
-#   PROD_CORS_ORIGINS   https://client-domain.tn
+#
+# BETTER_AUTH_URL and CORS_ORIGINS need no secret: the deploy renders both as
+# https://$DOMAIN from the branch name (release/<domain>) or the dispatch input.
 #   PROD_FIRST_SETUP_TOKEN `openssl rand -base64 32`
 #   PROD_ACME_EMAIL     admin@client-domain.tn
 
@@ -227,8 +228,7 @@ jobs:
             LOG_LEVEL=info
             DATABASE_URL=${{ secrets.PROD_DATABASE_URL }}
             DATABASE_POOL_MAX=10
-            DOCUMENT_ARCHIVE_ROOT=/var/lib/easyerp/documents
-            BETTER_AUTH_SECRET=${{ secrets.PROD_BETTER_AUTH_SECRET }}
+                        BETTER_AUTH_SECRET=${{ secrets.PROD_BETTER_AUTH_SECRET }}
             BETTER_AUTH_URL=https://__DOMAIN__
             CORS_ORIGINS=https://__DOMAIN__
             FIRST_SETUP_TOKEN=${{ secrets.PROD_FIRST_SETUP_TOKEN }}

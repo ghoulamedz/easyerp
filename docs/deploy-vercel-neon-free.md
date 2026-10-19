@@ -1,7 +1,7 @@
 # easyERP demo on free tier — Vercel + Neon (click-by-click)
 
 Demo-only path (disposable data, costs nothing). Client data never lives here
-(ADR 0013). Production is a separate VPS path — see `DEPLOY.md` "Production Deployment".
+Production is a separate VPS path — see `DEPLOY.md` "Production Deployment".
 
 > Source of truth: repo-root `DEPLOY.md` (note: there is **no** `docs/DEPLOY.md`;
 > guides that point there are stale), `.github/workflows/deploy-demo.yml`
@@ -282,7 +282,7 @@ database.
 six-hour history window, so an hour spent resetting is recoverable and last week is not.
 
 ```bash
-# The unpooled string: `pg_dump` needs a direct connection (ADR 0013).
+# The unpooled string: `pg_dump` needs a direct connection, not the pooler.
 UNPOOLED="$(neonctl connection-string --project-id "$NEON_PROJECT_ID" --branch demo --role neondb_owner)"
 pg_dump "$UNPOOLED" -Fc --no-owner --no-privileges -f easyerp-demo-$(date +%F).dump
 ```

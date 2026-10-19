@@ -31,6 +31,7 @@ export default async function PurchasingPage({ params }: { params: Promise<{ loc
         newKey="newPurchaseOrder"
         addFirstKey="addFirstPurchaseOrder"
         emptyKey="noPurchaseOrders"
+        detailBaseHref={`/${typedLocale}/purchasing/orders`}
         issuePermission="purchase-order:issue"
         cancelPermission="purchase-order:cancel"
         editPermission="purchase-order:update"

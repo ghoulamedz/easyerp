@@ -1,5 +1,5 @@
 /**
- * Terminology labels (ADR 0009, spec 001 stories 16–18).
+ * Terminology labels (spec 001 stories 16–18).
  *
  * A `Label` row is an override of the reviewed default wording for one code in
  * one locale. Deleting the row restores the default — which is why the wire

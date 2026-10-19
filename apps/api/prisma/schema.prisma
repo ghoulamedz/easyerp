@@ -159,7 +159,7 @@ model AuditEntry {
 
 /// The single Business this deployment serves. Every column here is a Setting:
 /// held in the database and edited by an Administrator, never read from a file
-/// mounted into the container (CONTEXT.md, ADR 0013).
+/// mounted by the host running it (CONTEXT.md).
 model Business {
   id                 String   @id @default(cuid())
   legalName          String   @db.VarChar(255)

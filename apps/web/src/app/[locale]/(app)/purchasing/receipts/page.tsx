@@ -30,6 +30,7 @@ export default async function GoodsReceiptsPage({ params }: { params: Promise<{ 
         newKey="newGoodsReceipt"
         addFirstKey="addFirstGoodsReceipt"
         emptyKey="noGoodsReceipts"
+        detailBaseHref={`/${typedLocale}/purchasing/receipts`}
       />
     </div>
   );

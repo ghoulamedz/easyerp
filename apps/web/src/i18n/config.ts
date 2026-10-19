@@ -213,8 +213,7 @@ const messages = {
     invoiceTax: 'TVA',
     invoiceTotal: 'Total',
     invoiceLines: 'Lignes',
-    invoiceArchive: 'Archive',
-    invoiceArchiveDescription: 'Version PDF conservée par le serveur.',
+    editButton: 'Modifier',
 
     printButton: 'Imprimer',
     downloadButton: 'Télécharger',
@@ -677,8 +676,7 @@ const messages = {
     invoiceTax: 'Tax',
     invoiceTotal: 'Total',
     invoiceLines: 'Lines',
-    invoiceArchive: 'Archive',
-    invoiceArchiveDescription: 'PDF version kept by the server.',
+    editButton: 'Edit',
 
     printButton: 'Print',
     downloadButton: 'Download',
@@ -1142,9 +1140,7 @@ const messages = {
     invoiceTax: 'ضريبة',
     invoiceTotal: 'مجموع',
     invoiceLines: 'أسطر',
-    invoiceArchive: 'الأرشيف',
-    invoiceArchiveDescription: 'نسخة PDF تحفظها الخادم.',
-
+    editButton: 'تعديل',
     printButton: 'طباعة',
     downloadButton: 'تحميل',
 

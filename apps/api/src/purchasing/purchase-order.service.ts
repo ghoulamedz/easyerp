@@ -424,12 +424,8 @@ export class PurchaseOrderService {
       where: { id: orderId, type: PURCHASE_ORDER },
       select: { number: true, status: true, issuedAt: true, locale: true, businessId: true },
     });
-    // A Draft has no number to print: that is "there is no paper yet", not "the
-    // data is wrong", so it answers the same NOT_FOUND the document endpoint does.
-    if (row?.status !== 'ISSUED' || row.number === null || row.issuedAt === null) {
-      throw notFound('Printable document', orderId);
-    }
-    invariant(row?.number && row.issuedAt && found, `Issued order ${orderId} vanished before printing.`);
+    // A draft prints too, carrying its status word; only a missing row is a 404.
+    if (row === null) throw notFound('Printable document', orderId);
 
     const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
     if (!business) throw notFound('Business', row.businessId);

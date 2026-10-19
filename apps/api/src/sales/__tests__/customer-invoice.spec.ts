@@ -232,10 +232,35 @@ describe('issuing', () => {
     expect(html).toContain(row.taxAmount.toFixed(3));
   });
 
-  it('refuses to print a draft, which has no number to print', async () => {
+  it('prints a draft, marked as one, with no number in the masthead', async () => {
+    // Drafts print because the figures are already stored on the row, and "show me
+    // what this will look like" is asked before issuing. The paper must not be
+    // mistakable for a filed invoice: the status word is across the sheet and the
+    // number cell is empty, because there is no number yet.
     const { draft } = await givenDraft();
 
-    await expect(invoices.readPrint(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const html = await invoices.readPrint(draft.id);
+
+    expect(html).toContain('class="watermark"');
+    expect(html).toContain('BROUILLON');
+    expect(html).not.toContain('FA-');
+    expect(html).not.toContain('DRAFT</div>'); // the footer state, not the watermark ink
+  });
+
+  it('prints an issued invoice without the draft watermark', async () => {
+    const { draft } = await givenDraft();
+
+    await invoices.issue(draft.id);
+    const html = await invoices.readPrint(draft.id);
+
+    expect(html).not.toContain('BROUILLON');
+    expect(html).toContain('FA-');
+  });
+
+  it('answers NOT_FOUND for an id that is not a document of this type', async () => {
+    await expect(invoices.readPrint('00000000-0000-0000-0000-000000000000')).rejects.toMatchObject(
+      { code: 'NOT_FOUND' },
+    );
   });
 
   it('honours the stored Number Pattern padding', async () => {

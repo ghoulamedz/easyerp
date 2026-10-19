@@ -1,3 +1,0 @@
-# Three locales with RTL from day one
-
-French, English and Arabic ship together, and layout is written with CSS logical properties so Arabic right-to-left is not a retrofit later. Machine-generated translations are marked as needing native review, and no legal text reaches a document template until a human has approved it — the person who reviews Arabic is the developer, and the test asserts layout rather than wording: `print-contract.test.ts` requires the templates to use logical properties only, which is the property that makes Arabic mirror instead of overflow, and it needs no browser to check it. Retrofitting RTL across a shipped interface means revisiting every margin, every grid and every chart, which is why it is cheaper to start with it.

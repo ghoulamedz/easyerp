@@ -30,6 +30,7 @@ export default async function SalesOrdersPage({ params }: { params: Promise<{ lo
         newKey="newSalesOrder"
         addFirstKey="addFirstSalesOrder"
         emptyKey="noSalesOrders"
+        detailBaseHref={`/${typedLocale}/sales-orders`}
         issuePermission="sales-order:issue"
         cancelPermission="sales-order:cancel"
         editPermission="sales-order:update"

@@ -304,7 +304,7 @@ describe('issuing a Delivery Note', () => {
     expect(html).not.toContain('Total HT');
   });
 
-  it('refuses to print a note that was never issued', async () => {
+  it('prints a draft note, marked as one', async () => {
     const { business, issued, orderLine } = await givenIssuedOrder('4');
     const draft = await deliveryNotes.createDraft({
       businessId: business.id,
@@ -312,7 +312,9 @@ describe('issuing a Delivery Note', () => {
       lines: [{ itemId: orderLine.itemId, quantity: '1', salesOrderLineId: orderLine.id }],
     });
 
-    await expect(deliveryNotes.readPrint(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    const html = await deliveryNotes.readPrint(draft.id);
+    expect(html).toContain('class="watermark"');
+    expect(html).toContain('BROUILLON');
   });
 
   it('stands alone: a note without an order ships independent stock', async () => {

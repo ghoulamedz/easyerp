@@ -1,7 +1,7 @@
 # Spec 001 — First Business, and the core sales, stock and invoicing slice
 
 Status: draft for review
-Covers: ADR 0012 (first-run setup), ADR 0004 (stock is a ledger), ADR 0005 (server prices documents), ADR 0006 (number at issue, issued is immutable), ADR 0007 (Better Auth), ADR 0008 (custom fields are data), ADR 0009 (three locales with RTL), ADR 0010 (server-rendered documents), ADR 0011 (TEIF-ready invoice model)
+Covers: ADR 0012 (first-run setup), ADR 0004 (stock is a ledger), ADR 0005 (server prices documents), ADR 0006 (number at issue, issued is immutable), ADR 0007 (Better Auth), ADR 0008 (custom fields are data), ADR 0010 (the row is the record, and its paper is a view), ADR 0018 (a draft prints, an issued document is read-only), ADR 0011 (TEIF-ready invoice model)
 
 ## Problem Statement
 
@@ -281,14 +281,16 @@ series.
 **Every figure above is unverified and awaits an accountant.** Tunisian VAT is
 changed by each loi de finances, and the thresholds that decide whether a small
 Business is subject to VAT at all were not confirmed from a primary source while
-this was written. ADR 0009 is the rule that applies: no legal text reaches a document
-template until a human has approved it. Until then the tests prove the _arithmetic
-and the data on the page_ — that a breakdown sums to the total, that an EXEMPT
-invoice carries the mention and no breakdown, that the Arabic page is marked RTL —
-and not that a rate is the right rate. Two gaps found by writing them are recorded
-as `it.fails` rather than fixed: the fiscal template prints no tax identifier for
-either party, and a Sales Order prints no VAT row although its gross differs from
-its net. Both need a human's wording (ADR 0009).
+this was written. The tests therefore prove the _arithmetic and the data on the page_ —
+that a breakdown sums to the total, that an EXEMPT invoice carries the mention and no
+breakdown, that the Arabic page is marked RTL — and not that a rate is the right rate.
+A rate is wrong because the law changed it, which is a data fix in the tax-rate table,
+not a template edit.
+
+Two gaps were found by writing those tests and have since been fixed: the fiscal
+template printed no tax identifier for either party, and a Sales Order printed no VAT
+row although its gross differed from its net. Both are now asserted as present, so the
+regression they described cannot return silently.
 
 **Implemented.** The API renders every paper from the stored row, on request, as
 self-contained HTML (`apps/api/src/finance/print-copy.ts`,

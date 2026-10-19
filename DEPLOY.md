@@ -108,9 +108,12 @@ DATABASE_URL="<direct-demo-branch-url>" pnpm --filter @easyerp/api prisma:migrat
 ### One-Time VPS Setup
 
 ```bash
-# 1. Install base packages
+# 1. Install base packages.
+#    `postgresql` resolves to 16 on Ubuntu 24.04, which is the version ADR 0013
+#    asks for: the distribution's own build, one major behind on purpose.
+#    `postgresql-17` is not in Ubuntu's archive and apt would refuse it.
 sudo apt-get update && sudo apt-get install -y \
-  postgresql-17 caddy git curl
+  postgresql caddy git curl
 
 # 2. Create easyerp user & database
 sudo -u postgres createuser -s easyerp
@@ -165,8 +168,6 @@ Setup is closed.
 | `VPS_KNOWN_HOSTS` | `ssh-keyscan -t ed25519 <vps-ip>` output (from step 3) |
 | `PROD_DATABASE_URL` | `postgresql://easyerp@localhost/easyerp?schema=public` |
 | `PROD_BETTER_AUTH_SECRET` | `openssl rand -base64 48` |
-| `PROD_BETTER_AUTH_URL` | `https://client-domain.tn` |
-| `PROD_CORS_ORIGINS` | `https://client-domain.tn` |
 | `PROD_FIRST_SETUP_TOKEN` | `openssl rand -base64 32` |
 | `PROD_ACME_EMAIL` | `admin@client-domain.tn` |
 
@@ -174,6 +175,13 @@ Names match the Production/VPS section of `.env.example`, which documents
 each value and the command that generates it. Secrets are referenced, never
 printed: the workflow masks connection strings after capture and the summary
 steps redact tokens.
+
+`PROD_BETTER_AUTH_URL` and `PROD_CORS_ORIGINS` are **not** in this list on
+purpose: the deploy renders both from the domain it is deploying to
+(`https://$DOMAIN`, from the `release/<domain>` branch name or the
+`workflow_dispatch` input). A secret here would be a value that looks
+authoritative and changes nothing — the same trap that once left a deployment
+trusting a placeholder origin while sign-in answered 403 for every visitor.
 
 ### Deploy to Production
 
@@ -224,7 +232,6 @@ Migrations run automatically in `deploy-vps.yml` and `deploy.ts` before service 
 | `FIRST_SETUP_TOKEN` | `dev-first-setup-token` | ✅ | `openssl rand -base64 32` |
 | `API_PORT` | `3002` | ✅ | |
 | `API_HOST` | `0.0.0.0` | ✅ | |
-| `DOCUMENT_ARCHIVE_ROOT` | `var/documents` | ✅ | Absolute path in prod |
 | `LOG_LEVEL` | `info` | | |
 | `NODE_ENV` | `development` | ✅ | `production` |
 

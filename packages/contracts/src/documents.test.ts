@@ -279,6 +279,7 @@ describe('Sales Order responses', () => {
         deliveredQuantity: '0.000',
       },
     ],
+    taxGroups: [{ rate: '19.000', base: '300.000', amount: '57.000' }],
   };
 
   it('carries the server-resolved price and the delivery-additive in one line', () => {

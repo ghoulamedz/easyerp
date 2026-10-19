@@ -40,6 +40,7 @@ export function salesOrderPaperView(
   return pricedPaperView({
     kind: 'SALES_ORDER',
     locale,
+    status: order.status,
     number: order.number ?? '',
     issuedAt: dateOf(order.issuedAt),
     issuer: paperIssuerOf(issuer),
@@ -60,7 +61,13 @@ export function salesOrderPaperView(
       taxAmount: line.taxAmount,
       grossAmount: line.grossAmount,
     })),
-    taxGroups: [],
+    // The same breakdown the Purchase Order prints: a Sales Order quotes the VAT it
+    // charges, so a total with no per-rate rows beside it is an unfinished paper.
+    taxGroups: order.taxGroups.map((group) => ({
+      rate: group.rate,
+      base: group.base,
+      amount: group.amount,
+    })),
     totals: paperTotals(order),
   });
 }
@@ -74,6 +81,7 @@ export function purchaseOrderPaperView(
   return pricedPaperView({
     kind: 'PURCHASE_ORDER',
     locale,
+    status: order.status,
     number: order.number ?? '',
     issuedAt: dateOf(order.issuedAt),
     issuer: paperIssuerOf(issuer),
@@ -122,6 +130,7 @@ export function deliveryNotePaperView(
   return quantityPaperView({
     kind: 'DELIVERY_NOTE',
     locale,
+    status: note.status,
     number: note.number ?? '',
     issuedAt: dateOf(note.issuedAt),
     issuer: paperIssuerOf(issuer),
@@ -159,6 +168,7 @@ export function goodsReceiptPaperView(
   return quantityPaperView({
     kind: 'GOODS_RECEIPT',
     locale,
+    status: receipt.status,
     number: receipt.number ?? '',
     issuedAt: dateOf(receipt.issuedAt),
     issuer: paperIssuerOf(issuer),
@@ -196,6 +206,7 @@ export function productionOrderPaperView(
   return quantityPaperView({
     kind: 'PRODUCTION_ORDER',
     locale,
+    status: order.status,
     number: order.number ?? '',
     issuedAt: dateOf(order.issuedAt),
     issuer: paperIssuerOf(issuer),

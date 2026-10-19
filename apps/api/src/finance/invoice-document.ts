@@ -14,15 +14,19 @@
  * 2. The VAT regime is carried through as data, not applied here. Whether an
  *    exemption may attach to an activity rather than to the whole Business is a
  *    tax question this module must not answer — CONTEXT.md defines the regime as
- *    a Business fact, and ADR 0009 keeps unreviewed tax reasoning out of the
- *    code. The template decides what to show; this module records what it is.
+ *    a Business fact, and this module keeps tax reasoning out of the code. The template decides what to show; this module records what it is.
  */
 
 import { renderDocumentNumber, type NumberPattern, type VatRegime } from '@easyerp/contracts';
 
 import { Amount } from './amount.js';
 import { priceLine, sumLines, type PricedLineInput } from './pricing.js';
-import { directionOf, type LabelResolver, type Locale } from './terminology.js';
+import {
+  directionOf,
+  type DocumentStatus,
+  type LabelResolver,
+  type Locale,
+} from './terminology.js';
 
 export interface DocumentParty {
   readonly displayName: string;
@@ -55,6 +59,8 @@ export interface CustomerInvoiceView {
   readonly kind: 'CUSTOMER_INVOICE' | 'CREDIT_NOTE';
   readonly locale: Locale;
   readonly direction: 'ltr' | 'rtl';
+  /** Prints a watermark when it is not `ISSUED`; see `statusWord`. */
+  readonly status: DocumentStatus;
   readonly number: string;
   readonly issuedAt: string;
   readonly vatRegime: VatRegime;
@@ -85,6 +91,8 @@ export interface CustomerInvoiceView {
 }
 
 export interface CustomerInvoiceInput {
+  /** Defaults to `ISSUED`, so every existing caller keeps printing a clean paper. */
+  readonly status?: DocumentStatus;
   readonly pattern: NumberPattern;
   readonly sequence: number;
   /** From the stored Number Pattern, so the padding is honoured end to end. */
@@ -126,6 +134,7 @@ export function buildCustomerInvoice(input: CustomerInvoiceInput): CustomerInvoi
     kind: input.kind ?? 'CUSTOMER_INVOICE',
     locale: input.locale,
     direction: directionOf(input.locale),
+    status: input.status ?? 'ISSUED',
     number: input.formattedNumber ??
       renderDocumentNumber(input.pattern, {
         sequence: input.sequence,

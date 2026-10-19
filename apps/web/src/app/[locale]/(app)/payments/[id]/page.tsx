@@ -112,17 +112,6 @@ export default async function PaymentDetailPage({
             </CardBody>
           </Card>
         </div>
-
-        <div className="space-y-6">
-          <Card>
-            <CardHeader title={t('invoiceArchive')} />
-            <CardBody>
-              <p className="text-xs text-ink-muted">
-                {t('invoiceArchiveDescription')}
-              </p>
-            </CardBody>
-          </Card>
-        </div>
       </div>
     </div>
   );

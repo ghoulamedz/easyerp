@@ -1,5 +1,5 @@
 /**
- * The operational-paper HTML template (ADR 0009, ADR 0010).
+ * The operational-paper HTML template (ADR 0010, ADR 0018).
  *
  * One template serves the five papers, shape-directed: a priced paper prints
  * the money table and totals block; a quantities paper prints quantity columns
@@ -18,6 +18,7 @@ import { SCALE } from '@easyerp/contracts';
 
 import type { PaperView } from './paper-document.js';
 import { escapeHtml, formatMoney } from '../finance/invoice-template.js';
+import { statusWord, type DocumentStatus, type Locale } from '../finance/terminology.js';
 
 /** A quantity keeps its own scale: `1`, `2.5` and `10` must not all print as `1.000`. */
 function formatQuantity(value: string): string {
@@ -299,6 +300,20 @@ function renderReferences(paper: PaperView, labels: PaperLabelResolver): string 
     .join('');
 }
 
+/**
+ * The word across a paper that is not an issued document.
+ *
+ * Logical properties only: the Arabic page mirrors with `dir="rtl"`, and a
+ * `left:` here would put the watermark in the wrong half of the sheet. Fixed
+ * positioning is what makes it float over the content on every printed page
+ * without moving a single line of the table.
+ */
+function watermarkHtml(status: DocumentStatus, locale: Locale): string {
+  const word = statusWord(status, locale);
+  if (word === null) return '';
+  return `<div class="watermark" aria-hidden="true">${escapeHtml(word)}</div>`;
+}
+
 export function renderPaperHtml(paper: PaperView): string {
   const labels = paperTerminologyFor(paper.locale);
 
@@ -322,6 +337,7 @@ export function renderPaperHtml(paper: PaperView): string {
     <style>${PAPER_CSS}</style>
   </head>
   <body>
+    ${watermarkHtml(paper.status, paper.locale)}
     <header class="masthead">
       <h1 class="document-title">${escapeHtml(title)}</h1>
       <dl class="document-meta">
@@ -357,6 +373,24 @@ export function renderPaperHtml(paper: PaperView): string {
  * only, no physical direction may appear here.
  */
 const PAPER_CSS = `
+/* A draft or cancelled paper says so, across the page, in the same ink as the
+   rules: readable on paper, invisible under the figures it must not obscure. */
+.watermark {
+  position: fixed;
+  inset-block-start: 34%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  font-size: 96pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(0, 0, 0, 0.09);
+  border: 8px solid rgba(0, 0, 0, 0.09);
+  padding: 0.05em 0.2em;
+  border-radius: 12px;
+  white-space: nowrap;
+  z-index: 0;
+}
+
   @page {
     size: A4;
     margin: 14mm;

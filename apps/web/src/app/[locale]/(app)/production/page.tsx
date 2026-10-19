@@ -30,6 +30,7 @@ export default async function ProductionPage({ params }: { params: Promise<{ loc
         newKey="newProductionOrder"
         addFirstKey="addFirstProductionOrder"
         emptyKey="noProductionOrders"
+        detailBaseHref={`/${typedLocale}/production/orders`}
         issuePermission="production-order:issue"
         cancelPermission="production-order:cancel"
         editPermission="production-order:update"

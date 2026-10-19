@@ -1,5 +1,5 @@
 /**
- * The Customer Invoice HTML template (ADR 0009, ADR 0010).
+ * The Customer Invoice HTML template (ADR 0010, ADR 0018).
  *
  * ## Logical properties only
  *
@@ -18,18 +18,19 @@
  * run. `escapeHtml` is applied to every interpolated value; there is no path that
  * inserts a string without it.
  *
- * ## Fonts are a deployment dependency
+ * ## Fonts are the reader's
  *
- * The Arabic face has to exist on the machine that renders, or Chromium silently
- * substitutes a fallback with different metrics and the golden bytes move. The
- * required packages are named in `docs/adr/0009-three-locales-with-rtl.md` and
- * installed by the deploy script; a missing font is a failed golden run, not a
- * subtle layout drift to be discovered by a client.
+ * Nothing renders on the server: the API serves HTML and the visitor's browser
+ * prints it, so the Arabic face has to exist on the *reader's* machine. Every
+ * stack therefore names an Arabic-capable family before its fallbacks, and
+ * `print-contract.test.ts` asserts the family is present — a substitute face is a
+ * silently broken join in a client's name, not a layout drift to be noticed later.
  */
 
 import { Decimal } from 'decimal.js';
 
 import type { CustomerInvoiceView, DocumentParty } from './invoice-document.js';
+import { statusWord, type DocumentStatus, type Locale } from './terminology.js';
 import { SCALE } from '@easyerp/contracts';
 
 const HTML_ESCAPES: Record<string, string> = {
@@ -52,8 +53,8 @@ export function escapeHtml(value: string): string {
  *
  * Grouping is done here rather than by `Decimal#toFormat`, which this version of
  * decimal.js does not provide. Writing it out also keeps the printed form fixed:
- * a locale-aware formatter would render differently per machine, and the golden
- * gate compares bytes.
+ * a locale-aware formatter would render differently per machine, and two people
+ * reading the same invoice on those two machines must read the same digits.
  */
 export function formatMoney(value: string): string {
   const fixed = new Decimal(value).toFixed(SCALE, Decimal.ROUND_HALF_UP);
@@ -72,6 +73,18 @@ function formatQuantity(value: string): string {
   return new Decimal(value).toFixed(SCALE).replace(/\.?0+$/, '');
 }
 
+/**
+ * The word across a paper that is not an issued document, so a draft never looks
+ * like a filed invoice. Logical properties only — the Arabic page mirrors with
+ * `dir="rtl"` — and fixed positioning, so it floats over every printed page
+ * without moving a line of the table.
+ */
+function watermarkHtml(status: DocumentStatus, locale: Locale): string {
+  const word = statusWord(status, locale);
+  if (word === null) return '';
+  return `<div class="watermark" aria-hidden="true">${escapeHtml(word)}</div>`;
+}
+
 function renderParty(party: DocumentParty, heading: string): string {
   const address = party.addressLines.map((line) => `<div>${escapeHtml(line)}</div>`).join('');
 
@@ -79,6 +92,14 @@ function renderParty(party: DocumentParty, heading: string): string {
       <section class="party">
         <h2 class="party-heading">${escapeHtml(heading)}</h2>
         <div class="party-name">${escapeHtml(party.displayName)}</div>
+        ${
+          // Both sides, not just the issuer: a fiscal invoice that does not name the
+          // Customer's tax identifier cannot support the deduction it claims, and the
+          // operational papers have printed it since they were written.
+          party.taxIdentifier !== ''
+            ? `<div class="party-address">${escapeHtml(party.taxIdentifier)}</div>`
+            : ''
+        }
         <div class="party-address">${address}</div>
       </section>`;
 }
@@ -87,7 +108,8 @@ function renderParty(party: DocumentParty, heading: string): string {
  * The VAT section, which differs by regime in kind rather than in detail: a
  * `STANDARD` document prints the per-rate breakdown a tax authority expects, and
  * an `EXEMPT` document prints the mention instead and no breakdown at all. Both
- * shapes have to survive layout, which is why the golden matrix covers each.
+ * shapes are exercised in all three locales, because two shapes that only ever
+ * print in French have not been laid out at all.
  */
 function renderVatSection(invoice: CustomerInvoiceView): string {
   const labels = invoice.labels;
@@ -222,7 +244,7 @@ export function renderInvoiceHtml(invoice: CustomerInvoiceView): string {
 
   // A Credit Note states which Invoice it corrects; the meta row is part of its
   // field set, present only when the document is one. An Invoice prints the same
-  // markup as before, so the invoice goldens are untouched by this branch.
+  // markup, so the branch is a row and not a second template.
   const correctedRow =
     invoice.kind === 'CREDIT_NOTE' && invoice.correctedNumber !== null
       ? `
@@ -240,6 +262,7 @@ export function renderInvoiceHtml(invoice: CustomerInvoiceView): string {
     <style>${INVOICE_CSS}</style>
   </head>
   <body>
+    ${watermarkHtml(invoice.status, invoice.locale)}
     <header class="masthead">
       <h1 class="document-title">${escapeHtml(titleLabel)}</h1>
       <dl class="document-meta">
@@ -274,10 +297,28 @@ export function renderInvoiceHtml(invoice: CustomerInvoiceView): string {
 }
 
 /**
- * No directional physical property may be added to this stylesheet. The
- * golden test's RTL assertions are what keeps that rule honest.
+ * No directional physical property may be added to this stylesheet: `dir` on the
+ * root is what mirrors the page, and `print-contract.test.ts` fails on a `left`.
  */
 const INVOICE_CSS = `
+/* A draft or cancelled paper says so, across the page, in the same ink as the
+   rules: readable on paper, invisible under the figures it must not obscure. */
+.watermark {
+  position: fixed;
+  inset-block-start: 34%;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%) rotate(-24deg);
+  font-size: 96pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(0, 0, 0, 0.09);
+  border: 8px solid rgba(0, 0, 0, 0.09);
+  padding: 0.05em 0.2em;
+  border-radius: 12px;
+  white-space: nowrap;
+  z-index: 0;
+}
+
   @page {
     size: A4;
     margin: 14mm;

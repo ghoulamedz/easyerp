@@ -290,6 +290,9 @@ describe('DocumentList actions', () => {
   });
 });
 
+/** Where a row's View link goes; every page names its own detail screen. */
+const DETAIL_BASE = '/en/sales-orders';
+
 describe('DocumentList view/print', () => {
   function stubList(endpoint: string, items: Record<string, unknown>[]) {
     global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
@@ -329,52 +332,116 @@ describe('DocumentList view/print', () => {
         emptyKey="noSalesOrders"
         issuePermission="sales-order:issue"
         cancelPermission="sales-order:cancel"
+        detailBaseHref={DETAIL_BASE}
       />,
     );
   }
 
-  it('renders View and Print links with the pdf href for an issued invoice', async () => {
+  it('links View at the detail screen and Print at the paper of an issued invoice', async () => {
     stubList('/sales/invoices', [issuedRow]);
     renderList('/sales/invoices');
 
     const view = await screen.findByRole('link', { name: 'View' });
-    expect(view).toHaveAttribute('href', '/api/sales/invoices/o-1/pdf');
-    expect(view).toHaveAttribute('target', '_blank');
+    expect(view).toHaveAttribute('href', `${DETAIL_BASE}/o-1`);
     const print = screen.getByRole('link', { name: 'Print' });
-    expect(print).toHaveAttribute('href', '/api/sales/invoices/o-1/pdf');
+    expect(print).toHaveAttribute('href', '/api/sales/invoices/o-1/print');
     expect(print).toHaveAttribute('target', '_blank');
   });
 
-  it('renders View and Print links for an issued credit note', async () => {
-    stubList('/credit-notes', [issuedRow]);
-    renderList('/credit-notes');
-
-    const view = await screen.findByRole('link', { name: 'View' });
-    expect(view).toHaveAttribute('href', '/api/credit-notes/o-1/pdf');
-    expect(screen.getByRole('link', { name: 'Print' })).toHaveAttribute(
-      'href',
-      '/api/credit-notes/o-1/pdf',
-    );
-  });
-
-  it('hides View and Print on endpoints with no pdf route', async () => {
-    stubList('/sales/orders', [issuedRow]);
-    renderList('/sales/orders');
-
-    await screen.findAllByText('Acme SARL');
-
-    expect(screen.queryByRole('link', { name: 'View' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Print' })).not.toBeInTheDocument();
-  });
-
-  it('hides View and Print for a draft with no archive', async () => {
+  it('prints a draft too, and says so on the paper', async () => {
+    // The figures are stored on the draft row, so the paper is real; the API
+    // renders it with BROUILLON across the sheet. Refusing to link until issue
+    // answered "what will this look like" after the moment it was asked.
     stubList('/sales/invoices', [draftRow]);
     renderList('/sales/invoices');
 
+    const view = await screen.findByRole('link', { name: 'View' });
+    expect(view).toHaveAttribute('href', `${DETAIL_BASE}/o-1`);
+    expect(screen.getByRole('link', { name: 'Print' })).toHaveAttribute(
+      'href',
+      '/api/sales/invoices/o-1/print',
+    );
+  });
+
+  it('prints the operational papers, which had no link at all', async () => {
+    stubList('/sales/orders', [issuedRow]);
+    renderList('/sales/orders');
+
+    expect(await screen.findByRole('link', { name: 'Print' })).toHaveAttribute(
+      'href',
+      '/api/sales/orders/o-1/print',
+    );
+  });
+
+  it('offers Edit on a draft and never on an issued row', async () => {
+    // The link is the interface's half of ADR 0006: the API refuses the update, so
+    // offering the button would only produce an error the reader cannot act on.
+    global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (url === '/api/auth/get-session') {
+        return { ok: true, status: 200, json: async () => ({ session: { userId: 'u-1' } }) };
+      }
+      if (url === '/api/users/me') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () =>
+            sessionUserWith(['sales-order:create', 'sales-order:update', 'sales-order:issue']),
+        };
+      }
+      if (url === '/api/sales/orders' && method === 'GET') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            items: [draftRow, { ...issuedRow, id: 'o-2' }],
+            total: 2,
+            page: 1,
+            pageSize: 25,
+          }),
+        };
+      }
+      throw new Error(`unexpected fetch ${method} ${url}`);
+    }) as unknown as typeof fetch;
+    render(
+      <DocumentList
+        locale="en"
+        endpoint="/sales/orders"
+        createPermission="sales-order:create"
+        newHref="/en/sales-orders/new"
+        newKey="newSalesOrder"
+        addFirstKey="addFirstSalesOrder"
+        emptyKey="noSalesOrders"
+        editPermission="sales-order:update"
+        editBaseHref="/en/sales-orders"
+      />,
+    );
+
+    const edits = await screen.findAllByRole('link', { name: 'Edit' });
+
+    expect(edits).toHaveLength(1);
+    expect(edits[0]).toHaveAttribute('href', '/en/sales-orders/o-1/edit');
+  });
+
+  it('offers no View link when the page names no detail screen', async () => {
+    stubList('/sales/orders', [issuedRow]);
+    render(
+      <DocumentList
+        locale="en"
+        endpoint="/sales/orders"
+        createPermission="sales-order:create"
+        newHref="/en/sales-orders/new"
+        newKey="newSalesOrder"
+        addFirstKey="addFirstSalesOrder"
+        emptyKey="noSalesOrders"
+      />,
+    );
+
     await screen.findAllByText('Acme SARL');
 
     expect(screen.queryByRole('link', { name: 'View' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Print' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Print' })).toBeInTheDocument();
   });
 });
 
@@ -518,6 +585,7 @@ describe('DocumentList button visibility by status', () => {
         emptyKey="noSalesOrders"
         issuePermission="sales-order:issue"
         cancelPermission="sales-order:cancel"
+        detailBaseHref={DETAIL_BASE}
       />,
     );
   }
@@ -572,12 +640,12 @@ describe('DocumentList button visibility by status', () => {
 
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument();
-    // View/Print should be visible for issued invoices
-    expect(screen.getByRole('link', { name: 'View' })).toBeInTheDocument();
+    // Print is always offered; View only when the page names its detail screen.
+    expect(screen.queryByRole('link', { name: 'View' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Print' })).toBeInTheDocument();
   });
 
-  it('shows Issue for DRAFT invoice rows, hides View/Print', async () => {
+  it('shows Issue for DRAFT invoice rows, and still prints them', async () => {
     stubListWithPermissions('/sales/invoices', [draftRow]);
     render(
       <DocumentList
@@ -596,6 +664,9 @@ describe('DocumentList button visibility by status', () => {
 
     expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Print' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Print' })).toHaveAttribute(
+      'href',
+      '/api/sales/invoices/o-1/print',
+    );
   });
 });

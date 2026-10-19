@@ -28,7 +28,14 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadOnlyPaths=/home/easyerp/.nvm
-ReadWritePaths=/home/easyerp/easyerp-api /var/lib/easyerp/documents
+# `ReadWritePaths=` is expected to name directories that exist, and the document
+# archive directory this used to also name is gone with the archive (ADR 0010):
+# no code creates it and none writes there, so it was a path the unit would have
+# needed provisioned by hand for no reason. (Whether a missing entry stops the
+# unit from starting could not be checked here — no system bus in the build
+# environment — so this is stated as the hazard it is rather than as a measured
+# failure. `systemd-analyze verify` reports nothing either way.)
+ReadWritePaths=/home/easyerp/easyerp-api
 
 [Install]
 WantedBy=multi-user.target

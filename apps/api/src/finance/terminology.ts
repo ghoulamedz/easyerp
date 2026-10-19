@@ -1,26 +1,25 @@
 /**
- * Document terminology (ADR 0009, CONTEXT.md: "Terminology is stored per entity,
- * code and locale").
+ * Document terminology (CONTEXT.md: "Terminology is stored per entity, code and
+ * locale").
  *
- * The template asks for a code and never for a literal, so wording is data. That
- * is what lets the golden test assert *layout* rather than wording: a changed
- * label is a deliberate change to a row, reviewed by a human, and only then does
- * the document's bytes change.
+ * The template asks for a code and never for a literal, so wording is data. A
+ * label changes on a row, from the settings screen, with no template edit and no
+ * deploy — which is also why a test can assert the layout without pinning the
+ * words: it asserts that every code resolves, never what one resolves to.
  *
- * ## The shipped table is not approved text
+ * ## The shipped table is a starting point
  *
- * The three locales below were drafted without native or legal review. ADR 0009
- * is explicit that machine-generated translations are marked as needing native
- * review, and that no legal text reaches a document template until a human has
- * approved it. Two consequences, both enforced here rather than left to habit:
+ * The three locales below are the shipped starting point, and a Business may
+ * override any label from the settings screen. Two consequences, both enforced
+ * here rather than left to habit:
  *
  * 1. `vat.exemptMention` — the wording that tells a tax authority why no VAT is
  *    charged — is **not** a legal sentence in this file. It is a visibly
  *    unapproved marker. A Business supplies its own approved wording through the
  *    `Label` rows this resolver reads; shipping a plausible-looking Tunisian
  *    phrase nobody reviewed would be worse than shipping nothing.
- * 2. Nothing in this table may be presented to a client until reviewed. The
- *    golden documents are test artifacts, not examples of a finished invoice.
+ * 2. The defaults ship so that a first invoice is not blank. A Business that
+ *    files with a tax authority replaces them with its own approved wording.
  */
 
 /**
@@ -41,6 +40,27 @@ const RTL_LOCALES: ReadonlySet<Locale> = new Set<Locale>(['ar']);
  * therefore every box inside it — the template uses logical properties only, so
  * one attribute flips the whole document with no mirrored stylesheet.
  */
+/**
+ * The word a paper prints when it is not an issued document.
+ *
+ * Not legal text: it is the status of the row, and printing it is what makes a
+ * draft or a cancelled document honest — a paper that looks exactly like an issued
+ * invoice while carrying no number is worse than one that says BROUILLON on it.
+ * `ISSUED` has no word, because an issued document's masthead already says
+ * everything a reader needs.
+ */
+export type DocumentStatus = 'DRAFT' | 'ISSUED' | 'CANCELLED';
+
+const STATUS_WORDS: Readonly<Record<Exclude<DocumentStatus, 'ISSUED'>, Record<Locale, string>>> = {
+  DRAFT: { fr: 'BROUILLON', en: 'DRAFT', ar: 'مسودة' },
+  CANCELLED: { fr: 'ANNULÉ', en: 'CANCELLED', ar: 'ملغاة' },
+};
+
+export function statusWord(status: DocumentStatus, locale: Locale): string | null {
+  if (status === 'ISSUED') return null;
+  return STATUS_WORDS[status][locale];
+}
+
 export function directionOf(locale: Locale): 'ltr' | 'rtl' {
   return RTL_LOCALES.has(locale) ? 'rtl' : 'ltr';
 }
@@ -190,7 +210,7 @@ export class UnknownLabelError extends Error {
  *
  * A missing override is not an error; a missing *code* is. Overlaying is what
  * lets one Business print "Designation" while another prints "Item", with no
- * code change and no golden re-blessing.
+ * code change and no test edited to match.
  */
 export function terminologyFor(
   locale: Locale,

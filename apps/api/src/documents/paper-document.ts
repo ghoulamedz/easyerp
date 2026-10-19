@@ -21,7 +21,7 @@
 
 import { localeSchema, type Locale } from '@easyerp/contracts';
 
-import { directionOf } from '../finance/terminology.js';
+import { directionOf, type DocumentStatus } from '../finance/terminology.js';
 
 export const PAPER_TYPES = [
   'SALES_ORDER',
@@ -103,6 +103,13 @@ export interface PaperView {
   readonly kind: PaperKind;
   readonly locale: Locale;
   readonly direction: 'ltr' | 'rtl';
+  /**
+   * The row's status. A draft and a cancelled document print too — with the word
+   * from `statusWord` across the page — because "show me what this will look like"
+   * is the question a person asks *before* issuing, and a paper that cannot be
+   * viewed until it is issued answers it too late.
+   */
+  readonly status: DocumentStatus;
   readonly number: string;
   readonly issuedAt: string;
   /** Carried only when the paper prints money; quantities-only papers omit it. */
@@ -167,6 +174,7 @@ export function paperLocale(documentLocale: string): Locale {
 export function quantityPaperView(input: {
   kind: PaperKind;
   locale: Locale;
+  status: DocumentStatus;
   number: string;
   issuedAt: string;
   issuer: PaperParty;
@@ -178,6 +186,7 @@ export function quantityPaperView(input: {
     kind: input.kind,
     locale: input.locale,
     direction: directionOf(input.locale),
+    status: input.status,
     number: input.number,
     issuedAt: input.issuedAt,
     currency: null,
@@ -196,6 +205,7 @@ export function quantityPaperView(input: {
 export function pricedPaperView(input: {
   kind: PaperKind;
   locale: Locale;
+  status: DocumentStatus;
   number: string;
   issuedAt: string;
   /** Optional: the operational papers carry the served figures, which print
@@ -212,6 +222,7 @@ export function pricedPaperView(input: {
     kind: input.kind,
     locale: input.locale,
     direction: directionOf(input.locale),
+    status: input.status,
     number: input.number,
     issuedAt: input.issuedAt,
     currency: input.currency ?? null,

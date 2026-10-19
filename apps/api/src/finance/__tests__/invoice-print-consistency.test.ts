@@ -133,23 +133,26 @@ describe('the invoice paper carries the stored data', () => {
    *
    * A Tunisian invoice carries the seller's and the buyer's *matricule fiscal* —
    * the tax identifier — and the view has carried both all along
-   * (`issuer.taxIdentifier`, `party.taxIdentifier`). The fiscal template prints
-   * neither: `renderParty` writes the name and the address only. The operational
-   * papers do print it (`paper-template.ts`), which is how the omission went
-   * unnoticed — one template was right, the other was blessed.
-   *
-   * This is `it.fails` on purpose. It documents the defect and keeps the gate
-   * green, and it will **fail the moment someone fixes it**, which is the signal to
-   * delete this block and assert the identifier is present instead. Adding legal
-   * content to a document template is a human's call (ADR 0009), so it is not
-   * being made silently here.
+   * (`issuer.taxIdentifier`, `party.taxIdentifier`). The fiscal template printed
+   * neither, while the operational papers did, which is how the omission survived
+   * a byte-for-byte golden: the baseline was re-blessed from the same template.
    */
-  it.fails('prints both tax identifiers, which a Tunisian invoice requires', () => {
+  it('prints both tax identifiers, which a Tunisian invoice requires', () => {
     const view = invoice('fr', 'STANDARD', STANDARD_LINES);
     const text = textOf(renderInvoiceHtml(view));
 
     expect(text).toContain(view.issuer.taxIdentifier);
     expect(text).toContain(view.party.taxIdentifier);
+  });
+
+  it('omits the line rather than printing an empty one when a party has no identifier', () => {
+    const view = invoice('fr', 'STANDARD', STANDARD_LINES);
+    const html = renderInvoiceHtml({ ...view, party: { ...view.party, taxIdentifier: '' } });
+
+    // No stray blank block where the identifier would be: the template skips the
+    // element, the way the paper template does.
+    expect(textOf(html)).toContain(view.party.displayName);
+    expect(textOf(html)).not.toContain(view.party.taxIdentifier);
   });
 });
 

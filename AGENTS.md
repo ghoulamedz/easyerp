@@ -5,7 +5,7 @@ A multi-tenant-by-deployment ERP in TypeScript, sold to independent Businesses. 
 ## Read before writing code
 
 - **`CONTEXT.md`** — the domain vocabulary. Use its terms verbatim in code, tables, types and commits; a new name is a change to the glossary, not a local synonym.
-- **`docs/adr/0001-0012`** — the settled decisions. Treat them as the contract: if code and an ADR disagree, the code is wrong. Read the ADR for the reasoning when a decision looks surprising, before changing it.
+- **`docs/adr/`** — the settled decisions. Treat them as the contract: if code and an ADR disagree, the code is wrong. Read the ADR for the reasoning when a decision looks surprising, before changing it.
 - **`docs/legacy-app-audit.md`** — the static audit of the legacy app being replaced, and the defect each module must not reproduce. Everything needed from the original audit lives in this repository; do not look for it outside.
 
 ## Toolchain constraints
@@ -49,6 +49,7 @@ These hold in every file. Each is a one-line restatement of an ADR; the ADR hold
 - Money is PostgreSQL `numeric(18,3)`. Zero floating-point arithmetic anywhere in pricing, tax or totals. Round once, at the documented edge, HALF_UP.
 - The server resolves every unit price and tax rate. A request carries Item and quantity, never an amount.
 - A Document is Draft or Issued. Numbering happens at issue; Issued documents are immutable and corrected only by Credit Note. A delete endpoint for an Issued document does not exist in the API surface.
+- A Draft prints and is edited on the screen that created it, with Save and Issue as its two exits. An issued document is read-only everywhere: no edit link, no editable field, no update endpoint that accepts it (ADR 0018).
 - Stock changes only by appending a Stock Ledger Entry, inside one interactive transaction, under a row lock. `On-hand` is derived; there is no balance column.
 - Single-tenant schema: no `tenant_id` column.
 - Permissions are the only authorization. `resource:action` strings, checked server-side on every request; the interface grants nothing.
@@ -86,7 +87,11 @@ rendered files byte for byte.
   losing a tax group or rounding a total does.
 - **`apps/api/src/documents/__tests__/print-contract.test.ts`** asserts the structural properties no
   fixture should be able to bless away: A4 with a margin, nothing to fetch, logical properties only
-  (the RTL regression), an Arabic-capable font stack, `dir` from the locale.
+  (the RTL regression), an Arabic-capable font stack, `dir` from the locale, and the status word a
+  paper prints when it is not issued (ADR 0018).
+- **`apps/api/src/__tests__/print-routes.test.ts`** asserts the print route of every paper names its
+  document: `@Get('orders/print')` reads `undefined` as the id, and answered one 404 that read like a
+  missing document.
 - **Not covered:** pagination and glyph shaping. Both need a layout engine and there is none in the
   toolchain. An invoice that spills onto a third page, or Arabic that joins badly, is caught by
   printing one.

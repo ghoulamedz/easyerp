@@ -360,7 +360,7 @@ describe('issuing an order', () => {
     expect(html).toContain(customer.name);
   });
 
-  it('refuses to print a draft that was never issued', async () => {
+  it('prints a draft, marked as one and with no number in the masthead', async () => {
     const { business, customer } = await givenDraftableOrder();
     const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
 
@@ -370,9 +370,19 @@ describe('issuing an order', () => {
       lines: [{ itemId: goods.id, quantity: '1' }],
     });
 
-    // A Draft has no number to print — that is a NOT_FOUND, not an INTERNAL_ERROR
-    // a client can only read as "the request could not be completed".
-    await expect(orders.readPrint(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    // The draft's figures are stored, so the paper is real; the status word is
+    // what keeps it from reading as an issued order.
+    const html = await orders.readPrint(draft.id);
+
+    expect(html).toContain('class="watermark"');
+    expect(html).toContain('BROUILLON');
+    expect(html).not.toContain('SO-');
+  });
+
+  it('answers NOT_FOUND for an id that is not a Sales Order', async () => {
+    await expect(orders.readPrint('00000000-0000-0000-0000-000000000000')).rejects.toMatchObject({
+      code: 'NOT_FOUND',
+    });
   });
 });
 

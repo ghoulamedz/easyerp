@@ -22,18 +22,16 @@ function statusKey(status: DocumentSummary['status']): MessageKey {
 }
 
 /**
- * Endpoints whose controller serves `GET <endpoint>/:id/pdf` (ADR 0010; every
- * controller was verified while adding the operational papers' routes).
- * Drafts have no archive — `readArchive` refuses anything but ISSUED — so
- * rows hide View/Print until issued rather than linking at a route that
- * would refuse the request.
+ * Every document endpoint serves `GET <endpoint>/:id/print` — the paper rendered
+ * from the stored row, in the visitor's browser (ADR 0010).
+ *
+ * A Draft prints too: the figures are already stored on the draft row, and "what
+ * will this look like" is a question asked before issuing. The paper carries
+ * BROUILLON across the sheet, so a preview can never be mistaken for a filed
+ * document. Nothing here is conditional on status any more.
  */
-const PDF_ENDPOINTS: ReadonlySet<string> = new Set(['/sales/invoices', '/credit-notes']);
-
-function pdfHref(endpoint: string, row: DocumentSummary): string | null {
-  if (!PDF_ENDPOINTS.has(endpoint)) return null;
-  if (row.status !== 'ISSUED') return null;
-  return `/api${endpoint}/${row.id}/pdf`;
+function printHref(endpoint: string, row: DocumentSummary): string {
+  return `/api${endpoint}/${row.id}/print`;
 }
 
 export interface DocumentListProps {
@@ -56,9 +54,15 @@ export interface DocumentListProps {
    */
   cancelPermission?: string;
   /**
+   * The detail screen of these rows, when it is not the default: the row's View
+   * link points at `<detailBaseHref>/<id>`, the same screen its Print link renders.
+   */
+  detailBaseHref?: string;
+  /**
    * When set, DRAFT rows offer an Edit link to `<editBaseHref>/<id>/edit`.
-   * Only documents with an update endpoint (sales orders, purchase orders,
-   * production orders) should set this.
+   * An issued document has no edit link at all: it is immutable, corrected by a
+   * Credit Note (ADR 0006), and the API refuses the update anyway — the
+   * interface must not offer a button whose only outcome is an error.
    */
   editPermission?: string;
   editBaseHref?: string;
@@ -85,6 +89,7 @@ function DocumentListBody({
   emptyKey,
   issuePermission,
   cancelPermission,
+  detailBaseHref,
   editPermission,
   editBaseHref,
   onDone,
@@ -218,7 +223,10 @@ function DocumentListBody({
             <>
               <p className="text-sm text-ink-muted">{t(emptyKey)}</p>
               {canCreate ? (
-                <Link href={newHref} className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken">
+                <Link
+                  href={newHref}
+                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+                >
                   {t(addFirstKey)}
                 </Link>
               ) : null}
@@ -234,7 +242,10 @@ function DocumentListBody({
       {filters}
       {canCreate ? (
         <div className="mb-4 flex justify-end">
-          <Link href={newHref} className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover">
+          <Link
+            href={newHref}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover"
+          >
             {t(newKey)}
           </Link>
         </div>
@@ -246,11 +257,13 @@ function DocumentListBody({
       ) : null}
       <div className="divide-y divide-line">
         {rows.map((row) => {
-          // View/Print ride on the archived PDF, not on the transition
-          // permissions: they render whenever the endpoint serves one, even
-          // when the session cannot issue or cancel.
-          const pdf = pdfHref(endpoint, row);
-          const showRowActions = showActions || pdf !== null;
+          // View/Print ride on the paper, not on the transition permissions: a
+          // session that may not issue may still read, and a draft prints too.
+          const print = printHref(endpoint, row);
+          // Edit is for drafts only, and the server says the same: an issued document
+          // has no update endpoint that accepts it (ADR 0006, ADR 0018).
+          const edit = showEdit && row.status === 'DRAFT' ? `${editBaseHref}/${row.id}/edit` : null;
+          const detail = detailBaseHref === undefined ? null : `${detailBaseHref}/${row.id}`;
           const canIssueRow = showIssue && row.status === 'DRAFT';
           const canCancelRow = showCancel && row.status !== 'CANCELLED';
           return (
@@ -275,50 +288,54 @@ function DocumentListBody({
                   </p>
                 </div>
               </div>
-              {showRowActions ? (
-                <div className="mt-2 flex gap-2">
-                  {canIssueRow ? (
-                    <button
-                      type="button"
-                      disabled={pending !== null}
-                      onClick={() => void runAction(row.id, 'issue')}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken disabled:opacity-50"
-                    >
-                      {t('docIssue')}
-                    </button>
-                  ) : null}
-                  {canCancelRow ? (
-                    <button
-                      type="button"
-                      disabled={pending !== null}
-                      onClick={() => void runAction(row.id, 'cancel')}
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken disabled:opacity-50"
-                    >
-                      {t('cancel')}
-                    </button>
-                  ) : null}
-                  {pdf !== null ? (
-                    <a
-                      href={pdf}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
-                    >
-                      {t('viewButton')}
-                    </a>
-                  ) : null}
-                  {pdf !== null ? (
-                    <a
-                      href={pdf}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
-                    >
-                      {t('printButton')}
-                    </a>
-                  ) : null}
-                </div>
-              ) : null}
+              {/* Always rendered: Print is unconditional, so the row of actions can no
+                  longer be gated on the transition permissions a session happens to hold. */}
+              <div className="mt-2 flex gap-2">
+                {canIssueRow ? (
+                  <button
+                    type="button"
+                    disabled={pending !== null}
+                    onClick={() => void runAction(row.id, 'issue')}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken disabled:opacity-50"
+                  >
+                    {t('docIssue')}
+                  </button>
+                ) : null}
+                {canCancelRow ? (
+                  <button
+                    type="button"
+                    disabled={pending !== null}
+                    onClick={() => void runAction(row.id, 'cancel')}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken disabled:opacity-50"
+                  >
+                    {t('cancel')}
+                  </button>
+                ) : null}
+                {edit !== null ? (
+                  <Link
+                    href={edit}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
+                  >
+                    {t('editButton')}
+                  </Link>
+                ) : null}
+                {detail !== null ? (
+                  <Link
+                    href={detail}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
+                  >
+                    {t('viewButton')}
+                  </Link>
+                ) : null}
+                <a
+                  href={print}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
+                >
+                  {t('printButton')}
+                </a>
+              </div>
             </div>
           );
         })}

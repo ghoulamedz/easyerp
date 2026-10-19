@@ -117,6 +117,8 @@ const DOCUMENT = {
 export function salesOrder(locale: Locale): PaperView {
   const order: SalesOrder = salesOrderSchema.parse({
     ...DOCUMENT,
+    // The stored per-rate rows, as the service serves them from `document_tax`.
+    taxGroups: [{ rate: '19.000', base: '330.000', amount: '63.327' }],
     type: 'SALES_ORDER',
     businessId: 'business-1',
     party: CUSTOMER,

@@ -57,6 +57,7 @@ export const SALES_ORDER = 'SALES_ORDER';
 type DocumentWithReservation = Prisma.DocumentGetPayload<{
   include: {
     lines: true;
+    taxes: true;
     party: true;
     reservations: true;
   };
@@ -395,12 +396,10 @@ export class SalesOrderService {
       where: { id, type: SALES_ORDER },
       select: { number: true, status: true, issuedAt: true, locale: true, businessId: true },
     });
-    // A Draft has no number to print: that is "there is no paper yet", not "the
-    // data is wrong", so it answers the same NOT_FOUND the document endpoint does.
-    if (row?.status !== 'ISSUED' || row.number === null || row.issuedAt === null) {
-      throw notFound('Printable document', id);
-    }
-    invariant(row.number && row.issuedAt, `Issued order ${id} vanished before printing.`);
+    // Drafts print too: "what will this look like" is asked before issuing, and the
+    // template carries the status word (`statusWord`) so a draft never reads as an
+    // issued document. Only a missing row is a 404.
+    if (row === null) throw notFound('Printable document', id);
 
     const [found, business] = await Promise.all([
       this.findById(id) as Promise<SalesOrder>,
@@ -468,6 +467,7 @@ export class SalesOrderService {
       where: { type: SALES_ORDER, status: 'ISSUED' },
       include: {
         lines: { orderBy: { position: 'asc' } },
+        taxes: { orderBy: { position: 'asc' } },
         party: true,
         reservations: true,
       },
@@ -486,7 +486,12 @@ export class SalesOrderService {
   async findById(id: string): Promise<SalesOrder | null> {
     const order = await this.prisma.document.findFirst({
       where: { id, type: SALES_ORDER },
-      include: { lines: { orderBy: { position: 'asc' } }, party: true, reservations: true },
+      include: {
+        lines: { orderBy: { position: 'asc' } },
+        taxes: { orderBy: { position: 'asc' } },
+        party: true,
+        reservations: true,
+      },
     });
     if (!order) return null;
     return toSalesOrder(order);
@@ -602,6 +607,11 @@ function toSalesOrder(order: DocumentWithReservation): SalesOrder {
       city: order.party.city,
       countryCode: order.party.countryCode,
     },
+    taxGroups: order.taxes.map((group) => ({
+      rate: group.rate.toString(),
+      base: group.base.toString(),
+      amount: group.amount.toString(),
+    })),
     lines: order.lines.map((line) => ({
       id: line.id,
       itemId: line.itemId,

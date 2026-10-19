@@ -30,7 +30,7 @@ import { terminologyFor } from './terminology.js';
 import type { LabelService } from '../settings/label.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { notFound } from '../common/errors.js';
-import { localeSchema, vatRegimeSchema } from '@easyerp/contracts';
+import { documentStatusSchema, localeSchema, vatRegimeSchema } from '@easyerp/contracts';
 
 export interface PrintCopyInput {
   readonly prisma: PrismaService;
@@ -42,11 +42,15 @@ export interface PrintCopyInput {
 }
 
 /**
- * The paper of an issued Invoice or Credit Note, as self-contained HTML.
+ * The paper of an Invoice or Credit Note, as self-contained HTML.
  *
- * A Draft has no number to print and answers `NOT_FOUND`, the same answer the
- * document endpoint gives. Both types are ISSUED-only for printing, because a
- * document without a number has nothing on its paper that identifies it.
+ * A Draft prints too. "Show me what this will look like" is asked *before*
+ * issuing, so refusing to render until the document is numbered answers the
+ * question too late — and the figures are already stored on the draft row
+ * (`createDraft` prices the lines and writes the totals), so the paper is real.
+ * What a draft must not look like is an issued invoice: `statusWord` puts
+ * BROUILLON across the sheet, and the number cell stays empty because there is
+ * no number yet.
  */
 export async function printInvoiceCopy(input: PrintCopyInput): Promise<string> {
   const { prisma, labels, code, id, entity } = input;
@@ -63,9 +67,6 @@ export async function printInvoiceCopy(input: PrintCopyInput): Promise<string> {
   });
 
   if (!document) throw notFound(entity, id);
-  if (document.status !== 'ISSUED' || document.number === null) {
-    throw notFound('Printable document', id);
-  }
 
   const locale = localeSchema.parse(document.locale);
   const year = document.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
@@ -73,6 +74,7 @@ export async function printInvoiceCopy(input: PrintCopyInput): Promise<string> {
     code === 'CREDIT_NOTE' ? await correctedNumberOf(prisma, document.id) : null;
 
   const view = buildCustomerInvoice({
+    status: documentStatusSchema.parse(document.status),
     // The document already carries its formatted number: the pattern is only used
     // when a document is being numbered, which happened at issue. Passing a
     // pass-through pattern keeps the builder's number logic in one place.
@@ -116,7 +118,10 @@ export async function printInvoiceCopy(input: PrintCopyInput): Promise<string> {
         ? null
         : document.withholdingTaxAmount.toString(),
     fodec: storedFodecTotal(document.lines),
-    formattedNumber: document.number,
+    // `null` on a draft: the masthead prints an empty number cell and the
+    // watermark says why. `buildCustomerInvoice` accepts undefined for "derive it
+    // from the pattern", which is not what a stored document wants.
+    ...(document.number === null ? { formattedNumber: '' } : { formattedNumber: document.number }),
     ...(code === 'CREDIT_NOTE'
       ? { kind: 'CREDIT_NOTE' as const, correctedNumber }
       : {}),

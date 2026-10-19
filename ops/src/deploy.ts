@@ -15,7 +15,9 @@
  * fallback for SITE_DOMAIN.
  *
  * Prerequisites (run once per VPS):
- *   1. sudo apt-get update && sudo apt-get install -y postgresql-17 caddy nodejs npm
+ *   1. sudo apt-get update && sudo apt-get install -y postgresql caddy curl
+ *      (`postgresql` is 16 on Ubuntu 24.04, the distribution's build, which is
+ *      what ADR 0013 asks for: one major behind on purpose.
  *   2. sudo -u postgres createuser -s easyerp
  *   3. sudo -u postgres createdb -O easyerp easyerp
  *   4. sudo useradd -m -s /bin/bash easyerp
@@ -171,7 +173,6 @@ API_HOST=0.0.0.0
 LOG_LEVEL=info
 DATABASE_URL=${env.DATABASE_URL}
 DATABASE_POOL_MAX=10
-DOCUMENT_ARCHIVE_ROOT=/var/lib/easyerp/documents
 BETTER_AUTH_SECRET=${env.BETTER_AUTH_SECRET}
 BETTER_AUTH_URL=https://${domain}
 CORS_ORIGINS=https://${domain}

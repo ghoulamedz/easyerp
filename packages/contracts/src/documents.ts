@@ -299,6 +299,13 @@ export type SalesOrderLine = z.infer<typeof salesOrderLineSchema>;
  * the only place a client reads it, so repeating the path and hash here would
  * be a second, drifting description of the same fact.
  */
+export const documentTaxGroupSchema = z.object({
+  rate: rateSchema,
+  base: moneySchema.describe('Taxable base for this rate: the sum of the line nets carrying it.'),
+  amount: moneySchema,
+});
+export type DocumentTaxGroup = z.infer<typeof documentTaxGroupSchema>;
+
 export const salesOrderSchema = documentSchema.extend({
   businessId: z.string().min(1),
   party: partySchema.pick({
@@ -311,6 +318,13 @@ export const salesOrderSchema = documentSchema.extend({
     countryCode: true,
   }),
   lines: z.array(salesOrderLineSchema),
+  /**
+   * The stored per-rate breakdown. The paper prints these rows rather than
+   * recomputing them, for the same reason every other figure on a paper comes from
+   * the row: one source of truth, and a Sales Order that showed a gross total with
+   * the VAT unexplained was the one paper that did not.
+   */
+  taxGroups: z.array(documentTaxGroupSchema),
 });
 export type SalesOrder = z.infer<typeof salesOrderSchema>;
 
@@ -421,13 +435,6 @@ export type Locale = (typeof LOCALES)[number];
 export const localeSchema = z.enum(LOCALES).describe('The locale the Document prints in.');
 
 /** One line of the printed per-rate breakdown. Derived from the lines, never sent. */
-export const documentTaxGroupSchema = z.object({
-  rate: rateSchema,
-  base: moneySchema.describe('Taxable base for this rate: the sum of the line nets carrying it.'),
-  amount: moneySchema,
-});
-export type DocumentTaxGroup = z.infer<typeof documentTaxGroupSchema>;
-
 /**
  * A Customer Invoice as the API returns it.
  *

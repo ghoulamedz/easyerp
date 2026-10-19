@@ -105,13 +105,11 @@ describe('a priced paper prints its money, and a quantity paper does not', () =>
    * A priced paper whose grand total differs from its subtotal must say why.
    *
    * `renderTotals` prints the VAT row only when the paper carries per-rate tax
-   * groups, and `salesOrderPaperView` passes none (`taxGroups: []`) — so a Sales
-   * Order shows HT and TTC with the difference unexplained. A Purchase Order,
-   * which does pass groups, prints the row. Whether a Sales Order should is a
-   * wording decision for a human (ADR 0009), so this records the behaviour instead
-   * of changing it, and turns red when it is fixed.
+   * groups, and `salesOrderPaperView` passed none (`taxGroups: []`) — so a Sales
+   * Order showed HT and TTC with the difference unexplained, while a Purchase
+   * Order, which passed groups, printed the row.
    */
-  it.fails('prints the VAT total on a Sales Order whose gross differs from its net', () => {
+  it('prints the VAT total on a Sales Order whose gross differs from its net', () => {
     const view = salesOrder('fr');
 
     expect(Number(view.totals!.grossAmount)).not.toBe(Number(view.totals!.netAmount));

@@ -75,9 +75,12 @@ export class SalesController {
   /**
    * The print copy: the paper rendered from the stored row and rasterised by the
    * visitor's own browser, so no host needs a browser to serve it.
+   *
+   * The `:id` is part of the path, not a detail: without it the handler reads
+   * `undefined` and every request answers the paper of no document at all.
    */
   @RequirePermissions('sales-order:read')
-  @Get('orders/print')
+  @Get('orders/:id/print')
   async orderPrint(@Param('id') id: string, @Res() response: Response): Promise<void> {
     sendPrint(response, id, await this.orders.readPrint(id));
   }
@@ -144,9 +147,12 @@ export class SalesController {
   /**
    * The print copy: the paper rendered from the stored row and rasterised by the
    * visitor's own browser, so no host needs a browser to serve it.
+   *
+   * The `:id` is part of the path, not a detail: without it the handler reads
+   * `undefined` and every request answers the paper of no document at all.
    */
   @RequirePermissions('delivery-note:read')
-  @Get('delivery-notes/print')
+  @Get('delivery-notes/:id/print')
   async deliveryNotePrint(@Param('id') id: string, @Res() response: Response): Promise<void> {
     sendPrint(response, id, await this.deliveryNotes.readPrint(id));
   }

@@ -18,6 +18,10 @@
  *   caught by measuring geometry, caught here without one.
  * - **Its font stack can print Arabic.** Shaping needs an Arabic-capable family in
  *   the stack; without one the browser substitutes and the joins break.
+ * - **A paper that is not issued says so.** A draft prints — the figures are stored
+ *   on its row — and the one thing it must never do is read as a filed document: a
+ *   status word is set across the sheet, in the paper's own language, and an issued
+ *   document carries none.
  * A row that must not split across a page break (`break-inside: avoid` on `tr`) is
  * *not* asserted here: neither template carries it today, and asserting it would
  * mean either a red gate or a template change bundled into a commit that is about
@@ -71,6 +75,29 @@ describe.each(documents().map((doc) => [doc.name, doc] as const))('%s print copy
     }
   });
 
+  it('leaves an issued paper unmarked', () => {
+    for (const html of [doc.html, doc.arabic]) {
+      expect(html).not.toContain('class="watermark"');
+    }
+  });
+
+  it('marks a draft and a cancelled paper, in the language of the paper', () => {
+    const first = Object.keys(PAPERS)[0] as keyof typeof PAPERS;
+    const cancelled = renderPaperHtml({ ...PAPERS[first]('fr'), status: 'CANCELLED' });
+    const arabicDraft = renderInvoiceHtml({
+      ...invoice('ar', 'STANDARD', STANDARD_LINES),
+      status: 'DRAFT',
+    });
+
+    // A draft prints — its figures are stored — but it must never read as a filed
+    // document. Both templates carry the word; a cancellation says so in its own.
+    expect(renderInvoiceHtml({ ...invoice('fr', 'STANDARD', STANDARD_LINES), status: 'DRAFT' })).toContain(
+      'BROUILLON',
+    );
+    expect(cancelled).toContain('ANNULÉ');
+    expect(arabicDraft).toContain('مسودة');
+  });
+
   it('declares an A4 page with a margin', () => {
     for (const html of [...[doc.html, doc.arabic]]) {
       const css = cssOf(html);
@@ -83,7 +110,7 @@ describe.each(documents().map((doc) => [doc.name, doc] as const))('%s print copy
     for (const html of [doc.html, doc.arabic]) {
       const css = cssOf(html);
 
-      // Physical axes: the whole reason ADR 0009 exists. `margin: 0 auto` and
+      // Physical axes: what makes Arabic mirror instead of overflow. `margin: 0 auto` and
       // `border-collapse` are fine; an *inline axis* named by a physical side is not.
       expect(css).not.toMatch(/(?:padding|margin|border|inset)-(?:left|right)\b/);
       expect(css).not.toMatch(/(?:^|[^-])\bfloat\s*:/);
