@@ -10,7 +10,6 @@
 
 import { Module } from '@nestjs/common';
 
-import { env } from '../config/env.js';
 import { DocumentsModule } from '../documents/documents.module.js';
 import { InventoryModule } from '../inventory/inventory.module.js';
 import { NumberingModule } from '../numbering/numbering.module.js';
@@ -21,7 +20,6 @@ import { CustomerInvoiceService } from './customer-invoice.service.js';
 import { CreditNoteController } from './credit-note.controller.js';
 import { CreditNoteService } from './credit-note.service.js';
 import { DeliveryNoteService } from './delivery-note.service.js';
-import { DocumentArchive } from './document-archive.js';
 import { SalesController } from './sales.controller.js';
 import { SalesOrderService } from './sales-order.service.js';
 
@@ -33,13 +31,6 @@ import { SalesOrderService } from './sales-order.service.js';
     SalesOrderService,
     DeliveryNoteService,
     CreditNoteService,
-    {
-      // A factory rather than a provider class, because the archive root is
-      // deployment configuration and the class has no logic that would justify
-      // its own file.
-      provide: DocumentArchive,
-      useFactory: () => new DocumentArchive(env().DOCUMENT_ARCHIVE_ROOT),
-    },
   ],
   exports: [CustomerInvoiceService, SalesOrderService, DeliveryNoteService],
 })

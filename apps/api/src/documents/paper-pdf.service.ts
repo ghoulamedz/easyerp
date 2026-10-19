@@ -19,16 +19,11 @@
  */
 
 import { Injectable } from '@nestjs/common';
-import { readFile } from 'node:fs/promises';
 
 import { archiveUnavailable, notFound } from '../common/errors.js';
-import { sharedPdfRenderer } from '../finance/pdf.js';
+import { isPdfRendererAvailable, sharedPdfRenderer } from '../finance/pdf.js';
+import { sha256Of } from '../finance/paper-archive.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-// A value import, not `import type`: `emitDecoratorMetadata` writes this
-// constructor's parameter types into `design:paramtypes`, and a type-only
-// import is erased before that runs — the parameter would be recorded as
-// `Function` and Nest would fail to resolve `DocumentArchive` at boot. The
-// same reason `main.ts` must be compiled by `tsc` and never by esbuild.
 import { DocumentArchive } from '../sales/document-archive.js';
 import { paperEntityName, type PaperKind, type PaperView } from './paper-document.js';
 import { renderPaperHtml } from './paper-template.js';
@@ -50,6 +45,12 @@ export class PaperPdfService {
    * the issue transaction commits and intended to be awaited — a throwing call
    * must be caught by the caller so a renderer outage cannot undo an issued
    * document's number (the same concession the Customer Invoice makes).
+   *
+   * The HTML is always written, because every host can render HTML and Print
+   * serves those bytes. The PDF is written only where a browser exists to
+   * rasterise it: on a serverless host that copy is simply absent, and asking
+   * `isPdfRendererAvailable` once is what stops every issue from paying for a
+   * launch that cannot succeed.
    */
   async archiveAtIssue(
     kind: PaperKind,
@@ -58,15 +59,62 @@ export class PaperPdfService {
     number: string,
     view: PaperView,
   ): Promise<void> {
-    const renderer = await sharedPdfRenderer();
-    const pdf = await renderer.toPdf(renderPaperHtml(view));
+    const html = renderPaperHtml(view);
+    const storedHtml = await this.archive.store(kind, year, number, Buffer.from(html, 'utf8'), 'html');
 
+    if (!(await isPdfRendererAvailable())) {
+      await this.prisma.document.update({
+        where: { id: documentId },
+        data: { printPath: storedHtml.path, printSha256: storedHtml.sha256 },
+      });
+      return;
+    }
+
+    const renderer = await sharedPdfRenderer();
+    const pdf = await renderer.toPdf(html);
     const stored = await this.archive.store(kind, year, number, pdf);
 
     await this.prisma.document.update({
       where: { id: documentId },
-      data: { archivePath: stored.path, archiveSha256: stored.sha256, archivedAt: new Date() },
+      data: {
+        printPath: storedHtml.path,
+        printSha256: storedHtml.sha256,
+        archivePath: stored.path,
+        archiveSha256: stored.sha256,
+        archivedAt: new Date(),
+      },
     });
+  }
+
+  /**
+   * The archived print copy, served to the visitor's browser.
+   *
+   * This is the paper Print shows. It is read from the archive, never re-rendered:
+   * a document filed in 2024 must print as it was filed, even after a label or a
+   * template changed. A Draft has no filed copy and answers `NOT_FOUND`, and an
+   * Issued document whose HTML is missing answers `ARCHIVE_UNAVAILABLE` — the
+   * same two answers the PDF endpoint gives, for the same reasons.
+   */
+  async readPrint(kind: PaperKind, id: string): Promise<string> {
+    const entity = paperEntityName(kind);
+
+    const document = await this.prisma.document.findFirst({
+      where: { id, type: kind },
+      select: { id: true, number: true, status: true, issuedAt: true, printPath: true },
+    });
+
+    if (!document) throw notFound(entity, id);
+    if (document.status !== 'ISSUED') throw notFound('Archived document', id);
+
+    const year = document.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
+    const found = await this.archive.read(
+      document.printPath,
+      this.archive.pathFor(kind, year, document.number ?? '', 'html'),
+    );
+
+    if (found === null) throw archiveUnavailable(entity, id);
+
+    return found.bytes.toString('utf8');
   }
 
   /**
@@ -96,41 +144,26 @@ export class PaperPdfService {
     }
 
     const year = document.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
-    const expectedPath = this.archive.pathFor(kind, year, document.number ?? '');
+    const found = await this.archive.read(
+      document.archivePath,
+      this.archive.pathFor(kind, year, document.number ?? ''),
+    );
 
-    // The stored path is authoritative when it exists: the archived bytes are
-    // the ones the Business is answerable for.
-    if (document.archivePath !== null) {
-      try {
-        const pdf = await readFile(document.archivePath);
-        return { pdf, sha256: document.archiveSha256 ?? '' };
-      } catch (cause) {
-        if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') {
-          throw cause;
-        }
-        // File missing at the stored path — fall through to the computed one.
-      }
+    if (found === null) throw archiveUnavailable(entity, id);
+
+    // A root that moved is the one case where the recorded path is stale; the
+    // row is corrected so the next read does not have to search again.
+    if (found.path !== document.archivePath) {
+      await this.prisma.document.update({
+        where: { id: document.id },
+        data: {
+          archivePath: found.path,
+          archiveSha256: sha256Of(found.bytes),
+          archivedAt: new Date(),
+        },
+      });
     }
 
-    // A root that moved: the file may exist under the currently computed root.
-    if (expectedPath !== document.archivePath) {
-      try {
-        const pdf = await readFile(expectedPath);
-        const { createHash } = await import('node:crypto');
-        const sha256 = createHash('sha256').update(pdf).digest('hex');
-        await this.prisma.document.update({
-          where: { id: document.id },
-          data: { archivePath: expectedPath, archiveSha256: sha256, archivedAt: new Date() },
-        });
-        return { pdf, sha256 };
-      } catch (cause) {
-        if ((cause as NodeJS.ErrnoException).code !== 'ENOENT') {
-          throw cause;
-        }
-        // Missing at the computed path too — the archive is gone.
-      }
-    }
-
-    throw archiveUnavailable(entity, id);
+    return { pdf: found.bytes, sha256: document.archiveSha256 ?? sha256Of(found.bytes) };
   }
 }

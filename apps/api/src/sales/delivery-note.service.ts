@@ -359,6 +359,14 @@ export class DeliveryNoteService {
     return this.paperPdfs.readArchive('DELIVERY_NOTE', id);
   }
 
+  /**
+   * The print copy: the archived HTML, which the visitor's own browser
+   * rasterises. Present on every host, unlike the PDF.
+   */
+  readPrint(id: string): Promise<string> {
+    return this.paperPdfs.readPrint('DELIVERY_NOTE', id);
+  }
+
   /** Build the committed note's paper view and archive it. */
   private async archiveIssuePaper(noteId: string, issueYear: number): Promise<void> {
     const row = await this.prisma.document.findFirst({

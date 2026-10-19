@@ -173,6 +173,18 @@ jobs:
           vercel env add LOG_LEVEL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "info"
           vercel env add DOCUMENT_ARCHIVE_ROOT production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "/tmp/easyerp-documents"
 
+      # Printing on this target depends on this one variable: a filed paper's
+      # print copy is written at issue, and `/tmp` is emptied between invocations,
+      # so without a blob store the copy is a 404 one request later. Optional
+      # because a deployment can legitimately run without it — the API then falls
+      # back to disk and says so at the point of use rather than at boot.
+      - name: Set the Blob token when the repository has one
+        if: ${{ secrets.BLOB_READ_WRITE_TOKEN != '' }}
+        run: |
+          set -euo pipefail
+          vercel env rm BLOB_READ_WRITE_TOKEN production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} 2>/dev/null || true
+          vercel env add BLOB_READ_WRITE_TOKEN production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.BLOB_READ_WRITE_TOKEN }}"
+
       - name: Set Web project environment variables
         run: |
           for var in API_INTERNAL_URL NODE_ENV; do

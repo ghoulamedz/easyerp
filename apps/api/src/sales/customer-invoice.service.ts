@@ -35,8 +35,6 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { readFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 
 import {
   documentStatusSchema,
@@ -51,7 +49,6 @@ import {
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
 import {
-  archiveUnavailable,
   conflict,
   invariant,
   notFound,
@@ -61,7 +58,7 @@ import { Amount } from '../finance/amount.js';
 import { buildCustomerInvoice, type CustomerInvoiceView } from '../finance/invoice-document.js';
 import { renderInvoiceHtml } from '../finance/invoice-template.js';
 import { terminologyFor } from '../finance/terminology.js';
-import { sharedPdfRenderer } from '../finance/pdf.js';
+import { archiveInvoicePaper, readInvoiceArchive, readInvoicePrint } from '../finance/paper-archive.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LabelService } from '../settings/label.service.js';
 import { DocumentArchive } from './document-archive.js';
@@ -325,103 +322,50 @@ export class CustomerInvoiceService {
   }
 
   /**
-   * Render, store and record the archived PDF.
+   * Render, store and record the archived paper.
    *
-   * Only the three archive columns are written, which the immutability trigger
-   * deliberately permits: the PDF cannot be written before the number exists.
+   * The HTML is filed on every host; the PDF only where a browser exists to
+   * rasterise it (`finance/paper-archive.ts` explains why the HTML comes first).
    */
   private async archivePdf(
     view: CustomerInvoiceView,
     invoiceId: string,
     year: number,
   ): Promise<void> {
-    const renderer = await sharedPdfRenderer();
-    const pdf = await renderer.toPdf(renderInvoiceHtml(view));
+    await archiveInvoicePaper({
+      prisma: this.prisma,
+      archive: this.archive,
+      code: CUSTOMER_INVOICE,
+      documentId: invoiceId,
+      year,
+      number: view.number,
+      html: renderInvoiceHtml(view),
+    });
+  }
 
-    const stored = await this.archive.store(CUSTOMER_INVOICE, year, view.number, pdf);
-
-    await this.prisma.document.update({
-      where: { id: invoiceId },
-      data: {
-        archivePath: stored.path,
-        archiveSha256: stored.sha256,
-        archivedAt: new Date(),
-      },
+  /**
+   * The print copy: the archived HTML, which the visitor's browser rasterises.
+   * Present on every host, unlike the PDF.
+   */
+  readPrint(invoiceId: string): Promise<string> {
+    return readInvoicePrint({
+      prisma: this.prisma,
+      archive: this.archive,
+      code: CUSTOMER_INVOICE,
+      id: invoiceId,
+      entity: 'Customer Invoice',
     });
   }
 
   /** The archival copy, served as the artifact a client keeps (ADR 0010). */
-  async readArchive(invoiceId: string): Promise<{ pdf: Buffer; sha256: string }> {
-    const invoice = await this.prisma.document.findFirst({
-      where: { id: invoiceId, type: CUSTOMER_INVOICE },
-      include: {
-        lines: { orderBy: { position: 'asc' } },
-        taxes: { orderBy: { position: 'asc' } },
-        business: true,
-        party: true,
-      },
+  readArchive(invoiceId: string): Promise<{ pdf: Buffer; sha256: string }> {
+    return readInvoiceArchive({
+      prisma: this.prisma,
+      archive: this.archive,
+      code: CUSTOMER_INVOICE,
+      id: invoiceId,
+      entity: 'Customer Invoice',
     });
-
-    if (!invoice) throw notFound('Customer Invoice', invoiceId);
-    if (invoice.status !== 'ISSUED') {
-      throw notFound('Archived document', invoiceId);
-    }
-
-    const year = invoice.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
-    const number = invoice.number ?? '';
-    const expectedPath = this.archive.pathFor(CUSTOMER_INVOICE, year, number);
-
-    // Try the stored archivePath first (authoritative if it exists).
-    if (invoice.archivePath !== null) {
-      try {
-        const pdf = await readFile(invoice.archivePath);
-        return { pdf, sha256: invoice.archiveSha256 ?? '' };
-      } catch (cause) {
-        const errno = (cause as NodeJS.ErrnoException).code;
-        if (errno !== 'ENOENT') {
-          // Any error other than "file not found" is a deployment fault.
-          invariant(
-            false,
-            `Failed to read archived document for ${invoice.number} from ${invoice.archivePath}: ${String(cause)}`,
-          );
-        }
-        // File missing at stored path — fall through.
-      }
-    }
-
-    // Stored path missing or wrong: try the currently computed path.
-    // This handles deployments where DOCUMENT_ARCHIVE_ROOT changed but the file
-    // exists at the new root. If found, update the stored path for next time.
-    if (expectedPath !== invoice.archivePath) {
-      try {
-        const pdf = await readFile(expectedPath);
-        const sha256 = createHash('sha256').update(pdf).digest('hex');
-        await this.prisma.document.update({
-          where: { id: invoice.id },
-          data: { archivePath: expectedPath, archiveSha256: sha256, archivedAt: new Date() },
-        });
-        return { pdf, sha256 };
-      } catch (cause) {
-        const errno = (cause as NodeJS.ErrnoException).code;
-        if (errno !== 'ENOENT') {
-          invariant(
-            false,
-            `Failed to read archived document for ${invoice.number} from ${expectedPath}: ${String(cause)}`,
-          );
-        }
-        // File missing at computed path too — the archive is gone from this
-        // deployment.
-      }
-    }
-
-    // Archive missing or never written: answer the typed failure a client can
-    // show. There is no re-render fallback here, and that is deliberate: the
-    // old fallback assumed a host with a browser and a persistent archive
-    // root, and on any other deployment — notably a serverless one — the
-    // Chromium launch escaped as an untyped 500 the client could only read as
-    // "the request could not be completed". The honest answer is the typed
-    // error below.
-    throw archiveUnavailable('Customer Invoice', invoiceId);
   }
 
   async findById(id: string): Promise<CustomerInvoiceResponse | null> {

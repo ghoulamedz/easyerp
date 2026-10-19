@@ -241,6 +241,14 @@ export class GoodsReceiptService {
     return this.paperPdfs.readArchive('GOODS_RECEIPT', id);
   }
 
+  /**
+   * The print copy: the archived HTML, which the visitor's own browser
+   * rasterises. Present on every host, unlike the PDF.
+   */
+  readPrint(id: string): Promise<string> {
+    return this.paperPdfs.readPrint('GOODS_RECEIPT', id);
+  }
+
   /** Build the committed receipt's paper view and archive it. */
   private async archiveIssuePaper(receiptId: string, issueYear: number): Promise<void> {
     const found = (await this.findById(receiptId)) as GoodsReceiptResponse;

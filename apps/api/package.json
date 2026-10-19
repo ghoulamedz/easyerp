@@ -28,6 +28,7 @@
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
     "@prisma/client-runtime-utils": "7.10.0",
+    "@vercel/blob": "2.8.2",
     "better-auth": "^1.7.6",
     "decimal.js": "^10.6.0",
     "express": "^5.2.1",

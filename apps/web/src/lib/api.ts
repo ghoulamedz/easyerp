@@ -113,6 +113,21 @@ export function apiSend<T>(
  * only when something went wrong.
  */
 export async function apiPdf(path: string): Promise<Blob> {
+  return (await apiFile(path)).blob();
+}
+
+/**
+ * Fetch a paper's print copy as text.
+ *
+ * Same choreography as `apiPdf` — it is the same failure surface, one
+ * representation apart — so a missing archived copy surfaces as the same
+ * localized `ARCHIVE_UNAVAILABLE` message rather than an empty frame.
+ */
+export async function apiText(path: string): Promise<string> {
+  return (await apiFile(path)).text();
+}
+
+async function apiFile(path: string): Promise<Response> {
   const response = await fetch(`/api${path}`);
 
   if (response.status === 401 && typeof window !== 'undefined') {
@@ -135,7 +150,7 @@ export async function apiPdf(path: string): Promise<Blob> {
     throw new ApiError(response.status, code, localizeErrorMessage(code, message));
   }
 
-  return response.blob();
+  return response;
 }
 
 /* -------------------------------------------------------------------------- */

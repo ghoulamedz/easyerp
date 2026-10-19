@@ -35,6 +35,8 @@ import {
 } from '../documents/document-list.service.js';
 import { CustomerInvoiceService } from './customer-invoice.service.js';
 import { RequiresModule } from '../settings/modules.guard.js';
+import { sendPdf } from '../common/pdf-response.js';
+import { sendPrint } from '../common/print-response.js';
 
 type Actor = { id: string; email: string };
 const actorOf = (user: SessionUser): Actor => ({ id: user.id, email: user.email });
@@ -99,15 +101,17 @@ export class CustomerInvoiceController {
   @RequirePermissions('customer-invoice:read')
   @Get(':id/pdf')
   async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
-    const { pdf: bytes, sha256 } = await this.invoices.readArchive(id);
+    sendPdf(response, id, await this.invoices.readArchive(id));
+  }
 
-    response.setHeader('Content-Type', 'application/pdf');
-    response.setHeader('Content-Length', String(bytes.byteLength));
-    response.setHeader('Content-Disposition', `attachment; filename="${id}.pdf"`);
-    // Lets a client detect that the file it holds is the file served, which is the
-    // whole value of keeping a hash next to the document.
-    response.setHeader('ETag', `"${sha256}"`);
-    response.status(HttpStatus.OK).send(bytes);
+  /**
+   * The print copy: the archived HTML, rasterised by the visitor's own browser.
+   * Works on every host, including one that cannot run a browser at all.
+   */
+  @RequirePermissions('customer-invoice:read')
+  @Get(':id/print')
+  async print(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPrint(response, id, await this.invoices.readPrint(id));
   }
 }
 

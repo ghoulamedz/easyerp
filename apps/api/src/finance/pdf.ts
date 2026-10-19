@@ -132,9 +132,40 @@ export function sharedPdfRenderer(): Promise<PdfRenderer> {
   return shared;
 }
 
+let available: Promise<boolean> | undefined;
+
+/**
+ * Whether this host can render a PDF at all.
+ *
+ * The production VPS runs Chromium; a serverless function has no browser binary
+ * and no way to launch one, and its failure is not a bug to retry — it is the
+ * host's shape. Asking once, instead of attempting a launch per document, keeps
+ * that difference where it belongs: the paper is still rendered and filed as
+ * HTML (which every host can do, and which is what Print serves), and only the
+ * second, PDF copy is skipped.
+ *
+ * This is a capability probe, not a target check: any host that can launch a
+ * browser gets PDFs, including a laptop, a container and a VPS.
+ */
+export function isPdfRendererAvailable(): Promise<boolean> {
+  available ??= sharedPdfRenderer().then(
+    () => true,
+    (cause: unknown) => {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      process.stderr.write(
+        `[pdf] no rendering browser on this host; documents are still rendered and filed as HTML, ` +
+          `but no archived PDF will be produced here: ${message}\n`,
+      );
+      return false;
+    },
+  );
+  return available;
+}
+
 /** For tests and for a clean shutdown; not part of the request path. */
 export async function closeSharedPdfRenderer(): Promise<void> {
   const pending = shared;
   shared = undefined;
+  available = undefined;
   await (await pending)?.close();
 }

@@ -97,10 +97,17 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
    - `FIRST_SETUP_TOKEN` = `openssl rand -base64 32` (must differ from
      `dev-first-setup-token` or production boot throws)
    - `NODE_ENV` = `production`
-   - `DOCUMENT_ARCHIVE_ROOT` = `/tmp/easyerp-documents` (**missing from
-     `DEPLOY.md` and the workflow** — `env.ts` throws in production when this
-     is left at the dev default `var/documents`; `/tmp` is the only writable
-     dir on serverless, and files are ephemeral — demo only)
+   - `BLOB_READ_WRITE_TOKEN` = the Blob store's token (Vercel → Storage → Blob).
+     **This is what makes printing work here.** The archive is where a paper is
+     filed at issue, and a serverless `/tmp` is emptied between invocations, so
+     without a blob store every print copy is a 404 a request later. Set it and
+     `archiveFromConfig` (`apps/api/src/sales/document-archive.ts`) files to
+     Blob instead of disk; nothing else changes, because no service knows which
+     backend it is on.
+   - `DOCUMENT_ARCHIVE_ROOT` = `/tmp/easyerp-documents` — **still required**,
+     even with a blob store: `env.ts` throws in production when it is left at
+     the dev default `var/documents`. It is the fallback location, and the
+     directory a deployment without a token would use.
    - Optional: `API_PORT=3000`, `API_HOST=0.0.0.0`, `LOG_LEVEL=info`,
      `DATABASE_POOL_MAX=10` (keep small behind the pooler)
 9. **Web project (`easyerp-web`) — set:** `API_INTERNAL_URL` = API project URL,
@@ -147,21 +154,32 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
    Related: PDF archive on Vercel is ephemeral by nature (session log
    2026-10-05 open question) — issued PDFs won't survive cold starts/redeploys.
 
-   **Print/download does not work on this deployment, and cannot.** Every
-   paper (Customer Invoice, Credit Note, Sales Order, Delivery Note, Purchase
-   Order, Goods Receipt, Production Order) is rendered by Chromium at issue
-   time (`apps/api/src/finance/pdf.ts`) and filed on disk (ADR 0010). A
-   serverless function has no Chromium and no persistent disk, so:
+   **Print works here; Download needs one flag.** Every paper (Customer
+   Invoice, Credit Note, Sales Order, Delivery Note, Purchase Order, Goods
+   Receipt, Production Order) is rendered once at issue and filed in two
+   forms (ADR 0010, amendment):
 
-   - issuing still succeeds, and the render failure is logged, never fatal —
-     a renderer outage must not strand a numbered document;
-   - `GET <paper>/:id/pdf` answers the typed `ARCHIVE_UNAVAILABLE` (404) with
-     an operator-facing message, precisely so the client no longer sees the
-     old opaque `INTERNAL_ERROR`.
+   - **HTML, always** — self-contained, `@page { size: A4 }` and its own
+     stylesheet. `GET <paper>/:id/print` serves the filed copy, and Print loads
+     it into an iframe and hands it to the browser's print dialog, so the
+     visitor's browser does the rasterising. This has nothing to do with
+     Chromium on the server and works identically here, on a VPS and locally.
+     Where it is stored is the blob store when `BLOB_READ_WRITE_TOKEN` is set,
+     `/tmp` otherwise — with `/tmp` it survives only until the invocation
+     ends, which is why the token is step 8's requirement.
+   - **PDF, only where a browser exists** — Chromium here is `spawn ENOENT`.
+     `isPdfRendererAvailable()` asks once, the answer is no, and the PDF is
+     skipped rather than attempted per document. `GET <paper>/:id/pdf` then
+     answers the typed `ARCHIVE_UNAVAILABLE` (404), and the interface says so
+     and opens the print dialog instead of leaving a dead button — "Save as
+     PDF" produces the same paper from the filed HTML.
 
-   Making print work here means removing the browser from the render path (a
-   pure-JS PDF writer) or running the API in a container with Chromium and a
-   mounted archive. Both are product decisions, not deployment flags.
+   So issuing never fails for want of a renderer, the client never sees the old
+   opaque `INTERNAL_ERROR`, and printing is a working feature on every target.
+   What the demo does not produce is an *archived PDF*; that remains the VPS
+   artifact, where `pnpm test:golden` proves the fidelity. Running the API in a
+   container with Chromium on the demo would restore it, at the cost of a
+   different deployment shape (ADR 0013).
 3. **Do not set a custom `runtime` for the API function.** Vercel manages the
    Node.js runtime; a value such as `nodejs22` is invalid because `runtime`
    expects a custom runtime identifier in `package@version` form. Vercel

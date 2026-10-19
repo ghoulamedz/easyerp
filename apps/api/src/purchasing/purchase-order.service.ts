@@ -425,6 +425,14 @@ export class PurchaseOrderService {
     return this.paperPdfs.readArchive('PURCHASE_ORDER', id);
   }
 
+  /**
+   * The print copy: the archived HTML, which the visitor's own browser
+   * rasterises. Present on every host, unlike the PDF.
+   */
+  readPrint(id: string): Promise<string> {
+    return this.paperPdfs.readPrint('PURCHASE_ORDER', id);
+  }
+
   /** Build the committed order's paper view and archive it. */
   private async archiveIssuePaper(orderId: string, issueYear: number): Promise<void> {
     const found = (await this.findById(orderId)) as PurchaseOrderResponse;

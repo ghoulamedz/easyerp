@@ -27,3 +27,11 @@ Migrations never run inside an application bootstrap. On the demo they are a CI 
 - Because the demo's database is disposable and Neon branches are cheap, the demo is also where migrations get rehearsed. `ops/restore-drill` proves a production dump loads; a Neon branch proves a new migration applies to production-shaped data before it reaches a client.
 - Production PostgreSQL is one major version behind whatever is newest, on purpose: `apt` gives us a supported version with security updates, and an untested major upgrade on a client's only database is a worse outcome than running the older one.
 - The `demo` entry in `ops/clients.yaml` names a placeholder host that does not exist. It is not a deploy target and must not be deployed to; the demo deploys to Vercel by a different route.
+
+## Amendment: one more configured difference, and why it is not a branch
+
+"No code branches on the target" still holds, but the list of things that differ between the targets is longer than the two this ADR names. The document archive is the addition: production keeps filed copies on the VPS's disk under `DOCUMENT_ARCHIVE_ROOT`, while the demo keeps them in Vercel Blob, because a serverless function's `/tmp` is emptied between invocations and a copy filed there is a 404 waiting to happen.
+
+The distinction that matters is that this is a **configuration fact, not a target check**. `archiveFromConfig` reads whether a blob token was supplied; a VPS could supply one, and a serverless host without one falls back to a filesystem it will lose. Nothing in a service asks which platform it runs on, both backends implement one interface, and both deployments execute the same services.
+
+`BLOB_READ_WRITE_TOKEN` joins `DATABASE_URL` and TLS termination on the short list of things a deployment supplies. It is in `env.ts` with the others, so the list stays enumerable — the point of the rule was never that the list is short, it was that the list is explicit and that no branch reaches into business logic.

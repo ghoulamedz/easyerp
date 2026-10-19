@@ -31,6 +31,7 @@ export function paperDetailLabels(
     download: t('downloadButton'),
     loading: t('detailLoading'),
     archiveHint: t('detailArchiveHint'),
+    pdfUnavailableHint: t('detailPdfUnavailable'),
     statusDraft: t('statusDraft'),
     statusIssued: t('statusIssued'),
     statusCancelled: t('statusCancelled'),

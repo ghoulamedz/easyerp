@@ -52,6 +52,14 @@ const apiEnv = {
 
 export default defineConfig({
   testDir: './e2e',
+  /**
+   * Seed a configured Business through the real Setup endpoint before the workers
+   * start. A fresh database redirects every page to `/setup` (ADR 0012), so
+   * without this the suite asserts against a first-run screen it never meant to
+   * visit; with it, the fixture is produced by the same transaction a customer's
+   * first minute produces. A no-op when a Business already exists.
+   */
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,

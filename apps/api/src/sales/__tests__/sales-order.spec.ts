@@ -9,7 +9,8 @@
  * client — the same discipline the invoice flow enforces (ADR 0005).
  */
 
-import { rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, rm } from 'node:fs/promises';
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -396,6 +397,79 @@ describe('issuing an order', () => {
     // A Draft has no archive and never will — that is a NOT_FOUND, not an
     // INTERNAL_ERROR a client can only read as "the request could not be completed".
     await expect(orders.readPdf(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('files the print copy as HTML at issue, and serves it back', async () => {
+    // The HTML is the copy every host can produce — it is what Print serves, and
+    // it must exist even where no browser can rasterise a PDF.
+    const { business, customer } = await givenDraftableOrder();
+    const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
+    await stock.open({ itemId: goods.id, quantity: '5' }, {}, null);
+
+    const draft = await orders.createDraft({
+      businessId: business.id,
+      partyId: customer.id,
+      lines: [{ itemId: goods.id, quantity: '2' }],
+    });
+    const issued = await orders.issue(draft.id, {}, null);
+
+    const html = await orders.readPrint(draft.id);
+
+    // A whole document, not a fragment: the browser printing it needs the
+    // stylesheet and the A4 page box, or the paper prints unstyled.
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain('<style>');
+    expect(html).toContain('@page');
+    // The number is on the paper, so the copy served is this document's.
+    expect(html).toContain(issued.number!);
+
+    const row = await prisma.document.findUniqueOrThrow({
+      where: { id: issued.id },
+      select: { printPath: true, printSha256: true },
+    });
+    expect(row.printPath).not.toBeNull();
+    expect(row.printSha256).not.toBeNull();
+    // The row's hash describes the file, so a served copy can be checked against
+    // what was filed rather than trusted because it parsed.
+    const bytes = await readFile(row.printPath!, 'utf8');
+    expect(createHash('sha256').update(bytes).digest('hex')).toBe(row.printSha256);
+    expect(bytes).toBe(html);
+  });
+
+  it('refuses to print a draft that was never issued', async () => {
+    const { business, customer } = await givenDraftableOrder();
+    const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
+
+    const draft = await orders.createDraft({
+      businessId: business.id,
+      partyId: customer.id,
+      lines: [{ itemId: goods.id, quantity: '1' }],
+    });
+
+    await expect(orders.readPrint(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  it('answers ARCHIVE_UNAVAILABLE when the filed print copy is gone', async () => {
+    const { business, customer } = await givenDraftableOrder();
+    const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
+    await stock.open({ itemId: goods.id, quantity: '5' }, {}, null);
+
+    const draft = await orders.createDraft({
+      businessId: business.id,
+      partyId: customer.id,
+      lines: [{ itemId: goods.id, quantity: '1' }],
+    });
+    const issued = await orders.issue(draft.id, {}, null);
+
+    const row = await prisma.document.findUniqueOrThrow({
+      where: { id: issued.id },
+      select: { printPath: true },
+    });
+    await rm(row.printPath!, { force: true });
+
+    await expect(orders.readPrint(draft.id)).rejects.toMatchObject({
+      code: 'ARCHIVE_UNAVAILABLE',
+    });
   });
 
   it('answers ARCHIVE_UNAVAILABLE, not a re-render, when the filed bytes are gone', async () => {

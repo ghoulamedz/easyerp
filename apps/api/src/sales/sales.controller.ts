@@ -30,6 +30,7 @@ import {
   type DocumentPage,
 } from '../documents/document-list.service.js';
 import { sendPdf } from '../common/pdf-response.js';
+import { sendPrint } from '../common/print-response.js';
 import { SalesOrderService } from './sales-order.service.js';
 import { DeliveryNoteService } from './delivery-note.service.js';
 
@@ -76,6 +77,16 @@ export class SalesController {
   @Get('orders/:id/pdf')
   async orderPdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
     sendPdf(response, id, await this.orders.readPdf(id));
+  }
+
+  /**
+   * The print copy: the archived HTML, rasterised by the visitor's own browser.
+   * Works on every host, including one that cannot run a browser at all.
+   */
+  @RequirePermissions('sales-order:read')
+  @Get('orders/print')
+  async orderPrint(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPrint(response, id, await this.orders.readPrint(id));
   }
 
   @RequirePermissions('sales-order:update')
@@ -141,5 +152,15 @@ export class SalesController {
   @Get('delivery-notes/:id/pdf')
   async deliveryNotePdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
     sendPdf(response, id, await this.deliveryNotes.readPdf(id));
+  }
+
+  /**
+   * The print copy: the archived HTML, rasterised by the visitor's own browser.
+   * Works on every host, including one that cannot run a browser at all.
+   */
+  @RequirePermissions('delivery-note:read')
+  @Get('delivery-notes/print')
+  async deliveryNotePrint(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPrint(response, id, await this.deliveryNotes.readPrint(id));
   }
 }

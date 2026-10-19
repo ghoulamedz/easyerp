@@ -64,7 +64,12 @@ The golden test's matrix is not restated here. Which locales, VAT regimes and ta
 - `pnpm verify` — lint, typecheck, unit tests and build across every package. The fast gate; run it before anything else.
 - `pnpm test:integration` — real PostgreSQL, real transactions, real locking, **and a real `AppModule` that is actually started**. It needs nothing set up: `pnpm db:up` has already pointed `apps/api/.env.test` at `easyerp_test` and migrated it. There is no skip; the suite fails rather than passing empty. A change that alters the module graph, a guard, or a provider binding is not done until this passes — a broken injection graph passes every unit test and only shows up when a client starts the server.
 - `pnpm test:golden` — renders a Customer Invoice through headless Chromium and compares it **byte for byte** against committed PDFs, in French, English and Arabic, for both VAT regimes plus a mixed-rate document. It needs `pnpm --filter @easyerp/api exec playwright-core install --with-deps chromium` and `fonts-noto-core fonts-dejavu-core`, because Chromium substitutes a missing font instead of failing. After an intended template change: `pnpm test:golden -- --update`, **then read the diff**. A re-bless nobody read is how a layout regression becomes the new baseline.
-- `pnpm --filter @easyerp/web test:e2e` — Playwright against a production build.
+- `pnpm --filter @easyerp/web test:e2e` — Playwright against a production build. It seeds its own
+  fixture through the real `POST /api/setup`, so it needs a database with **no Business** in it
+  (that is what CI has): on a working database with a Business already set up, Setup is correctly
+  closed and the suite refuses to start with one explanatory message rather than a dozen URL
+  mismatches. Point `DATABASE_URL` at a fresh database to run it — `easyerp_test` and `easyerp`
+  both work after `pnpm db:reset`.
 
 Anything touching stock, money, numbering or an Issued document additionally needs a test that would have failed before the change. Concurrency changes need two-writer coverage.
 

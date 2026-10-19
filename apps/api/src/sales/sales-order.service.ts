@@ -407,6 +407,14 @@ export class SalesOrderService {
   }
 
   /**
+   * The print copy: the archived HTML, which the visitor's own browser
+   * rasterises. Present on every host, unlike the PDF.
+   */
+  readPrint(id: string): Promise<string> {
+    return this.paperPdfs.readPrint('SALES_ORDER', id);
+  }
+
+  /**
    * Build the issued order's paper view from the committed rows and archive
    * it. Runs after the transaction, so it reads exactly what the issue stored.
    */

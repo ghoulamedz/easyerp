@@ -25,7 +25,7 @@ import { DomainError } from '../common/errors.js';
 import { sendPdf } from '../common/pdf-response.js';
 import { PaperPdfService } from './paper-pdf.service.js';
 import type { PrismaService } from '../prisma/prisma.service.js';
-import type { DocumentArchive } from '../sales/document-archive.js';
+import { DocumentArchive } from '../sales/document-archive.js';
 
 const BYTES = Buffer.from('%PDF-1.7 archived bytes');
 const SHA = createHash('sha256').update(BYTES).digest('hex');
@@ -51,14 +51,18 @@ function fakeResponse() {
   };
 }
 
-function service(row: {
-  id?: string;
-  number?: string | null;
-  status?: string;
-  archivePath?: string | null;
-  archiveSha256?: string | null;
-  issuedAt?: Date | null;
-}): PaperPdfService {
+function service(
+  row: {
+    id?: string;
+    number?: string | null;
+    status?: string;
+    archivePath?: string | null;
+    archiveSha256?: string | null;
+    printPath?: string | null;
+    issuedAt?: Date | null;
+  },
+  archiveRoot: string,
+): PaperPdfService {
   const prisma = {
     document: {
       findFirst: async () => ({
@@ -68,12 +72,14 @@ function service(row: {
         issuedAt: row.issuedAt ?? new Date('2026-02-01T12:00:00.000Z'),
         archivePath: row.archivePath === undefined ? null : row.archivePath,
         archiveSha256: row.archiveSha256 ?? null,
+        printPath: row.printPath === undefined ? null : row.printPath,
       }),
       update: async () => undefined,
     },
   } as unknown as PrismaService;
-  const archive = { pathFor: () => '/nowhere/missing.pdf' } as unknown as DocumentArchive;
-  return new PaperPdfService(prisma, archive);
+  // The real archive over a scratch root: a stub that only answered `pathFor`
+  // would pass while the read path it is meant to test never ran.
+  return new PaperPdfService(prisma, new DocumentArchive(archiveRoot));
 }
 
 describe('sendPdf', () => {
@@ -107,7 +113,7 @@ describe('PaperPdfService.readArchive', () => {
     const path = join(root, 'paper.pdf');
     await writeFile(path, BYTES);
 
-    const result = await service({ archivePath: path, archiveSha256: SHA }).readArchive(
+    const result = await service({ archivePath: path, archiveSha256: SHA }, root).readArchive(
       'SALES_ORDER',
       'doc-1',
     );
@@ -119,7 +125,7 @@ describe('PaperPdfService.readArchive', () => {
   it('answers ARCHIVE_UNAVAILABLE when the bytes are gone from the host', async () => {
     // This is the regression: the old code re-rendered here, and on a
     // browser-less deployment the Chromium launch escaped as INTERNAL_ERROR.
-    const failure = await service({ archivePath: join(root, 'deleted.pdf') })
+    const failure = await service({ archivePath: join(root, 'deleted.pdf') }, root)
       .readArchive('SALES_ORDER', 'doc-1')
       .catch((error: unknown) => error);
 
@@ -130,7 +136,7 @@ describe('PaperPdfService.readArchive', () => {
   });
 
   it('answers ARCHIVE_UNAVAILABLE when the row records no archive path at all', async () => {
-    const failure = await service({ archivePath: null })
+    const failure = await service({ archivePath: null }, root)
       .readArchive('DELIVERY_NOTE', 'doc-2')
       .catch((error: unknown) => error);
 
@@ -140,7 +146,7 @@ describe('PaperPdfService.readArchive', () => {
   it('answers NOT_FOUND for a paper that was never issued', async () => {
     // A Draft has no archive and never will: that is a different answer from a
     // deployment that lost the bytes of an issued document.
-    const failure = await service({ status: 'DRAFT', archivePath: null })
+    const failure = await service({ status: 'DRAFT', archivePath: null }, root)
       .readArchive('SALES_ORDER', 'doc-3')
       .catch((error: unknown) => error);
 
@@ -153,7 +159,7 @@ describe('PaperPdfService.readArchive', () => {
     const render = vi.fn();
     vi.doMock('../finance/pdf.js', () => ({ sharedPdfRenderer: render }));
 
-    const failure = await service({ archivePath: join(root, 'gone.pdf') })
+    const failure = await service({ archivePath: join(root, 'gone.pdf') }, root)
       .readArchive('PURCHASE_ORDER', 'doc-4')
       .catch((error: unknown) => error);
 

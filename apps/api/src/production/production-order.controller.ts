@@ -30,6 +30,7 @@ import {
   type DocumentPage,
 } from '../documents/document-list.service.js';
 import { sendPdf } from '../common/pdf-response.js';
+import { sendPrint } from '../common/print-response.js';
 import { ProductionOrderService } from './production-order.service.js';
 import { RequiresModule } from '../settings/modules.guard.js';
 
@@ -115,6 +116,16 @@ export class ProductionOrderController {
   @Get(':id/pdf')
   async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
     sendPdf(response, id, await this.orders.readPdf(id));
+  }
+
+  /**
+   * The print copy: the archived HTML, rasterised by the visitor's own browser.
+   * Works on every host, including one that cannot run a browser at all.
+   */
+  @RequirePermissions('production-order:read')
+  @Get(':id/print')
+  async print(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPrint(response, id, await this.orders.readPrint(id));
   }
 }
 

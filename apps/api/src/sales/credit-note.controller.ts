@@ -27,6 +27,8 @@ import { type CreditNote, type SessionUser } from '@easyerp/contracts';
 
 import { CurrentUser, RequirePermissions } from '../identity/authorization.js';
 import { RequiresModule } from '../settings/modules.guard.js';
+import { sendPdf } from '../common/pdf-response.js';
+import { sendPrint } from '../common/print-response.js';
 import {
   DocumentListService,
   type DocumentPage,
@@ -88,12 +90,16 @@ export class CreditNoteController {
   @RequirePermissions('credit-note:read')
   @Get(':id/pdf')
   async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
-    const { pdf: bytes, sha256 } = await this.notes.readArchive(id);
+    sendPdf(response, id, await this.notes.readArchive(id));
+  }
 
-    response.setHeader('Content-Type', 'application/pdf');
-    response.setHeader('Content-Length', String(bytes.byteLength));
-    response.setHeader('Content-Disposition', `attachment; filename="${id}.pdf"`);
-    response.setHeader('ETag', `"${sha256}"`);
-    response.status(HttpStatus.OK).send(bytes);
+  /**
+   * The print copy: the archived HTML, rasterised by the visitor's own browser.
+   * Works on every host, including one that cannot run a browser at all.
+   */
+  @RequirePermissions('credit-note:read')
+  @Get(':id/print')
+  async print(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPrint(response, id, await this.notes.readPrint(id));
   }
 }

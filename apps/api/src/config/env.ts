@@ -25,6 +25,18 @@ const schema = z.object({
   DOCUMENT_ARCHIVE_ROOT: z.string().min(1).default('var/documents'),
 
   /**
+   * The Vercel Blob token, when filed documents are kept in Blob storage instead
+   * of on disk.
+   *
+   * Set it when the filesystem is not durable — a serverless function's `/tmp` is
+   * emptied between invocations, so a copy filed there is a 404 waiting to
+   * happen. Absent, the archive is a directory and this host is responsible for
+   * it, which is what a VPS is for. Read here rather than in the archive so that
+   * `env.ts` stays the only file that touches `process.env`.
+   */
+  BLOB_READ_WRITE_TOKEN: z.string().min(1).optional(),
+
+  /**
    * The token that opens first-run Setup (ADR 0012). Read from the host's own
    * environment. Defaulted only for local use, because a fresh checkout should
    * `pnpm dev` into a working Setup without inventing a secret.

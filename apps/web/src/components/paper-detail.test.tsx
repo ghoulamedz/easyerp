@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  *
  * DocumentPaperDetail: the detail view fetches the real document through
- * `lib/api`, Download fetches the paper's `/pdf` bytes and hands them to the
- * browser as a file, and Print puts the same blob into a hidden iframe. A
- * failed archive read surfaces the server's localized message instead of
- * failing silently.
+ * `lib/api`, Print fetches the archived HTML from `/print` and hands it to the
+ * browser's print dialog, and Download fetches `/pdf`. A deployment that keeps
+ * no PDF says so and prints instead, and a failed archive read surfaces the
+ * server's localized message instead of failing silently.
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -41,15 +41,24 @@ const labels = {
   print: 'Print',
   download: 'Download',
   loading: 'Loading…',
-  archiveHint: 'The PDF the server keeps.',
+  archiveHint: 'The copy the server keeps.',
+  pdfUnavailableHint: 'No archived PDF here; the print dialog opens instead.',
   statusDraft: 'Draft',
   statusIssued: 'Issued',
   statusCancelled: 'Cancelled',
 };
 
 const pdfBytes = new Uint8Array([0x25, 0x50, 0x44, 0x46]); // %PDF
+const printHtml = '<!doctype html><html><body><h1>CO-2026-0001</h1></body></html>';
 
-function stubFetch(options: { document?: unknown; documentStatus?: number; pdfOk?: boolean } = {}) {
+function stubFetch(
+  options: {
+    document?: unknown;
+    documentStatus?: number;
+    pdfOk?: boolean;
+    printOk?: boolean;
+  } = {},
+) {
   global.fetch = vi.fn(async (input: unknown, init?: RequestInit) => {
     const url = String(input);
     const method = init?.method ?? 'GET';
@@ -78,6 +87,16 @@ function stubFetch(options: { document?: unknown; documentStatus?: number; pdfOk
         status: 200,
         blob: async () => new Blob([pdfBytes as BlobPart], { type: 'application/pdf' }),
       };
+    }
+    if (url === `/api${paper}/o-1/print` && method === 'GET') {
+      if (options.printOk === false) {
+        return {
+          ok: false,
+          status: 404,
+          json: async () => ({ error: { code: 'ARCHIVE_UNAVAILABLE', message: 'not available' } }),
+        };
+      }
+      return { ok: true, status: 200, text: async () => printHtml };
     }
     return { ok: false, status: 404, json: async () => ({ error: { code: 'NOT_FOUND' } }) };
   }) as unknown as typeof fetch;
@@ -120,24 +139,49 @@ describe('DocumentPaperDetail', () => {
     expect(created).toHaveBeenCalledWith(expect.anything());
   });
 
-  it('print puts the same blob into a hidden iframe', async () => {
+  it('print fetches the archived html and loads it into a hidden iframe', async () => {
     const user = userEvent.setup();
+    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:print-url');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
     render(<DocumentPaperDetail paper={paper} id="o-1" labels={labels} />);
 
     await screen.findByText('CO-2026-0001');
     await user.click(screen.getByRole('button', { name: 'Print' }));
 
-    const frame = window.document.querySelector('iframe[aria-hidden="true"]');
-    await waitFor(() => expect(frame).not.toBeNull());
+    // The HTML, not the PDF: printing must not depend on a host having a browser.
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/sales/orders/o-1/print'));
+    expect(created).toHaveBeenCalledWith(expect.any(Blob));
+
+    const frame = window.document.querySelector<HTMLIFrameElement>('iframe[aria-hidden="true"]');
+    await waitFor(() => expect(frame?.src).toContain('blob:print-url'));
   });
 
-  it('surfaces a failed archive read with its message', async () => {
+  it('downloads from the print copy when this deployment keeps no pdf', async () => {
     stubFetch({ pdfOk: false });
     const user = userEvent.setup();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:print-url');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+
     render(<DocumentPaperDetail paper={paper} id="o-1" labels={labels} />);
 
     await screen.findByText('CO-2026-0001');
     await user.click(screen.getByRole('button', { name: 'Download' }));
+
+    // A dead button would be the alternative; the hint plus the print dialog is
+    // what the visitor gets instead.
+    await waitFor(() => expect(screen.getByTestId('paper-notice')).toBeInTheDocument());
+    expect(screen.queryByTestId('paper-error')).not.toBeInTheDocument();
+    await waitFor(() => expect(global.fetch).toHaveBeenCalledWith('/api/sales/orders/o-1/print'));
+  });
+
+  it('surfaces a failed print read with its message', async () => {
+    stubFetch({ printOk: false });
+    const user = userEvent.setup();
+    render(<DocumentPaperDetail paper={paper} id="o-1" labels={labels} />);
+
+    await screen.findByText('CO-2026-0001');
+    await user.click(screen.getByRole('button', { name: 'Print' }));
 
     await waitFor(() => expect(screen.getByTestId('paper-error')).toBeInTheDocument());
   });

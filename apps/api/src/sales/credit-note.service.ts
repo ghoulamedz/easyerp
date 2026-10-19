@@ -17,8 +17,6 @@
  */
 
 import { Injectable, Logger } from '@nestjs/common';
-import { readFile } from 'node:fs/promises';
-import { createHash } from 'node:crypto';
 
 import {
   documentStatusSchema,
@@ -33,7 +31,6 @@ import {
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
 import {
-  archiveUnavailable,
   conflict,
   invariant,
   notFound,
@@ -42,8 +39,8 @@ import {
 import { Amount } from '../finance/amount.js';
 import { buildCustomerInvoice } from '../finance/invoice-document.js';
 import { renderInvoiceHtml } from '../finance/invoice-template.js';
+import { archiveInvoicePaper, readInvoiceArchive, readInvoicePrint } from '../finance/paper-archive.js';
 import { terminologyFor } from '../finance/terminology.js';
-import { sharedPdfRenderer } from '../finance/pdf.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LabelService } from '../settings/label.service.js';
 import { DocumentArchive } from './document-archive.js';
@@ -321,73 +318,15 @@ export class CreditNoteService {
     return found;
   }
 
-  async readArchive(creditNoteId: string): Promise<{ pdf: Buffer; sha256: string }> {
-    const creditNote = await this.prisma.document.findFirst({
-      where: { id: creditNoteId, type: CREDIT_NOTE },
-      include: {
-        lines: { orderBy: { position: 'asc' } },
-        taxes: { orderBy: { position: 'asc' } },
-        business: true,
-        party: true,
-        creditNotes: true,
-      },
+  /** The archival copy (ADR 0010): the bytes the Business is answerable for. */
+  readArchive(creditNoteId: string): Promise<{ pdf: Buffer; sha256: string }> {
+    return readInvoiceArchive({
+      prisma: this.prisma,
+      archive: this.archive,
+      code: CREDIT_NOTE,
+      id: creditNoteId,
+      entity: 'Credit Note',
     });
-    if (!creditNote) throw notFound('Credit Note', creditNoteId);
-    if (creditNote.status !== 'ISSUED') {
-      throw notFound('Archived document', creditNoteId);
-    }
-
-    const year = creditNote.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
-    const number = creditNote.number ?? '';
-    const expectedPath = this.archive.pathFor(CREDIT_NOTE, year, number);
-
-    // Try the stored archivePath first (authoritative if it exists).
-    if (creditNote.archivePath !== null) {
-      try {
-        const pdf = await readFile(creditNote.archivePath);
-        return { pdf, sha256: creditNote.archiveSha256 ?? '' };
-      } catch (cause) {
-        const errno = (cause as NodeJS.ErrnoException).code;
-        if (errno !== 'ENOENT') {
-          invariant(false, `Failed to read archived document for ${creditNote.number} from ${creditNote.archivePath}: ${String(cause)}`);
-        }
-        // File missing at stored path — fall through.
-      }
-    }
-
-    // Stored path missing or wrong: try the currently computed path.
-    // This handles deployments where DOCUMENT_ARCHIVE_ROOT changed but the file
-    // exists at the new root. If found, update the stored path for next time.
-    if (expectedPath !== creditNote.archivePath) {
-      try {
-        const pdf = await readFile(expectedPath);
-        const sha256 = createHash('sha256').update(pdf).digest('hex');
-        await this.prisma.document.update({
-          where: { id: creditNote.id },
-          data: { archivePath: expectedPath, archiveSha256: sha256, archivedAt: new Date() },
-        });
-        return { pdf, sha256 };
-      } catch (cause) {
-        const errno = (cause as NodeJS.ErrnoException).code;
-        if (errno !== 'ENOENT') {
-          invariant(
-            false,
-            `Failed to read archived document for ${creditNote.number} from ${expectedPath}: ${String(cause)}`,
-          );
-        }
-        // File missing at computed path too — the archive is gone from this
-        // deployment.
-      }
-    }
-
-    // Archive missing or never written: answer the typed failure a client can
-    // show, exactly like the Customer Invoice. There is no re-render fallback
-    // here, and that is deliberate: a host without a browser cannot render,
-    // and a fallback that silently depends on one is exactly the untyped-500
-    // failure mode the typed error exists to remove. The archived bytes are
-    // written at issue (`archiveIssued`), so a healthy deployment never
-    // reaches this branch.
-    throw archiveUnavailable('Credit Note', creditNoteId);
   }
 
   async findById(id: string): Promise<CreditNoteResponse | null> {
@@ -632,18 +571,28 @@ export class CreditNoteService {
       fodec: storedFodecTotal(creditNote.lines),
     });
 
-    const renderer = await sharedPdfRenderer();
-    const pdf = await renderer.toPdf(renderInvoiceHtml(view));
-    const stored = await this.archive.store(
-      CREDIT_NOTE,
-      issuedAt.getUTCFullYear(),
-      view.number,
-      pdf,
-    );
+    await archiveInvoicePaper({
+      prisma: this.prisma,
+      archive: this.archive,
+      code: CREDIT_NOTE,
+      documentId: creditNoteId,
+      year: issuedAt.getUTCFullYear(),
+      number: view.number,
+      html: renderInvoiceHtml(view),
+    });
+  }
 
-    await this.prisma.document.update({
-      where: { id: creditNoteId },
-      data: { archivePath: stored.path, archiveSha256: stored.sha256, archivedAt: new Date() },
+  /**
+   * The print copy: the archived HTML, which the visitor's browser rasterises.
+   * Present on every host, unlike the PDF.
+   */
+  readPrint(creditNoteId: string): Promise<string> {
+    return readInvoicePrint({
+      prisma: this.prisma,
+      archive: this.archive,
+      code: CREDIT_NOTE,
+      id: creditNoteId,
+      entity: 'Credit Note',
     });
   }
 }
