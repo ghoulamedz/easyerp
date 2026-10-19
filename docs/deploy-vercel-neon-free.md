@@ -76,23 +76,29 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
      wildcards** — `env.ts` refuses `*`). For a stable production deploy use the
      project's production domain, e.g.
      `https://easyerp-web-<org>.vercel.app`, not a per-deployment hostname.
-     - **Why this failed before (403 `{"code":"INVALID_ORIGIN"}` at sign-in):**
-       `deploy-demo.yml` took the API and Web URLs from `vercel ls`, whose first
-       entry is a *per-deployment* hostname; `vercel deploy --prod` mints a new
-       one on every run, so the visitor's real `Origin` was absent from
-       `trustedOrigins` and Better Auth answered 403. The workflow now resolves
-       the Web project's stable production domain (Vercel API
-       `targets.production.alias`) and writes that, and it writes
-       `BETTER_AUTH_URL` from the same value instead of from the API's URL.
-     - **Runtime safety net (no workflow needed):** Vercel injects `VERCEL_URL`
-       (this deployment) and `VERCEL_PROJECT_PRODUCTION_URL` (the project's
-       stable domain) into the function. `apps/api/src/identity/auth/
-       trusted-origins.ts` unions both with `CORS_ORIGINS` (exact origins only,
-       no wildcards) and the same list drives Express CORS, so a new deployment
-       hostname cannot break sign-in and CORS cannot disagree with the origin
-       check. Setting `CORS_ORIGINS` by hand stays required; the union only adds
-       names Vercel already owns.
-     - A rejection now names itself: the API logs one line at warn level,
+     - **Why this failed twice (403 `{"code":"INVALID_ORIGIN"}` at sign-in), and
+       how the workflow now avoids both.** `deploy-demo.yml` used to take the API
+       and Web URLs from `vercel ls`, whose first entry is a *per-deployment*
+       hostname, and `vercel deploy --prod` mints a new one on every run — so the
+       visitor's real `Origin` was absent from `trustedOrigins`. The fix was not
+       enough on its own: the workflow also deployed the API **twice**, the first
+       time with `CORS_ORIGINS=https://placeholder.invalid` written to reach a
+       build, and it pointed the Web's `API_INTERNAL_URL` at that *first* API
+       deployment. A deployment's environment is frozen when it is created, so the
+       Web proxied `/api/*` to a build that rejected every origin while the API's
+       own domain accepted them — a 403 that looks like CORS and is a stale
+       pointer. The workflow now reads both projects' **stable production domains**
+       from the Vercel API *before* deploying, writes each project's environment
+       exactly once, and deploys each project exactly once. `env.ts` refuses to
+       start in production when either value names a reserved host (`.invalid`,
+       `.example`, `.test`), so the placeholder cannot be shipped again.
+     - **Runtime addition, not a substitute:** Vercel injects `VERCEL_URL` and
+       `VERCEL_PROJECT_PRODUCTION_URL` into the function, and `apps/api/src/
+       identity/auth/trusted-origins.ts` unions both with `CORS_ORIGINS` (exact
+       origins only, no wildcards). Both of those name the **API's** hostnames,
+       never the Web's, so they cannot replace `CORS_ORIGINS` — the browser always
+       presents the Web origin. They only add names Vercel already owns.
+     - A rejection names itself: the API logs one line at warn level,
        `[auth] origin rejected: <origin> is not in trustedOrigins [...]`.
    - `FIRST_SETUP_TOKEN` = `openssl rand -base64 32` (must differ from
      `dev-first-setup-token` or production boot throws)
@@ -105,10 +111,14 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
      of truth that can disagree with the row.
    - Optional: `API_PORT=3000`, `API_HOST=0.0.0.0`, `LOG_LEVEL=info`,
      `DATABASE_POOL_MAX=10` (keep small behind the pooler)
-9. **Web project (`easyerp-web`) — set:** `API_INTERNAL_URL` = API project URL,
-   e.g. `https://easyerp-api-<org>.vercel.app`. This is baked into the web
-   build (rewrite target), so **set it, then redeploy/rebuild web** after any
-   API URL change. `NODE_ENV=production` is automatic on Vercel.
+9. **Web project (`easyerp-web`) — set:** `API_INTERNAL_URL` = the API's
+   **stable production domain**, e.g. `https://easyerp-api-<org>.vercel.app` —
+   never a per-deployment hostname. This is baked into the web build (it is the
+   `/api/*` rewrite target), so **set it, then rebuild web** after any change.
+   Pointing it at one deployment pins the Web to that deployment's frozen
+   environment for as long as the site is up; that is the failure described in
+   step 8, and it is why the workflow resolves the stable domain. `NODE_ENV=production`
+   is automatic on Vercel.
 
 ### D. GitHub Secrets (only needed for the automated `deploy-demo.yml` route)
 
@@ -121,11 +131,20 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
     `DATABASE_URL=<direct-string> pnpm --filter @easyerp/api prisma:migrate:deploy`
     (same command the workflow's `neon-db` job runs). Never `migrate dev` in
     deploy — it prompts and hangs.
-12. **Trigger:** push to `master` or `gh workflow run deploy-demo.yml`.
-    The workflow creates/uses the Neon `demo` branch, migrates, deploys API,
-    then web, then smoke-tests. Its CLI deploy commands omit a path because
+12. **Trigger:** push to `master` or `gh workflow run deploy-demo.yml`. Two
+    jobs: `neon-db` (create/reuse the branch, migrate) and `deploy` (resolve both
+    stable origins, write both projects' environments, deploy API, deploy Web,
+    smoke-test). The smoke test asks the two questions a login needs answered,
+    and needs no account to ask them: `/api/health` must be 200, and a POST to the
+    sign-in endpoint **through the Web origin** must come back one of the answers
+    that prove the origin was trusted and the body reached Better Auth — 401 for
+    wrong credentials, 400/422 for a rejected body, 429 for rate limiting. It
+    fails on 403 (`INVALID_ORIGIN`, the origin is not trusted), on 404 (the Web
+    proxy is not serving the route at all), on 000/5xx after a retry window, and
+    of course on the health check. A 403 fails immediately rather than retrying:
+    it is a configuration fact, not a rollout race. The deploy commands omit a path because
     each Vercel project already has its Root Directory set (`apps/api` or
-    `apps/web`); passing that same directory again makes Vercel append it twice.
+    `apps/web`); passing that directory again makes Vercel append it twice.
 
 ### E. First-run setup + verify
 
@@ -135,8 +154,32 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
 14. **Sign in** at `https://<web>/fr/sign-in`. API checks:
     `curl https://<api>/api/health` → `{"status":"ok"}`;
     `curl https://<api>/api/ready` → database `ok`.
-15. **Redeploy rule of thumb:** API URL changed → update `API_INTERNAL_URL` on
-    web + rebuild web; schema changed → `migrate deploy` with direct URL first.
+15. **Redeploy rule of thumb:** API domain changed → update `API_INTERNAL_URL` on
+    web + rebuild web; schema changed → `migrate deploy` with the direct URL
+    first. A `vercel deploy --prod` on its own (from a laptop or the dashboard)
+    rebuilds with whatever is already in the project's environment, so it can
+    neither fix nor cause the origin problem — but it *can* serve a build that
+    predates the current environment, which is worth remembering before blaming
+    CORS.
+
+16. **Diagnosing a 403 the way this was diagnosed.** Ask the same question on both
+    sides, because the answer differs and the difference is the diagnosis:
+
+    ```bash
+    # Directly to the API: does the origin itself pass?
+    curl -s -X POST https://<api-domain>/api/auth/sign-in/email \
+      -H 'Origin: https://<web-domain>' -H 'content-type: application/json' \
+      -d '{"email":"nobody@example.com","password":"whatever123"}' -w ' %{http_code}\n'
+    # 401 INVALID_EMAIL_OR_PASSWORD → the origin is trusted; the problem is elsewhere.
+    # 403 INVALID_ORIGIN           → the API does not trust the Web origin.
+
+    # Through the Web app: is the proxy pointing at the same API?
+    curl -s -X POST https://<web-domain>/api/auth/sign-in/email \
+      -H 'Origin: https://<web-domain>' -H 'content-type: application/json' \
+      -d '{"email":"nobody@example.com","password":"whatever123"}' -w ' %{http_code}\n'
+    # A different answer from the first call means the Web is proxying to another
+    # deployment, so what you configured is not what the browser is reaching.
+    ```
 
 ## Resetting the demo database
 

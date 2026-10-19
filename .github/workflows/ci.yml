@@ -145,6 +145,15 @@ jobs:
       - name: Install Chromium
         run: pnpm --filter @easyerp/web exec playwright install --with-deps chromium
 
+      - name: Install the document fonts
+        # Chromium substitutes a fallback face when a font is missing instead of
+        # failing, and the substituted face has different metrics, so an Arabic
+        # glyph-shaping assertion can pass for the wrong reason.
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends fonts-noto-core fonts-dejavu-core
+          fc-list | grep -q "Noto Naskh Arabic" || (echo "Arabic font missing" && exit 1)
+
       - name: Generate client
         run: pnpm db:generate
 

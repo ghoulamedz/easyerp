@@ -79,7 +79,43 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
     throw new Error('FIRST_SETUP_TOKEN must be set to a non-default value in production');
   }
 
+  if (parsed.data.NODE_ENV === 'production') {
+    const placeholder = [parsed.data.BETTER_AUTH_URL, ...parsed.data.CORS_ORIGINS].find(
+      isReservedHost,
+    );
+    if (placeholder !== undefined) {
+      // A reserved name can never resolve, so a production deployment carrying one
+      // rejects every visitor and cannot be fixed without a redeploy. That is not
+      // a hypothetical: the demo workflow used to write `https://placeholder.invalid`
+      // to reach a first deploy, then correct it in a later step, and the deploy
+      // that the Web proxy happened to point at kept the placeholder — sign-in
+      // answered 403 INVALID_ORIGIN for every origin while the API's own domain
+      // looked healthy. Refusing to boot names the cause in the deploy log.
+      throw new Error(
+        `BETTER_AUTH_URL/CORS_ORIGINS name a reserved host (${placeholder}) in production; ` +
+          'a reserved name never resolves, so every origin would be rejected at sign-in',
+      );
+    }
+  }
+
   return Object.freeze({ ...parsed.data, isProduction: parsed.data.NODE_ENV === 'production' });
+}
+
+/**
+ * Whether an origin's host is reserved for documentation rather than routing
+ * (RFC 2606 `invalid`/`example`/`test`). Such a name resolves for nobody, which
+ * makes it a placeholder by construction rather than by convention.
+ */
+function isReservedHost(origin: string): boolean {
+  let host: string;
+  try {
+    host = new URL(origin).hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  return ['invalid', 'example', 'test'].some(
+    (reserved) => host === reserved || host.endsWith(`.${reserved}`),
+  );
 }
 
 /** The parsed environment for the running process. Call after `loadEnv`. */

@@ -112,11 +112,14 @@ jobs:
         env:
           DATABASE_URL: ${{ steps.neon.outputs.database_url_unpooled }}
 
-  vercel-env-pre:
-    name: Pre-Deploy Env Vars (placeholders)
+  deploy:
+    name: Deploy API and Web
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     needs: neon-db
+    env:
+      VERCEL_PROJECT_ID_API: ${{ secrets.VERCEL_PROJECT_ID_API }}
+      VERCEL_PROJECT_ID_WEB: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
@@ -125,19 +128,71 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
-      - name: Install Vercel CLI
-        run: pnpm add -g vercel@latest
+      - name: Install the Vercel and Neon CLIs
+        # Nothing else. Vercel builds both projects itself from `buildCommand` in
+        # each `vercel.json`, on its own builders, with `--frozen-lockfile`. An
+        # install and a build here would produce a second, unused artifact and
+        # cost minutes — the previous version of this workflow did exactly that,
+        # twice, and deployed each project twice as well.
+        run: pnpm add -g vercel@latest neonctl@8.7.2
 
-      - name: Install neonctl
-        run: pnpm add -g neonctl@8.7.2
-
-      - name: Set API project environment variables (DATABASE_URL resolved via neonctl in same shell)
-        env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      - name: Resolve the two stable origins
+        id: origins
+        # Read the projects' *production domains* before deploying anything. They
+        # are project facts, not deploy outputs, and deriving them here is what
+        # lets one deploy per project be enough.
+        #
+        # `vercel deploy --prod` mints a new per-deployment hostname on every run
+        # (`easyerp-web-<hash>-<team>.vercel.app`). Those hostnames are useless as
+        # configuration: a browser visits the stable domain, so a trust list naming
+        # a deployment hostname rejects the visitor (403 INVALID_ORIGIN), and a
+        # proxy target naming one pins the Web to a single API deployment whose
+        # environment snapshot is frozen at the moment it was created.
         run: |
           set -euo pipefail
-          # Resolve DATABASE_URL here (same shell) so GitHub secret-output masking doesn't blank it.
-          # GitHub warns "Skip output database_url since it may contain secret" and blanks needs.neon-db.outputs.database_url.
+
+          project_origin() {
+            local project_id="$1" json alias
+            json=$(curl -sf -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v9/projects/${project_id}?teamId=${VERCEL_ORG_ID}") || true
+            if [ -z "${json:-}" ]; then
+              echo "::error::Could not read Vercel project ${project_id}; refusing to guess an origin." >&2
+              return 1
+            fi
+            # The production alias first; then any alias targeted at production
+            # (a custom domain); then `<project>.vercel.app`, which Vercel assigns
+            # to every project and which is what a visitor uses when no custom
+            # domain has been added.
+            alias=$(echo "$json" | jq -r '
+              ((.targets?.production?.alias? // [])[0])
+              // ([.alias[]? | select(.target == "production") | .domain][0])
+              // (if (.name // "") != "" then .name + ".vercel.app" else empty end)' 2>/dev/null || true)
+            if [ -z "$alias" ] || [ "$alias" = "null" ]; then
+              echo "::error::No production domain on Vercel project ${project_id}." >&2
+              return 1
+            fi
+            echo "https://${alias}"
+          }
+
+          WEB_ORIGIN=$(project_origin "${VERCEL_PROJECT_ID_WEB}")
+          API_ORIGIN=$(project_origin "${VERCEL_PROJECT_ID_API}")
+          echo "web_origin=${WEB_ORIGIN}" >> $GITHUB_OUTPUT
+          echo "api_origin=${API_ORIGIN}" >> $GITHUB_OUTPUT
+          echo "Web origin (what the browser uses): ${WEB_ORIGIN}"
+          echo "API origin (where the Web proxies /api): ${API_ORIGIN}"
+
+      - name: Write the API project's environment
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          WEB_ORIGIN: ${{ steps.origins.outputs.web_origin }}
+        run: |
+          set -euo pipefail
+          API_ARGS="--token=${VERCEL_TOKEN} --scope=${VERCEL_ORG_ID} --project=${VERCEL_PROJECT_ID_API}"
+
+          # DATABASE_URL is resolved in *this* shell rather than taken from the
+          # `neon-db` job's output: GitHub blanks an output that looks like a
+          # secret ("Skip output database_url since it may contain secret"), which
+          # would deploy an empty value.
           ROLE="easyerp"
           ROLES_JSON=$(neonctl roles list --project-id ${{ secrets.NEON_PROJECT_ID }} --output json 2>/dev/null || echo '[]')
           if ! echo "$ROLES_JSON" | jq -e --arg r "$ROLE" '
@@ -146,7 +201,7 @@ jobs:
             elif has("data") then any(.data[]; .name==$r)
             else false end' >/dev/null 2>&1; then
             ROLE=$(echo "$ROLES_JSON" | jq -r '
-              if type=="array" then .[0].name // "" 
+              if type=="array" then .[0].name // ""
               elif has("roles") then .roles[0].name // ""
               elif has("data") then .data[0].name // ""
               else "" end')
@@ -155,291 +210,119 @@ jobs:
           fi
           POOLED=$(neonctl connection-string --project-id ${{ secrets.NEON_PROJECT_ID }} --branch demo --role "$ROLE" --pooled)
           echo "::add-mask::$POOLED"
-          echo "Resolved DATABASE_URL len=${#POOLED} head=${POOLED:0:50}..." >&2
-          if [ -z "$POOLED" ]; then echo "Failed to resolve DATABASE_URL via neonctl" >&2; exit 1; fi
+          if [ -z "$POOLED" ]; then echo "::error::Could not resolve DATABASE_URL." >&2; exit 1; fi
 
-          for var in DATABASE_URL BETTER_AUTH_SECRET BETTER_AUTH_URL CORS_ORIGINS FIRST_SETUP_TOKEN NODE_ENV API_PORT API_HOST LOG_LEVEL; do
-            vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} 2>/dev/null || true
-          done
+          # Written once, before the only deploy, and never a placeholder: a
+          # placeholder deployed first and corrected afterwards is a live site that
+          # rejects every sign-in until the second deploy lands. `env.ts` refuses
+          # an `.invalid` origin in production so this cannot be shipped at all.
+          write() {
+            local name="$1" value="$2"
+            vercel env rm "$name" production --yes $API_ARGS 2>/dev/null || true
+            printf '%s' "$value" | vercel env add "$name" production $API_ARGS
+          }
 
-          vercel env add DATABASE_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "$POOLED"
-          vercel env add BETTER_AUTH_SECRET production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_BETTER_AUTH_SECRET }}"
-          vercel env add BETTER_AUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "https://placeholder.invalid"
-          vercel env add CORS_ORIGINS production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "https://placeholder.invalid"
-          vercel env add FIRST_SETUP_TOKEN production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ secrets.DEMO_FIRST_SETUP_TOKEN }}"
-          vercel env add NODE_ENV production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "production"
-          vercel env add API_PORT production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "3002"
-          vercel env add API_HOST production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "0.0.0.0"
-          vercel env add LOG_LEVEL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "info"
+          write DATABASE_URL "$POOLED"
+          write BETTER_AUTH_SECRET "${{ secrets.DEMO_BETTER_AUTH_SECRET }}"
+          # The origin the BROWSER uses for /api/auth/*, which is the Web's stable
+          # domain: the browser calls same-origin /api/* and Next rewrites it here.
+          write BETTER_AUTH_URL "$WEB_ORIGIN"
+          write CORS_ORIGINS "$WEB_ORIGIN"
+          write FIRST_SETUP_TOKEN "${{ secrets.DEMO_FIRST_SETUP_TOKEN }}"
+          write NODE_ENV production
+          write API_PORT 3002
+          write API_HOST 0.0.0.0
+          write LOG_LEVEL info
 
-
-      - name: Set Web project environment variables
+      - name: Write the Web project's environment
+        env:
+          API_ORIGIN: ${{ steps.origins.outputs.api_origin }}
         run: |
-          for var in API_INTERNAL_URL NODE_ENV; do
-            vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} 2>/dev/null || true
-          done
-
-          vercel env add API_INTERNAL_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "https://placeholder.invalid"
-          vercel env add NODE_ENV production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "production"
-
-  deploy-api:
-    name: Deploy API → Vercel
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [neon-db, vercel-env-pre]
-    outputs:
-      api_url: ${{ steps.save-url.outputs.api_url }}
-    env:
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-      DATABASE_URL: ${{ needs.neon-db.outputs.database_url }}
-      DATABASE_URL_UNPOOLED: ${{ needs.neon-db.outputs.database_url_unpooled }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install deps (including dev for build)
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Vercel CLI
-        run: pnpm add -g vercel@latest
-
-      - name: Generate Prisma client
-        run: pnpm --filter @easyerp/api prisma:generate
-
-      - name: Build contracts
-        run: pnpm --filter @easyerp/contracts build
-
-      - name: Build API
-        run: pnpm --filter @easyerp/api build
+          set -euo pipefail
+          WEB_ARGS="--token=${VERCEL_TOKEN} --scope=${VERCEL_ORG_ID} --project=${VERCEL_PROJECT_ID_WEB}"
+          write() {
+            local name="$1" value="$2"
+            vercel env rm "$name" production --yes $WEB_ARGS 2>/dev/null || true
+            printf '%s' "$value" | vercel env add "$name" production $WEB_ARGS
+          }
+          # Read at build time by `next.config.ts` for the /api rewrite. The API's
+          # stable domain, not a deployment hostname: a pinned deployment would
+          # freeze its environment snapshot, which is how a sign-in came to be
+          # proxied to a build carrying a placeholder CORS_ORIGINS and answered
+          # 403 INVALID_ORIGIN while the API's own domain worked.
+          write API_INTERNAL_URL "$API_ORIGIN"
+          write NODE_ENV production
 
       - name: Deploy API to Vercel
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
         run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
-
-      - name: Save API deployment URL
-        id: save-url
-        run: |
-          set -euo pipefail
-          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
-          head -c 1200 /tmp/vercel_ls.json; echo
-          URL=$(jq -r '
-            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
-            first_deploy | (.alias[0] // .url // empty)
-          ' /tmp/vercel_ls.json)
-          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve API deployment URL from:" >&2
-            cat /tmp/vercel_ls.json >&2
-            exit 1
-          fi
-          echo "api_url=https://$URL" >> $GITHUB_OUTPUT
-          echo "API deployed to: https://$URL"
-
-  deploy-web:
-    name: Deploy Web → Vercel
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: [neon-db, vercel-env-pre, deploy-api]
-    outputs:
-      web_url: ${{ steps.web_url.outputs.web_url }}
-      web_production_url: ${{ steps.web_url.outputs.web_production_url }}
-    env:
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-      API_INTERNAL_URL: ${{ needs.deploy-api.outputs.api_url }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install deps
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Vercel CLI
-        run: pnpm add -g vercel@latest
-
-      - name: Build contracts
-        run: pnpm --filter @easyerp/contracts build
-
-      - name: Build Web
-        run: pnpm --filter @easyerp/web build
-        env:
-          API_INTERNAL_URL: ${{ needs.deploy-api.outputs.api_url }}
 
       - name: Deploy Web to Vercel
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
         run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
-      - name: Get Web deployment URL
-        id: web_url
+      - name: Smoke test through the Web origin
         env:
-          VERCEL_PROJECT_ID_WEB: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
+          WEB_ORIGIN: ${{ steps.origins.outputs.web_origin }}
+          API_ORIGIN: ${{ steps.origins.outputs.api_origin }}
+        # Two questions, asked the way a visitor's browser asks them: does the API
+        # answer, and does the sign-in endpoint trust this origin. Wrong
+        # credentials must come back 401 INVALID_EMAIL_OR_PASSWORD — a 403
+        # INVALID_ORIGIN here is the misconfiguration this step exists to catch,
+        # and it needs no account to detect.
         run: |
           set -euo pipefail
-          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
-          head -c 1200 /tmp/vercel_ls.json; echo
-          URL=$(jq -r '
-            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
-            first_deploy | (.alias[0] // .url // empty)
-          ' /tmp/vercel_ls.json)
-          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve Web deployment URL from:" >&2
-            cat /tmp/vercel_ls.json >&2
-            exit 1
-          fi
-          echo "web_url=https://$URL" >> $GITHUB_OUTPUT
-          echo "Web deployed to: https://$URL"
 
-          # The origin a visitor actually uses is the project's stable production
-          # domain, not this deployment's hostname: `vercel deploy --prod` mints a
-          # new per-deployment hostname on every run, so a CORS_ORIGINS pinned to
-          # it rejects the very next deploy's visitors at sign-in (403
-          # INVALID_ORIGIN). The project record keeps the stable domain; ask the
-          # API for it instead of guessing from the deployment list.
-          TEAM_QUERY=""
-          if [ -n "${VERCEL_ORG_ID:-}" ]; then TEAM_QUERY="?teamId=${VERCEL_ORG_ID}"; fi
-          PROJECT_JSON=$(curl -sf -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID_WEB}${TEAM_QUERY}" || echo '{}')
-          PROD_DOMAIN=$(echo "$PROJECT_JSON" | jq -r '
-            ([(.targets.production.alias // [])[]] + [(.alias // [])[] | select(.target == "production") | .domain])
-            | .[0] // empty' 2>/dev/null || true)
-          if [ -n "$PROD_DOMAIN" ] && [ "$PROD_DOMAIN" != "null" ]; then
-            echo "web_production_url=https://$PROD_DOMAIN" >> $GITHUB_OUTPUT
-            echo "Web production domain: https://$PROD_DOMAIN"
-          else
-            echo "::warning::Could not resolve the Web project's stable production domain; CORS_ORIGINS falls back to this deployment's hostname and will move on the next deploy (the API's VERCEL_PROJECT_PRODUCTION_URL union still covers the stable domain at runtime)."
-            echo "web_production_url=https://$URL" >> $GITHUB_OUTPUT
-          fi
-
-  vercel-env-final:
-    name: Final Env Vars (real URLs)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs: [deploy-api, deploy-web]
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install Vercel CLI
-        run: pnpm add -g vercel@latest
-
-      - name: Update API project URL environment variables
-        run: |
-          for var in BETTER_AUTH_URL CORS_ORIGINS; do
-            vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} 2>/dev/null || true
+          READY=0
+          for attempt in $(seq 1 20); do
+            HEALTH=$(curl -s -o /dev/null -w '%{http_code}' "${API_ORIGIN}/api/health" || true)
+            SIGNIN=$(curl -s -o /tmp/signin.json -w '%{http_code}' \
+              -X POST "${WEB_ORIGIN}/api/auth/sign-in/email" \
+              -H "Origin: ${WEB_ORIGIN}" -H 'content-type: application/json' \
+              -d '{"email":"smoke-test@invalid","password":"not-a-real-password"}' || true)
+            echo "attempt ${attempt}: health=${HEALTH} sign-in=${SIGNIN} $(head -c 120 /tmp/signin.json)"
+            case "$SIGNIN" in
+              # A rejected origin is a configuration fact, not a rollout race:
+              # retrying it twenty times only delays the report by three minutes.
+              403) break ;;
+              # These are the answers that prove Better Auth *handled* the request,
+              # which is the question being asked: 401 wrong credentials (the
+              # expected one), 400 rejected body, 422 validation, 429 rate limit.
+              # Deliberately not "any 4xx": a 404 means the route is not there at
+              # all, which is a failure this step exists to catch.
+              401|400|422|429) READY=1; break ;;
+            esac
+            sleep 10
           done
-          # Both are the origin the BROWSER uses, which is the Web's stable
-          # production domain, never a per-deployment hostname:
-          #   BETTER_AUTH_URL = where the browser sees /api/auth/* (the Web; Next
-          #                     rewrites /api/* to the API), so Better Auth's own
-          #                     trusted origin, cookies and links name the origin a
-          #                     browser actually presents.
-          #   CORS_ORIGINS    = the same origin, exact, comma-separated, never a
-          #                     wildcard. Vercel also injects VERCEL_URL and
-          #                     VERCEL_PROJECT_PRODUCTION_URL into the function at
-          #                     runtime and the API unions them in, so a fresh
-          #                     deployment hostname cannot break sign-in.
-          WEB_ORIGIN="${{ needs.deploy-web.outputs.web_production_url }}"
-          if [ -z "$WEB_ORIGIN" ]; then
-            echo "::error::No Web origin resolved; refusing to write a placeholder CORS_ORIGINS that would reject every visitor."
+
+          if [ "${SIGNIN:-}" = "403" ]; then
+            echo "::error::${WEB_ORIGIN} answered 403 at sign-in: the Web proxy target or CORS_ORIGINS does not trust the browser's origin."
+            cat /tmp/signin.json
             exit 1
           fi
-          vercel env add BETTER_AUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "$WEB_ORIGIN"
-          vercel env add CORS_ORIGINS production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "$WEB_ORIGIN"
-
-      - name: Update Web project URL environment variables
-        run: |
-          vercel env rm "API_INTERNAL_URL" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} 2>/dev/null || true
-          vercel env add API_INTERNAL_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_WEB }} <<< "${{ needs.deploy-api.outputs.api_url }}"
-
-  redeploy:
-    name: Redeploy with Real URLs
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: vercel-env-final
-    outputs:
-      api_url: ${{ steps.save-api-url.outputs.api_url }}
-      web_url: ${{ steps.save-web-url.outputs.web_url }}
-    steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install Vercel CLI
-        run: pnpm add -g vercel@latest
-
-      - name: Redeploy API to Vercel
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-        run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
-
-      - name: Redeploy Web to Vercel
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-        run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
-
-      - name: Save final deployment URLs
-        id: save-api-url
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
-        run: |
-          set -euo pipefail
-          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
-          head -c 1200 /tmp/vercel_ls.json; echo
-          URL=$(jq -r '
-            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
-            first_deploy | (.alias[0] // .url // empty)
-          ' /tmp/vercel_ls.json)
-          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve API deployment URL from:" >&2
-            cat /tmp/vercel_ls.json >&2
+          if [ "${SIGNIN:-}" = "000" ] || [ "${SIGNIN:-}" = "404" ] || [ "${SIGNIN:-}" = "502" ] || [ "${SIGNIN:-}" = "503" ] || [ "${SIGNIN:-}" = "504" ]; then
+            echo "::error::${WEB_ORIGIN}/api/auth/sign-in/email answered ${SIGNIN}; the Web is not serving the API route through its proxy."
+            cat /tmp/signin.json 2>/dev/null || true
             exit 1
           fi
-          echo "api_url=https://$URL" >> $GITHUB_OUTPUT
-          echo "API redeployed to: https://$URL"
-
-      - name: Save final Web deployment URL
-        id: save-web-url
-        env:
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
-        run: |
-          set -euo pipefail
-          vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
-          head -c 1200 /tmp/vercel_ls.json; echo
-          URL=$(jq -r '
-            def first_deploy: if type=="array" then .[0] elif has("deployments") then .deployments[0] elif has("data") then .data[0] elif has("url") then . else empty end;
-            first_deploy | (.alias[0] // .url // empty)
-          ' /tmp/vercel_ls.json)
-          if [ -z "$URL" ] || [ "$URL" = "null" ]; then
-            echo "Failed to resolve Web deployment URL from:" >&2
-            cat /tmp/vercel_ls.json >&2
+          if [ "${HEALTH:-}" != "200" ]; then
+            echo "::error::${API_ORIGIN}/api/health answered ${HEALTH}, not 200."
             exit 1
           fi
-          echo "web_url=https://$URL" >> $GITHUB_OUTPUT
-          echo "Web redeployed to: https://$URL"
+          if [ "$READY" != "1" ]; then
+            echo "::error::Neither the health nor the sign-in check settled within the retry window."
+            exit 1
+          fi
+          echo "Sign-in reached credential validation (HTTP ${SIGNIN}) with Origin ${WEB_ORIGIN}."
 
       - name: Post deployment summary
         if: always()
         run: |
-          echo "## Demo Deployment Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Component | URL |" >> $GITHUB_STEP_SUMMARY
-          echo "|-----------|-----|" >> $GITHUB_STEP_SUMMARY
-          echo "| **Web App** | ${{ steps.save-web-url.outputs.web_url }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| **API** | ${{ steps.save-api-url.outputs.api_url }} |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Setup is open at \`/fr/setup\` — demo is fresh with no accounts." >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Demo deployment"
+            echo ""
+            echo "| Component | URL |"
+            echo "|-----------|-----|"
+            echo "| **Web app** | ${{ steps.origins.outputs.web_origin }} |"
+            echo "| **API** | ${{ steps.origins.outputs.api_origin }} |"
+            echo ""
+            echo "Sign-in is at \`/fr/sign-in\`; the API trusts \`${{ steps.origins.outputs.web_origin }}\`."
+          } >> $GITHUB_STEP_SUMMARY
