@@ -128,6 +128,26 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
 
+      - name: Check the deployment credentials are present
+        # `vercel deploy` finds its project in `VERCEL_PROJECT_ID`, paired with
+        # `VERCEL_ORG_ID`, or from a linked `.vercel/` directory. This workflow
+        # has neither, and passes the ids explicitly to `vercel env` instead, so a
+        # deploy step that loses its `env:` block fails with the CLI's own message
+        # ("You specified VERCEL_ORG_ID but you forgot to specify
+        # VERCEL_PROJECT_ID") several minutes in. Name the missing secret here.
+        run: |
+          set -euo pipefail
+          missing=""
+          [ -z "${VERCEL_TOKEN:-}" ] && missing="$missing VERCEL_TOKEN"
+          [ -z "${VERCEL_ORG_ID:-}" ] && missing="$missing VERCEL_ORG_ID"
+          [ -z "${VERCEL_PROJECT_ID_API:-}" ] && missing="$missing VERCEL_PROJECT_ID_API"
+          [ -z "${VERCEL_PROJECT_ID_WEB:-}" ] && missing="$missing VERCEL_PROJECT_ID_WEB"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing"
+            exit 1
+          fi
+          echo "Credentials present for org ${VERCEL_ORG_ID}."
+
       - name: Install the Vercel and Neon CLIs
         # Nothing else. Vercel builds both projects itself from `buildCommand` in
         # each `vercel.json`, on its own builders, with `--frozen-lockfile`. An
@@ -254,9 +274,18 @@ jobs:
           write NODE_ENV production
 
       - name: Deploy API to Vercel
+        # `VERCEL_PROJECT_ID`, exactly: that is the name the CLI reads, together
+        # with `VERCEL_ORG_ID` at the top of this file. The job-level variables are
+        # `..._API`/`..._WEB` because one job serves two projects, and the `vercel
+        # env` steps above use `--project=` for the same reason. Neither is visible
+        # to `vercel deploy`, which takes no `--project` flag.
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_API }}
         run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
       - name: Deploy Web to Vercel
+        env:
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
         run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
       - name: Smoke test through the Web origin
