@@ -34,3 +34,7 @@ Thumbs.db
 !.vscode/extensions.json
 
 .pi/
+
+# Runtime document archive (DOCUMENT_ARCHIVE_ROOT default). Issued PDFs are
+# data, not source: they belong on the host, never in a commit.
+apps/api/var/
