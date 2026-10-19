@@ -101,3 +101,51 @@ as PDF" produces the same paper from the filed HTML.
 - `pnpm test:e2e` on a working database (one with a Business) stops with the
   explanatory message rather than running. That is the intended behaviour; a
   developer who wants it green points `DATABASE_URL` at a fresh database.
+
+## Tier A: the gate follows the artifact
+
+The print copy is HTML served by the API and printed by the visitor's browser, but
+the only test that read a document was still the PDF golden. So the artifact every
+deployment depends on had no regression test, while the artifact half of them
+cannot produce had a byte-for-byte suite and a browser install. The gate now
+matches the artifact (`a600d18`).
+
+**Tier A** — `*-print-golden.test.ts`, inside `pnpm verify`, no browser:
+
+| What | Where | Why |
+| --- | --- | --- |
+| Print goldens | `src/__tests__/goldens/print/*.html` (22 files, 144K) | 7 invoice documents + 5 papers × 3 locales |
+| Shared fixtures | `finance/__tests__/invoice-fixtures.ts`, `documents/__tests__/paper-fixtures.ts` | one matrix, two tiers, so they cannot drift |
+| Helper | `common/print-golden.ts` | line diff on failure, explicit re-bless |
+| Invariants | `documents/__tests__/print-contract.test.ts` | A4, self-contained, logical properties only, Arabic font stack, `dir` |
+
+**Tier B** — `pnpm test:golden` — untouched. It is the only tier with a layout
+engine, so it is the only one that can say anything about pagination and Arabic
+glyph shaping. Replacing it with HTML snapshots would have removed the last check
+on the thing a client actually files.
+
+The three templates already used logical properties only (`padding-inline`,
+`border-block-end`, `text-align: start`), which is why the browserless RTL check
+could be an assertion about the stylesheet instead of a measurement. That is the
+one happy finding: the discipline ADR 0009 asked for was already in the code, and
+it took a test cheap enough to run every commit to make it visible.
+
+### ADR 0011 was wrong about the artifact
+
+The ruling that unblocked this: the legally-held object is the physical A4 paper,
+and a TEIF e-invoice is UN/EDIFACT `INVOIC` with a qualified signature — a PDF
+emailed to a customer is explicitly *not* it (`docs/tunisia-fiscal-research.md`).
+So the PDF was never the fiscal artifact; it was a rendering of one. The ADR now
+says so, and keeps the clause that survives: after signing, the print copy is
+re-rendered and re-filed so the seal appears on the paper the customer receives.
+
+### Found, not fixed
+
+- **Neither template has `break-inside: avoid` on table rows**, so a long invoice
+  may split a row across a page. The assertion that would have caught it was
+  written and then removed: making it pass meant changing the template inside a
+  test commit and re-blessing PDFs that cannot be verified on this machine. It is
+  the first thing to add when the print template is next touched.
+- **The PDF tier is now maintenance without a consumer on the demo.** With the
+  renderer slated for removal, `pnpm test:golden` and `finance/pdf.ts` are the
+  next decision: retire both, or keep them as the VPS-only fidelity gate.
