@@ -155,8 +155,11 @@ jobs:
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
-        envs: GITHUB_REF_NAME
         with:
+          # `envs` is an action *input*, not a step key: at step level GitHub does
+          # not recognise it and rejects the whole workflow file, which is why this
+          # workflow reported "workflow file issue" and produced no jobs.
+          envs: GITHUB_REF_NAME
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}

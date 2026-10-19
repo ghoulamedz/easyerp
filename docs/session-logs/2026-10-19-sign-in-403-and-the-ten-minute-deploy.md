@@ -78,6 +78,60 @@ projects), 2 API deploys and 2 Web deploys. Ten minutes. The new shape is 1 job,
 installs, 0 local builds, 1 deploy each — the deployments themselves are the only
 unavoidable cost.
 
+## The second 403, an hour later: one domain out of several
+
+The workflow's fix worked as designed and the run **succeeded in 2m45s** (from ten
+minutes), with its smoke test green. Sign-in through
+`https://easyerp-web-ghoulamedz.vercel.app` reached credential validation. Through
+`https://easyerp-web.vercel.app` — the domain a person actually types — it was still
+403, and the run log said why:
+
+```
+Web origin (what the browser uses): https://easyerp-web-ghoulamedz.vercel.app
+```
+
+One origin was resolved and one was trusted. A Vercel project answers on several
+domains at once — the auto `<project>-<team>.vercel.app` and whatever a human added —
+and `.targets.production.alias[0]` returns the auto one. Picking an element of an
+unordered list was the mistake; the fix is to trust **all** of the project's domains
+(Vercel's `/v9/projects/{id}/domains`, unioned with the aliases on the project record,
+written comma-separated, which is what `CORS_ORIGINS` already means).
+
+Two things were removed from that code at the same time. The `<project>.vercel.app`
+guess, because `easyerp.vercel.app` belongs to a different account (it serves "Rent
+Vehicule App") and guessing would trust a stranger's origin. And the smoke test's
+single-origin check, which is why this got past it: it now POSTs sign-in once per
+resolved origin and fails if any of them answers 403.
+
+Verified in a real browser (Playwright, headless Chromium, against the live site):
+
+| Domain | Browser sent | Answer |
+| --- | --- | --- |
+| `easyerp-web.vercel.app` | `Origin: https://easyerp-web.vercel.app` | 403 `INVALID_ORIGIN` |
+| `easyerp-web-ghoulamedz.vercel.app` | `Origin: https://easyerp-web-ghoulamedz.vercel.app` | 401 `INVALID_EMAIL_OR_PASSWORD` |
+
+The second row is the proof that the origin check is the whole difference, and the
+first is the bug. The page renders it as "Identifiants refusés.", which is what the
+visitor sees.
+
+## Two dead gates found while looking
+
+Neither was caused by the changes above; both had been failing on every push.
+
+- **CI has never run on master.** All three jobs start with
+  `uses: ./.github/actions/setup`, and a *local* action cannot be loaded until the
+  repository is on disk — so the checkout inside the composite action could never
+  run, and every job died on its first step with "Can't find 'action.yml' … Did you
+  forget to run actions/checkout". The action file was present and correct the whole
+  time. Each job now does its own `actions/checkout@v5` first.
+- **`deploy-vps.yml` was rejected by GitHub as a workflow file.** Its
+  "Deploy via SSH" step had `envs: GITHUB_REF_NAME` at step level; `envs` is an input
+  of `appleboy/ssh-action` and belongs under `with:`. An unknown step key invalidates
+  the file, so every run reported "workflow file issue" with no jobs, and the Actions
+  list showed the path as the workflow's name instead of "Deploy VPS (Production)".
+
+`actionlint` (in Docker) now reports no errors across all three workflows.
+
 ## Not verified here
 
 The workflow's new steps have not been executed (no Vercel token locally). What *is*
@@ -91,6 +145,9 @@ wrong.
 
 - Re-run the workflow (push or `gh workflow run deploy-demo.yml`) to rewrite the live
   projects' environment and repoint the Web at the API's stable domain.
-- Both workflows' changes are uncommitted: `.github/workflows/ci.yml` (e2e job restored
-  after being deleted by accident, plus `fonts-noto-core`), `.github/workflows/deploy-demo.yml`,
-  `apps/api/src/config/env.ts` + its new test, and the deploy doc.
+- Uncommitted: `.github/workflows/deploy-demo.yml` (all domains trusted, smoke test per
+  origin), `.github/workflows/ci.yml` + `.github/actions/setup/action.yml` (checkout
+  ordering, `fonts-noto-core`), `.github/workflows/deploy-vps.yml` (`envs` under `with:`),
+  `apps/api/src/config/env.ts` + `env.test.ts`, and the deploy doc.
+- Until the next deploy, sign-in works on `easyerp-web-ghoulamedz.vercel.app` and not on
+  `easyerp-web.vercel.app` — the trust list still holds only the first.

@@ -156,55 +156,89 @@ jobs:
         # twice, and deployed each project twice as well.
         run: pnpm add -g vercel@latest neonctl@8.7.2
 
-      - name: Resolve the two stable origins
+      - name: Resolve the projects' production origins
         id: origins
-        # Read the projects' *production domains* before deploying anything. They
-        # are project facts, not deploy outputs, and deriving them here is what
-        # lets one deploy per project be enough.
+        # Every production domain, not one of them. A Vercel project answers on
+        # several at once — the auto `<project>-<team>.vercel.app`, plus whatever
+        # a human added (`easyerp-web.vercel.app`) — and they are returned in an
+        # order nobody controls. Taking element [0] put the auto name in
+        # CORS_ORIGINS and the domain the visitor actually used was rejected at
+        # sign-in (403 INVALID_ORIGIN) while the deployment's own log said the
+        # origin was correct. All of them go in, comma-separated, which is what
+        # CORS_ORIGINS already means (`env.ts` splits on commas).
         #
-        # `vercel deploy --prod` mints a new per-deployment hostname on every run
-        # (`easyerp-web-<hash>-<team>.vercel.app`). Those hostnames are useless as
-        # configuration: a browser visits the stable domain, so a trust list naming
-        # a deployment hostname rejects the visitor (403 INVALID_ORIGIN), and a
-        # proxy target naming one pins the Web to a single API deployment whose
-        # environment snapshot is frozen at the moment it was created.
+        # There is deliberately no `<project>.vercel.app` guess: Vercel domains
+        # are global, so `easyerp.vercel.app` belongs to a different account and
+        # guessing it would trust a stranger's origin. No domains resolved is a
+        # failed job, not a fallback.
         run: |
           set -euo pipefail
 
-          project_origin() {
-            local project_id="$1" json alias
+          project_origins() {
+            local project_id="$1" json domains
             json=$(curl -sf -H "Authorization: Bearer ${VERCEL_TOKEN}" \
               "https://api.vercel.com/v9/projects/${project_id}?teamId=${VERCEL_ORG_ID}") || true
             if [ -z "${json:-}" ]; then
               echo "::error::Could not read Vercel project ${project_id}; refusing to guess an origin." >&2
               return 1
             fi
-            # The production alias first; then any alias targeted at production
-            # (a custom domain); then `<project>.vercel.app`, which Vercel assigns
-            # to every project and which is what a visitor uses when no custom
-            # domain has been added.
-            alias=$(echo "$json" | jq -r '
-              ((.targets?.production?.alias? // [])[0])
-              // ([.alias[]? | select(.target == "production") | .domain][0])
-              // (if (.name // "") != "" then .name + ".vercel.app" else empty end)' 2>/dev/null || true)
-            if [ -z "$alias" ] || [ "$alias" = "null" ]; then
+            # The complete domain list. `limit` is raised because Vercel's default
+            # page size would silently truncate a project with many domains, and a
+            # truncated list is this step's original bug in a quieter costume.
+            local listed
+            listed=$(curl -sf -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v9/projects/${project_id}/domains?teamId=${VERCEL_ORG_ID}&limit=100" 2>/dev/null || true)
+            if [ -z "${listed:-}" ]; then
+              echo "::warning::Could not list the domains of project ${project_id}; falling back to the aliases on the project record, which may not include every domain a visitor uses." >&2
+              listed='{}'
+            fi
+
+            # Three shapes, unioned and deduplicated: the project record's
+            # production aliases, any alias targeted at production (a custom
+            # domain), and the project's own domain list — which is the complete
+            # set and the one that catches the domain a person actually types.
+            domains=$(jq -r --argjson listed "$listed" '
+              (
+                (.targets?.production?.alias? // [])[]
+                , ([.alias[]? | select(.target == "production") | .domain][])
+                , ($listed.domains? // [] | .[] | .name)
+              )
+              | select(type == "string" and length > 0)
+            ' <<<"$json" 2>/dev/null | sort -u || true)
+
+            if [ -z "$domains" ]; then
               echo "::error::No production domain on Vercel project ${project_id}." >&2
               return 1
             fi
-            echo "https://${alias}"
+
+            local out=""
+            while IFS= read -r d; do
+              out="${out:+$out,}https://${d}"
+            done <<<"$domains"
+            echo "$out"
           }
 
-          WEB_ORIGIN=$(project_origin "${VERCEL_PROJECT_ID_WEB}")
-          API_ORIGIN=$(project_origin "${VERCEL_PROJECT_ID_API}")
-          echo "web_origin=${WEB_ORIGIN}" >> $GITHUB_OUTPUT
-          echo "api_origin=${API_ORIGIN}" >> $GITHUB_OUTPUT
-          echo "Web origin (what the browser uses): ${WEB_ORIGIN}"
-          echo "API origin (where the Web proxies /api): ${API_ORIGIN}"
+          WEB_ORIGINS=$(project_origins "${VERCEL_PROJECT_ID_WEB}")
+          API_ORIGINS=$(project_origins "${VERCEL_PROJECT_ID_API}")
+          if [ -z "$WEB_ORIGINS" ] || [ -z "$API_ORIGINS" ]; then
+            echo "::error::An origin list came back empty; refusing to write a trust list that would reject every visitor."
+            exit 1
+          fi
+
+          # The first entry is the project's primary domain, used where exactly one
+          # origin is needed (Better Auth's baseURL, the Web's proxy target). Every
+          # entry is trusted, so it does not matter which one a visitor uses.
+          echo "web_origins=${WEB_ORIGINS}" >> $GITHUB_OUTPUT
+          echo "api_origins=${API_ORIGINS}" >> $GITHUB_OUTPUT
+          echo "web_origin=${WEB_ORIGINS%%,*}" >> $GITHUB_OUTPUT
+          echo "api_origin=${API_ORIGINS%%,*}" >> $GITHUB_OUTPUT
+          echo "Web origins (what a browser may present): ${WEB_ORIGINS}"
+          echo "API origins (where the Web proxies /api): ${API_ORIGINS}"
 
       - name: Write the API project's environment
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          WEB_ORIGIN: ${{ steps.origins.outputs.web_origin }}
+          WEB_ORIGINS: ${{ steps.origins.outputs.web_origins }}
         run: |
           set -euo pipefail
           API_ARGS="--token=${VERCEL_TOKEN} --scope=${VERCEL_ORG_ID} --project=${VERCEL_PROJECT_ID_API}"
@@ -246,8 +280,8 @@ jobs:
           write BETTER_AUTH_SECRET "${{ secrets.DEMO_BETTER_AUTH_SECRET }}"
           # The origin the BROWSER uses for /api/auth/*, which is the Web's stable
           # domain: the browser calls same-origin /api/* and Next rewrites it here.
-          write BETTER_AUTH_URL "$WEB_ORIGIN"
-          write CORS_ORIGINS "$WEB_ORIGIN"
+          write BETTER_AUTH_URL "${WEB_ORIGINS%%,*}"
+          write CORS_ORIGINS "$WEB_ORIGINS"
           write FIRST_SETUP_TOKEN "${{ secrets.DEMO_FIRST_SETUP_TOKEN }}"
           write NODE_ENV production
           write API_PORT 3002
@@ -288,59 +322,68 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
         run: vercel deploy --prod --yes --token ${{ secrets.VERCEL_TOKEN }} --scope ${{ secrets.VERCEL_ORG_ID }}
 
-      - name: Smoke test through the Web origin
+      - name: Smoke test every Web origin
         env:
-          WEB_ORIGIN: ${{ steps.origins.outputs.web_origin }}
+          WEB_ORIGINS: ${{ steps.origins.outputs.web_origins }}
           API_ORIGIN: ${{ steps.origins.outputs.api_origin }}
         # Two questions, asked the way a visitor's browser asks them: does the API
-        # answer, and does the sign-in endpoint trust this origin. Wrong
-        # credentials must come back 401 INVALID_EMAIL_OR_PASSWORD — a 403
-        # INVALID_ORIGIN here is the misconfiguration this step exists to catch,
-        # and it needs no account to detect.
+        # answer, and does the sign-in endpoint trust this origin — once per Web
+        # origin, because a project answers on several and a trust list that holds
+        # one of them leaves the visitor on another with a 403.
+        #
+        # Wrong credentials must come back something that proves Better Auth
+        # handled the request (401, or 400/422 for the body, 429 if rate limited).
+        # A 403 INVALID_ORIGIN here is the misconfiguration this step exists to
+        # catch, and it needs no account to detect.
         run: |
           set -euo pipefail
 
-          READY=0
+          HEALTH=000
           for attempt in $(seq 1 20); do
             HEALTH=$(curl -s -o /dev/null -w '%{http_code}' "${API_ORIGIN}/api/health" || true)
-            SIGNIN=$(curl -s -o /tmp/signin.json -w '%{http_code}' \
-              -X POST "${WEB_ORIGIN}/api/auth/sign-in/email" \
-              -H "Origin: ${WEB_ORIGIN}" -H 'content-type: application/json' \
-              -d '{"email":"smoke-test@invalid","password":"not-a-real-password"}' || true)
-            echo "attempt ${attempt}: health=${HEALTH} sign-in=${SIGNIN} $(head -c 120 /tmp/signin.json)"
-            case "$SIGNIN" in
-              # A rejected origin is a configuration fact, not a rollout race:
-              # retrying it twenty times only delays the report by three minutes.
-              403) break ;;
-              # These are the answers that prove Better Auth *handled* the request,
-              # which is the question being asked: 401 wrong credentials (the
-              # expected one), 400 rejected body, 422 validation, 429 rate limit.
-              # Deliberately not "any 4xx": a 404 means the route is not there at
-              # all, which is a failure this step exists to catch.
-              401|400|422|429) READY=1; break ;;
-            esac
+            [ "$HEALTH" = "200" ] && break
             sleep 10
           done
-
-          if [ "${SIGNIN:-}" = "403" ]; then
-            echo "::error::${WEB_ORIGIN} answered 403 at sign-in: the Web proxy target or CORS_ORIGINS does not trust the browser's origin."
-            cat /tmp/signin.json
-            exit 1
-          fi
-          if [ "${SIGNIN:-}" = "000" ] || [ "${SIGNIN:-}" = "404" ] || [ "${SIGNIN:-}" = "502" ] || [ "${SIGNIN:-}" = "503" ] || [ "${SIGNIN:-}" = "504" ]; then
-            echo "::error::${WEB_ORIGIN}/api/auth/sign-in/email answered ${SIGNIN}; the Web is not serving the API route through its proxy."
-            cat /tmp/signin.json 2>/dev/null || true
-            exit 1
-          fi
-          if [ "${HEALTH:-}" != "200" ]; then
+          if [ "$HEALTH" != "200" ]; then
             echo "::error::${API_ORIGIN}/api/health answered ${HEALTH}, not 200."
             exit 1
           fi
-          if [ "$READY" != "1" ]; then
-            echo "::error::Neither the health nor the sign-in check settled within the retry window."
-            exit 1
-          fi
-          echo "Sign-in reached credential validation (HTTP ${SIGNIN}) with Origin ${WEB_ORIGIN}."
+
+          IFS=',' read -r -a origins <<<"$WEB_ORIGINS"
+          failed=0
+          for origin in "${origins[@]}"; do
+            STATUS=000
+            attempt=0
+            for _ in $(seq 1 12); do
+              attempt=$((attempt + 1))
+              STATUS=$(curl -s -o /tmp/signin.json -w '%{http_code}' \
+                -X POST "${origin}/api/auth/sign-in/email" \
+                -H "Origin: ${origin}" -H 'content-type: application/json' \
+                -d '{"email":"smoke-test@invalid","password":"not-a-real-password"}' || true)
+              case "$STATUS" in
+                # A rejected origin is a configuration fact, not a rollout race:
+                # retrying it twelve times only delays the report by two minutes.
+                403) break ;;
+                # 401 wrong credentials (the expected answer), 400/422 rejected
+                # body, 429 rate limited: in all of these Better Auth *decided*,
+                # which is the question. Deliberately not "any 4xx": a 404 means
+                # the route is not there at all.
+                401|400|422|429) break ;;
+              esac
+              sleep 10
+            done
+            echo "  ${origin} -> ${STATUS} (attempt ${attempt}) $(head -c 100 /tmp/signin.json)"
+            if [ "$STATUS" = "403" ]; then
+              echo "::error::${origin} is not trusted at sign-in (403 INVALID_ORIGIN): the origin list CORS_ORIGINS carries does not include it, or the Web proxy points at a deployment built without it."
+              failed=1
+            elif [ "$STATUS" != "401" ] && [ "$STATUS" != "400" ] && [ "$STATUS" != "422" ] && [ "$STATUS" != "429" ]; then
+              echo "::error::${origin}/api/auth/sign-in/email answered ${STATUS}; the Web is not serving the API route through its proxy."
+              cat /tmp/signin.json 2>/dev/null || true
+              failed=1
+            fi
+          done
+          [ "$failed" = "0" ] || exit 1
+          echo "Every Web origin (${WEB_ORIGINS}) reached credential validation at sign-in."
 
       - name: Post deployment summary
         if: always()
@@ -350,8 +393,8 @@ jobs:
             echo ""
             echo "| Component | URL |"
             echo "|-----------|-----|"
-            echo "| **Web app** | ${{ steps.origins.outputs.web_origin }} |"
-            echo "| **API** | ${{ steps.origins.outputs.api_origin }} |"
+            echo "| **Web app** | ${{ steps.origins.outputs.web_origins }} |"
+            echo "| **API** | ${{ steps.origins.outputs.api_origins }} |"
             echo ""
-            echo "Sign-in is at \`/fr/sign-in\`; the API trusts \`${{ steps.origins.outputs.web_origin }}\`."
+            echo "Sign-in is at \`/fr/sign-in\`. The API trusts every Web origin above, verified by the smoke test."
           } >> $GITHUB_STEP_SUMMARY

@@ -47,6 +47,9 @@ jobs:
       # question the step is asking.
       DATABASE_URL: postgresql://easyerp:easyerp@localhost:5432/easyerp?schema=public
     steps:
+      # Before the local action below: `uses: ./…` needs the repository on disk.
+      - uses: actions/checkout@v5
+
       - uses: ./.github/actions/setup
 
       - name: Prisma schema is valid
@@ -96,6 +99,9 @@ jobs:
       API_HOST: 127.0.0.1
       API_PORT: '3102'
     steps:
+      # Before the local action below: `uses: ./…` needs the repository on disk.
+      - uses: actions/checkout@v5
+
       - uses: ./.github/actions/setup
 
       - name: Generate client
@@ -140,6 +146,9 @@ jobs:
       API_HOST: 127.0.0.1
       API_PORT: '3102'
     steps:
+      # Before the local action below: `uses: ./…` needs the repository on disk.
+      - uses: actions/checkout@v5
+
       - uses: ./.github/actions/setup
 
       - name: Install Chromium

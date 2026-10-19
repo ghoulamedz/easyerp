@@ -1,13 +1,20 @@
 name: Setup
 description: >-
-  Checkout, pnpm, Node and a frozen-lockfile install. Identical in every job on
-  purpose: four copies of this is four places for the Node version to drift.
+  pnpm, Node and a frozen-lockfile install. Identical in every job on purpose:
+  several copies of this are several places for the Node version to drift.
+
+  Checkout is deliberately NOT here, and that is the whole story of this file. A
+  local action (`uses: ./.github/actions/setup`) cannot be loaded until the
+  repository is on disk, so a job whose *first* step is this one fails with
+  "Can't find 'action.yml' ... Did you forget to run actions/checkout before
+  running your local action?" — the checkout inside could never run, because the
+  file it lives in had not been fetched yet. Every CI job failed that way, so the
+  gate was dead in every run. Each job now does its own `actions/checkout@v5`
+  first; this action starts where that leaves off.
 
 runs:
   using: composite
   steps:
-    - uses: actions/checkout@v5
-
     # Before setup-node, so the pnpm store is on PATH and can be cached.
     - uses: pnpm/action-setup@v4
 
