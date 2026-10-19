@@ -13,8 +13,9 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 
 import {
   draftGoodsReceiptSchema,
@@ -27,6 +28,7 @@ import {
   DocumentListService,
   type DocumentPage,
 } from '../documents/document-list.service.js';
+import { sendPdf } from '../common/pdf-response.js';
 import { GoodsReceiptService } from './goods-receipt.service.js';
 import { RequiresModule } from '../settings/modules.guard.js';
 
@@ -68,6 +70,13 @@ export class GoodsReceiptController {
     const receipt = await this.receipts.findById(id);
     if (!receipt) throw new NotFoundException(`No Goods Receipt ${id}`);
     return receipt;
+  }
+
+  /** The archived paper (ADR 0010): the bytes the Business is answerable for. */
+  @RequirePermissions('goods-receipt:read')
+  @Get(':id/pdf')
+  async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPdf(response, id, await this.receipts.readPdf(id));
   }
 }
 

@@ -7,7 +7,7 @@
  * received is kept as a Discrepancy record.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/index.js';
 
 import {
@@ -23,6 +23,9 @@ import { Amount } from '../finance/amount.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
+import { paperLocale } from '../documents/paper-document.js';
+import { goodsReceiptPaperView, type UnitCodes } from '../documents/paper-builders.js';
+import { PaperPdfService } from '../documents/paper-pdf.service.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
 
 export const GOODS_RECEIPT = 'GOODS_RECEIPT';
@@ -30,11 +33,14 @@ export const GOODS_RECEIPT_REASON = 'GOODS_RECEIPT';
 
 @Injectable()
 export class GoodsReceiptService {
+  private readonly logger = new Logger(GoodsReceiptService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly stock: StockLedgerService,
     private readonly audit: AuditService,
+    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -211,12 +217,69 @@ export class GoodsReceiptService {
         { ...actor, ipAddress: ipAddress ?? null },
       );
 
-      return { receiptId: receipt.id, allocatedNumber: allocated.number };
+      return { receiptId: receipt.id, allocatedNumber: allocated.number, year };
     });
+
+    // A receipt issues immutably in one transaction; its paper archives just
+    // after the commit, like every other document's.
+    try {
+      await this.archiveIssuePaper(issued.receiptId, issued.year);
+    } catch (error) {
+      this.logger.error(
+        `Archiving goods receipt ${issued.receiptId} failed; View will report its archive unavailable.`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
     const found = await this.findById(issued.receiptId);
     invariant(found, `Goods Receipt ${issued.receiptId} vanished immediately after issuing.`);
     return found;
+  }
+
+  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
+  readPdf(id: string) {
+    return this.paperPdfs.readArchive('GOODS_RECEIPT', id);
+  }
+
+  /** Build the committed receipt's paper view and archive it. */
+  private async archiveIssuePaper(receiptId: string, issueYear: number): Promise<void> {
+    const found = (await this.findById(receiptId)) as GoodsReceiptResponse;
+    const row = await this.prisma.document.findFirst({
+      where: { id: receiptId, type: GOODS_RECEIPT, status: 'ISSUED' },
+      select: { number: true, issuedAt: true, locale: true, businessId: true },
+    });
+    invariant(
+      row?.number && row.issuedAt && found,
+      `Issued receipt ${receiptId} vanished before archiving.`,
+    );
+
+    const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
+    if (!business) throw notFound('Business', row.businessId);
+
+    const view = goodsReceiptPaperView(
+      found,
+      business,
+      await this.unitCodes(receiptId),
+      paperLocale(row.locale),
+    );
+    await this.paperPdfs.archiveAtIssue('GOODS_RECEIPT', receiptId, issueYear, row.number, view);
+  }
+
+  /** Unit codes for the receipt's child-line units, resolved in one query. */
+  private async unitCodes(receiptId: string): Promise<UnitCodes> {
+    const rows = await this.prisma.document.findFirst({
+      where: { id: receiptId, type: GOODS_RECEIPT },
+      select: { goodsReceipts: { include: { lines: { select: { unitOfMeasureId: true } } } } },
+    });
+    const ids = [
+      ...new Set((rows?.goodsReceipts[0]?.lines ?? []).map((line) => line.unitOfMeasureId)),
+    ].filter((id) => id !== '');
+    if (ids.length === 0) return new Map();
+    const units = await this.prisma.unit.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, code: true },
+    });
+    return new Map(units.map((unit) => [unit.id, unit.code]));
   }
 
   private async appendLedgerEntriesAndDiscrepancies(

@@ -105,6 +105,39 @@ export function apiSend<T>(
   );
 }
 
+/**
+ * Fetch binary document bytes (a paper PDF) as a Blob, through the same error
+ * choreography as `request`: 401 goes to sign-in, any other failure becomes an
+ * `ApiError` whose message is localized from the error CODE. The PDF endpoints
+ * answer `application/pdf`; an error response is JSON, so the body is parsed
+ * only when something went wrong.
+ */
+export async function apiPdf(path: string): Promise<Blob> {
+  const response = await fetch(`/api${path}`);
+
+  if (response.status === 401 && typeof window !== 'undefined') {
+    // Same rule as `request`: the next request would fail identically.
+    window.location.assign(signInPath());
+    throw new ApiError(401, 'UNAUTHORIZED', 'Authentication is required');
+  }
+
+  if (!response.ok) {
+    let code = 'REQUEST_FAILED';
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const body = (await response.json()) as ErrorBody;
+      if (typeof body.error?.code === 'string') code = body.error.code;
+      if (typeof body.error?.message === 'string') message = body.error.message;
+    } catch {
+      // Not JSON: the status is the signal.
+    }
+    const { localizeErrorMessage } = await import('./error-messages');
+    throw new ApiError(response.status, code, localizeErrorMessage(code, message));
+  }
+
+  return response.blob();
+}
+
 /* -------------------------------------------------------------------------- */
 /* Collections                                                                */
 /* -------------------------------------------------------------------------- */

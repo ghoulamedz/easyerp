@@ -6,7 +6,7 @@
  * draft-pricing time and re-read at issue. A client cannot post a price.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 
 import {
   draftPurchaseOrderSchema,
@@ -22,16 +22,22 @@ import { conflict, invariant, notFound, validationFailed } from '../common/error
 import { Amount } from '../finance/amount.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
+import { paperLocale } from '../documents/paper-document.js';
+import { purchaseOrderPaperView } from '../documents/paper-builders.js';
+import { PaperPdfService } from '../documents/paper-pdf.service.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
 
 export const PURCHASE_ORDER = 'PURCHASE_ORDER';
 
 @Injectable()
 export class PurchaseOrderService {
+  private readonly logger = new Logger(PurchaseOrderService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly audit: AuditService,
+    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -348,8 +354,19 @@ export class PurchaseOrderService {
         { ...actor, ipAddress: ipAddress ?? null },
       );
 
-      return { orderId: order.id };
+      return { orderId: order.id, year: now.getUTCFullYear() };
     });
+
+    // The paper archives after the commit, like every other document's: a
+    // renderer outage must not undo a numbered commitment to a Supplier.
+    try {
+      await this.archiveIssuePaper(issued.orderId, issued.year);
+    } catch (error) {
+      this.logger.error(
+        `Archiving purchase order ${issued.orderId} failed; View will report its archive unavailable.`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
     const found = await this.findById(issued.orderId);
     invariant(found, `Order ${issued.orderId} vanished immediately after issuing.`);
@@ -401,6 +418,27 @@ export class PurchaseOrderService {
     const found = await this.findById(cancelled.orderId);
     invariant(found, `Order ${cancelled.orderId} vanished after cancelling.`);
     return found;
+  }
+
+  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
+  readPdf(id: string) {
+    return this.paperPdfs.readArchive('PURCHASE_ORDER', id);
+  }
+
+  /** Build the committed order's paper view and archive it. */
+  private async archiveIssuePaper(orderId: string, issueYear: number): Promise<void> {
+    const found = (await this.findById(orderId)) as PurchaseOrderResponse;
+    const row = await this.prisma.document.findFirst({
+      where: { id: orderId, type: PURCHASE_ORDER, status: 'ISSUED' },
+      select: { number: true, issuedAt: true, locale: true, businessId: true },
+    });
+    invariant(row?.number && row.issuedAt && found, `Issued order ${orderId} vanished before archiving.`);
+
+    const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
+    if (!business) throw notFound('Business', row.businessId);
+
+    const view = purchaseOrderPaperView(found, business, paperLocale(row.locale));
+    await this.paperPdfs.archiveAtIssue('PURCHASE_ORDER', orderId, issueYear, row.number, view);
   }
 
   async findById(id: string): Promise<PurchaseOrderResponse | null> {

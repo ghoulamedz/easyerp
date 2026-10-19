@@ -55,6 +55,11 @@ export const ERROR_MESSAGES: Readonly<Record<string, LocalizedMessage>> = {
     fr: 'Le stock est insuffisant pour cette action.',
     ar: 'لا يوجد مخزون كافٍ لهذا الإجراء.',
   },
+  ARCHIVE_UNAVAILABLE: {
+    en: 'The archived PDF of this document is not available on this deployment. Ask the operator to attach the document archive.',
+    fr: "La version PDF archivée de ce document n'est pas disponible sur ce déploiement. Demandez à l'exploitant de rattacher l'archive documentaire.",
+    ar: 'نسخة PDF المؤردة لهذا المستند غير متوفرة على هذا الخادم. يرجى طلب ربط أرشيف المستندات من المُشغِّل.',
+  },
   INVARIANT_VIOLATION: {
     en: 'An unexpected error occurred.',
     fr: "Une erreur inattendue s'est produite.",

@@ -17,8 +17,9 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 
 import { type SessionUser } from '@easyerp/contracts';
 
@@ -28,6 +29,7 @@ import {
   DocumentListService,
   type DocumentPage,
 } from '../documents/document-list.service.js';
+import { sendPdf } from '../common/pdf-response.js';
 import { SalesOrderService } from './sales-order.service.js';
 import { DeliveryNoteService } from './delivery-note.service.js';
 
@@ -67,6 +69,13 @@ export class SalesController {
   @Get('orders/:id')
   async order(@Param('id') id: string) {
     return this.orders.findByRequiredId(id);
+  }
+
+  /** The archived paper (ADR 0010): the bytes the Business is answerable for. */
+  @RequirePermissions('sales-order:read')
+  @Get('orders/:id/pdf')
+  async orderPdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPdf(response, id, await this.orders.readPdf(id));
   }
 
   @RequirePermissions('sales-order:update')
@@ -125,5 +134,12 @@ export class SalesController {
   @Get('delivery-notes/:id')
   async deliveryNote(@Param('id') id: string) {
     return this.deliveryNotes.findByRequiredId(id);
+  }
+
+  /** The archived paper (ADR 0010): the bytes the Business is answerable for. */
+  @RequirePermissions('delivery-note:read')
+  @Get('delivery-notes/:id/pdf')
+  async deliveryNotePdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPdf(response, id, await this.deliveryNotes.readPdf(id));
   }
 }

@@ -8,6 +8,8 @@
  * on-hand below zero.
  */
 
+import { rm } from 'node:fs/promises';
+
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { AuditService } from '../../audit/audit.service.js';
@@ -15,15 +17,23 @@ import { StockLedgerService } from '../../inventory/stock-ledger.service.js';
 import { prisma, resetDatabase } from '../../identity/__tests__/harness.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { DeliveryNoteService } from '../delivery-note.service.js';
+import { DocumentArchive } from '../document-archive.js';
 import { DocumentNumberingService } from '../../numbering/document-numbering.service.js';
+import { PaperPdfService } from '../../documents/paper-pdf.service.js';
 import { SalesOrderService } from '../sales-order.service.js';
 
 const prismaService = new PrismaService();
 const numbering = new DocumentNumberingService(prismaService);
 const audit = new AuditService(prismaService);
 const stock = new StockLedgerService(prismaService, audit);
-const orders = new SalesOrderService(prismaService, numbering, stock, audit);
-const deliveryNotes = new DeliveryNoteService(prismaService, numbering, stock, audit);
+// A scratch archive root: the issue tests render-and-archive on the side, and a
+// failure there is caught by the issue path, never surfaced as a test failure.
+// It is emptied before every test because a write to the archive is immutable
+// (`wx`): a leftover file would make the next test's archive step fail.
+const ARCHIVE_ROOT = '/tmp/easyerp-api-spec-archive';
+const paperPdfs = new PaperPdfService(prismaService, new DocumentArchive(ARCHIVE_ROOT));
+const orders = new SalesOrderService(prismaService, numbering, stock, audit, paperPdfs);
+const deliveryNotes = new DeliveryNoteService(prismaService, numbering, stock, audit, paperPdfs);
 
 beforeAll(async () => {
   await resetDatabase();
@@ -31,6 +41,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDatabase();
+  await rm(ARCHIVE_ROOT, { force: true, recursive: true });
 });
 
 afterAll(async () => {
@@ -280,6 +291,39 @@ describe('issuing a Delivery Note', () => {
       code: 'CONFLICT',
     });
     expect(await prisma.stockLedgerEntry.count({ where: { reason: 'DELIVERY_NOTE' } })).toBe(1);
+  });
+
+  it('archives the quantities-only paper and serves those same bytes back', async () => {
+    // A Delivery Note quotes quantities, never prices: an operational note that
+    // printed a price it never charged would be a wrong paper.
+    const { business, issued, orderLine } = await givenIssuedOrder('4');
+    const draft = await deliveryNotes.createDraft({
+      businessId: business.id,
+      salesOrderId: issued.id,
+      lines: [{ itemId: orderLine.itemId, quantity: '2', salesOrderLineId: orderLine.id }],
+    });
+    const note = await deliveryNotes.issue(draft.id, {}, null);
+
+    const { pdf, sha256 } = await deliveryNotes.readPdf(note.id);
+    expect(pdf.subarray(0, 4).toString('latin1')).toBe('%PDF');
+
+    const row = await prisma.document.findUniqueOrThrow({
+      where: { id: note.id },
+      select: { archiveSha256: true, archivedAt: true },
+    });
+    expect(row.archivedAt).not.toBeNull();
+    expect(sha256).toBe(row.archiveSha256);
+  });
+
+  it('refuses to serve a paper for a note that was never issued', async () => {
+    const { business, issued, orderLine } = await givenIssuedOrder('4');
+    const draft = await deliveryNotes.createDraft({
+      businessId: business.id,
+      salesOrderId: issued.id,
+      lines: [{ itemId: orderLine.itemId, quantity: '1', salesOrderLineId: orderLine.id }],
+    });
+
+    await expect(deliveryNotes.readPdf(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('stands alone: a note without an order ships independent stock', async () => {

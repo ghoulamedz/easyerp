@@ -119,6 +119,22 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
    `/tmp/easyerp-documents` (ephemeral — fine for demo, never for clients).
    Related: PDF archive on Vercel is ephemeral by nature (session log
    2026-10-05 open question) — issued PDFs won't survive cold starts/redeploys.
+
+   **Print/download does not work on this deployment, and cannot.** Every
+   paper (Customer Invoice, Credit Note, Sales Order, Delivery Note, Purchase
+   Order, Goods Receipt, Production Order) is rendered by Chromium at issue
+   time (`apps/api/src/finance/pdf.ts`) and filed on disk (ADR 0010). A
+   serverless function has no Chromium and no persistent disk, so:
+
+   - issuing still succeeds, and the render failure is logged, never fatal —
+     a renderer outage must not strand a numbered document;
+   - `GET <paper>/:id/pdf` answers the typed `ARCHIVE_UNAVAILABLE` (404) with
+     an operator-facing message, precisely so the client no longer sees the
+     old opaque `INTERNAL_ERROR`.
+
+   Making print work here means removing the browser from the render path (a
+   pure-JS PDF writer) or running the API in a container with Chromium and a
+   mounted archive. Both are product decisions, not deployment flags.
 3. **Do not set a custom `runtime` for the API function.** Vercel manages the
    Node.js runtime; a value such as `nodejs22` is invalid because `runtime`
    expects a custom runtime identifier in `package@version` form. Vercel

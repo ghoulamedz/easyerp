@@ -6,7 +6,7 @@
  * under row locks. Cancellation appends REVERSAL entries.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 import { Prisma } from '../generated/prisma/index.js';
 
@@ -25,6 +25,9 @@ import { Amount } from '../finance/amount.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
+import { paperLocale } from '../documents/paper-document.js';
+import { productionOrderPaperView, type UnitCodes } from '../documents/paper-builders.js';
+import { PaperPdfService } from '../documents/paper-pdf.service.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
 
 export const PRODUCTION_ORDER = 'PRODUCTION_ORDER';
@@ -38,11 +41,14 @@ const FINISHED_QUANTITY = '1';
 
 @Injectable()
 export class ProductionOrderService {
+  private readonly logger = new Logger(ProductionOrderService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly stock: StockLedgerService,
     private readonly audit: AuditService,
+    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -412,8 +418,19 @@ export class ProductionOrderService {
         { ...actor, ipAddress: ipAddress ?? null },
       );
 
-      return { orderId: order.id };
+      return { orderId: order.id, year };
     });
+
+    // The paper archives after the commit, like every other document's: a
+    // renderer outage must not undo an order whose stock moves are committed.
+    try {
+      await this.archiveIssuePaper(issued.orderId, issued.year);
+    } catch (error) {
+      this.logger.error(
+        `Archiving production order ${issued.orderId} failed; View will report its archive unavailable.`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
     const found = await this.findById(issued.orderId);
     invariant(found, `Order ${issued.orderId} vanished immediately after issuing.`);
@@ -496,6 +513,56 @@ export class ProductionOrderService {
     const found = await this.findById(cancelled.orderId);
     invariant(found, `Order ${cancelled.orderId} vanished after cancelling.`);
     return found;
+  }
+
+  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
+  readPdf(id: string) {
+    return this.paperPdfs.readArchive('PRODUCTION_ORDER', id);
+  }
+
+  /** Build the committed order's paper view and archive it. */
+  private async archiveIssuePaper(orderId: string, issueYear: number): Promise<void> {
+    const found = (await this.findById(orderId)) as ProductionOrderResponse;
+    const row = await this.prisma.document.findFirst({
+      where: { id: orderId, type: PRODUCTION_ORDER, status: 'ISSUED' },
+      include: {
+        productionOrders: {
+          include: { bomVersion: { include: { bom: { include: { finishedItem: true } } } } },
+        },
+      },
+    });
+    invariant(
+      row?.number && row.issuedAt && found,
+      `Issued order ${orderId} vanished before archiving.`,
+    );
+
+    const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
+    if (!business) throw notFound('Business', row.businessId);
+
+    const finishedItem = row.productionOrders[0]?.bomVersion?.bom?.finishedItem ?? null;
+    const view = productionOrderPaperView(
+      found,
+      business,
+      await this.unitCodes(orderId),
+      finishedItem?.name ?? null,
+      paperLocale(row.locale),
+    );
+    await this.paperPdfs.archiveAtIssue('PRODUCTION_ORDER', orderId, issueYear, row.number, view);
+  }
+
+  /** Unit codes for the order's line units, resolved in one query. */
+  private async unitCodes(orderId: string): Promise<UnitCodes> {
+    const rows = await this.prisma.documentLine.findMany({
+      where: { documentId: orderId },
+      select: { unitOfMeasureId: true },
+    });
+    const ids = [...new Set(rows.map((line) => line.unitOfMeasureId))];
+    if (ids.length === 0) return new Map();
+    const units = await this.prisma.unit.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, code: true },
+    });
+    return new Map(units.map((unit) => [unit.id, unit.code]));
   }
 
   async findById(id: string): Promise<ProductionOrderResponse | null> {

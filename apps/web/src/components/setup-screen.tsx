@@ -234,7 +234,6 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
                   {showToken ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
                 </button>
               </div>
-              <p className="mt-1 text-xs text-ink-subtle">{t('setupTokenHelp')}</p>
             </div>
 
             <fieldset className="space-y-3">

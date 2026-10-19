@@ -50,7 +50,13 @@ import {
 } from '@easyerp/contracts';
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
-import { conflict, invariant, notFound, validationFailed } from '../common/errors.js';
+import {
+  archiveUnavailable,
+  conflict,
+  invariant,
+  notFound,
+  validationFailed,
+} from '../common/errors.js';
 import { Amount } from '../finance/amount.js';
 import { buildCustomerInvoice, type CustomerInvoiceView } from '../finance/invoice-document.js';
 import { renderInvoiceHtml } from '../finance/invoice-template.js';
@@ -300,7 +306,8 @@ export class CustomerInvoiceService {
 
     // The fiscal facts (status, number, figures) are committed above. The PDF
     // is a rendering of those facts, not one of them: if the renderer is down
-    // the issue still succeeds and View re-renders on demand (readArchive).
+    // the issue still succeeds and View answers ARCHIVE_UNAVAILABLE when the
+    // bytes never reached the disk (readArchive — no re-render fallback).
     // Failing the whole issue on a renderer outage would strand a numbered
     // document in a half-issued state the retry then 409s on.
     try {
@@ -402,101 +409,19 @@ export class CustomerInvoiceService {
             `Failed to read archived document for ${invoice.number} from ${expectedPath}: ${String(cause)}`,
           );
         }
-        // File missing at computed path too — fall through to render.
+        // File missing at computed path too — the archive is gone from this
+        // deployment.
       }
     }
 
-    // Archive missing or never written: render from DB data, then store for next time.
-    const rendered = await this.renderAndArchive(invoice);
-    return { pdf: rendered.pdf, sha256: rendered.sha256 };
-  }
-
-  /**
-   * Reconstruct the invoice view from stored rows, render to PDF, archive it,
-   * and update the document record with the new archive path and hash.
-   */
-  private async renderAndArchive(invoice: {
-    id: string;
-    number: string | null;
-    issuedAt: Date | null;
-    locale: string;
-    vatRegime: string;
-    currency: string;
-    business: { legalName: string; taxIdentifier: string; addressLine1: string | null; city: string | null; countryCode: string | null };
-    party: { name: string; taxIdentifier: string | null; address: string | null; city: string | null };
-    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string }; fodecAmount: { toString(): string } }[];
-    taxes: readonly { rate: { toString(): string }; base: { toString(): string }; amount: { toString(): string } }[];
-    netAmount: { toString(): string };
-    taxAmount: { toString(): string };
-    grossAmount: { toString(): string };
-    stampDutyAmount: { toString(): string };
-    withholdingTaxAmount: { toString(): string };
-  }): Promise<{ pdf: Buffer; sha256: string }> {
-    const locale = localeSchema.parse(invoice.locale);
-    const year = invoice.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
-    const number = invoice.number ?? '';
-
-    const view = buildCustomerInvoice({
-      // Number pattern details are not stored on the document; they are only needed
-      // for rendering the formatted number. Since the document already has its
-      // formatted number stored, we pass a minimal pattern that renders it as-is.
-      pattern: '{seq}',
-      sequence: 0,
-      padding: 0,
-      year,
-      issuedAt: invoice.issuedAt?.toISOString().slice(0, 10) ?? '',
-      locale,
-      vatRegime: vatRegimeSchema.parse(invoice.vatRegime),
-      currency: invoice.currency,
-      labels: terminologyFor(locale, await this.labels.forDocument(locale)),
-      issuer: {
-        displayName: invoice.business.legalName,
-        taxIdentifier: invoice.business.taxIdentifier,
-        addressLines: [
-          invoice.business.addressLine1,
-          invoice.business.city,
-          invoice.business.countryCode,
-        ].filter((part): part is string => Boolean(part)),
-      },
-      party: {
-        displayName: invoice.party.name,
-        taxIdentifier: invoice.party.taxIdentifier ?? '',
-        addressLines: [invoice.party.address, invoice.party.city].filter((part): part is string =>
-          Boolean(part),
-        ),
-      },
-      // The stored rows are the authority here, not the Items: a flag changed
-      // since issuing must not alter the re-render. Subject-ness is read back
-      // from the stored figure — a line that carries FODEC was subject — so
-      // the builder re-derives exactly the stored tax and gross.
-      lines: invoice.lines.map((line) => ({
-        description: line.description,
-        quantity: line.quantity.toString(),
-        unitPrice: line.unitPrice.toString(),
-        taxRate: line.taxRate.toString(),
-        fodecSubject: !Amount.parse(line.fodecAmount.toString()).isZero(),
-      })),
-      stampDuty: invoice.stampDutyAmount.toString() === '0' ? null : invoice.stampDutyAmount.toString(),
-      withholdingTax: invoice.withholdingTaxAmount.toString() === '0' ? null : invoice.withholdingTaxAmount.toString(),
-      fodec: storedFodecTotal(invoice.lines),
-      formattedNumber: invoice.number ?? '',
-    });
-
-    const renderer = await sharedPdfRenderer();
-    const pdf = await renderer.toPdf(renderInvoiceHtml(view));
-
-    const stored = await this.archive.store(CUSTOMER_INVOICE, year, number, pdf);
-
-    await this.prisma.document.update({
-      where: { id: invoice.id },
-      data: {
-        archivePath: stored.path,
-        archiveSha256: stored.sha256,
-        archivedAt: new Date(),
-      },
-    });
-
-    return { pdf, sha256: stored.sha256 };
+    // Archive missing or never written: answer the typed failure a client can
+    // show. There is no re-render fallback here, and that is deliberate: the
+    // old fallback assumed a host with a browser and a persistent archive
+    // root, and on any other deployment — notably a serverless one — the
+    // Chromium launch escaped as an untyped 500 the client could only read as
+    // "the request could not be completed". The honest answer is the typed
+    // error below.
+    throw archiveUnavailable('Customer Invoice', invoiceId);
   }
 
   async findById(id: string): Promise<CustomerInvoiceResponse | null> {

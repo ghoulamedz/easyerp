@@ -32,7 +32,13 @@ import {
 } from '@easyerp/contracts';
 
 import { AuditService, type AuditActor } from '../audit/audit.service.js';
-import { conflict, invariant, notFound, validationFailed } from '../common/errors.js';
+import {
+  archiveUnavailable,
+  conflict,
+  invariant,
+  notFound,
+  validationFailed,
+} from '../common/errors.js';
 import { Amount } from '../finance/amount.js';
 import { buildCustomerInvoice } from '../finance/invoice-document.js';
 import { renderInvoiceHtml } from '../finance/invoice-template.js';
@@ -299,7 +305,8 @@ export class CreditNoteService {
 
     // The fiscal facts (status, number, figures) are committed above. The PDF
     // is a rendering of those facts, not one of them: if the renderer is down
-    // the issue still succeeds and View re-renders on demand (readArchive).
+    // the issue still succeeds and View answers ARCHIVE_UNAVAILABLE when the
+    // bytes never reached the disk (readArchive — no re-render fallback).
     try {
       await this.archiveIssued(creditNoteId, issued.correctsDocumentId, issued.allocated, now);
     } catch (error) {
@@ -368,105 +375,19 @@ export class CreditNoteService {
             `Failed to read archived document for ${creditNote.number} from ${expectedPath}: ${String(cause)}`,
           );
         }
-        // File missing at computed path too — fall through to render.
+        // File missing at computed path too — the archive is gone from this
+        // deployment.
       }
     }
 
-    // Archive missing or never written: render from DB data, then store for next time.
-    const rendered = await this.renderAndArchive(creditNote);
-    return { pdf: rendered.pdf, sha256: rendered.sha256 };
-  }
-
-  /**
-   * Reconstruct the credit note view from stored rows, render to PDF, archive it,
-   * and update the document record with the new archive path and hash.
-   */
-  private async renderAndArchive(creditNote: {
-    id: string;
-    number: string | null;
-    issuedAt: Date | null;
-    locale: string;
-    vatRegime: string;
-    currency: string;
-    business: { legalName: string; taxIdentifier: string; addressLine1: string | null; city: string | null; countryCode: string | null };
-    party: { name: string; taxIdentifier: string | null; address: string | null; city: string | null };
-    lines: readonly { description: string; quantity: { toString(): string }; unitPrice: { toString(): string }; taxRate: { toString(): string }; netAmount: { toString(): string }; fodecAmount: { toString(): string } }[];
-    taxes: readonly { rate: { toString(): string }; base: { toString(): string }; amount: { toString(): string } }[];
-    netAmount: { toString(): string };
-    taxAmount: { toString(): string };
-    grossAmount: { toString(): string };
-    stampDutyAmount: { toString(): string };
-    withholdingTaxAmount: { toString(): string };
-    creditNotes: readonly { correctsDocumentId: string }[];
-  }): Promise<{ pdf: Buffer; sha256: string }> {
-    const locale = localeSchema.parse(creditNote.locale);
-    const year = creditNote.issuedAt?.getUTCFullYear() ?? new Date().getUTCFullYear();
-    const number = creditNote.number ?? '';
-
-    const corrected = await this.prisma.document.findFirst({
-      where: { id: creditNote.creditNotes?.[0]?.correctsDocumentId },
-    });
-    invariant(corrected?.number, 'Corrected invoice number required for Credit Note rendering.');
-
-    const view = buildCustomerInvoice({
-      pattern: '{seq}',
-      sequence: 0,
-      padding: 0,
-      year,
-      issuedAt: creditNote.issuedAt?.toISOString().slice(0, 10) ?? '',
-      locale,
-      vatRegime: vatRegimeSchema.parse(creditNote.vatRegime),
-      currency: creditNote.currency,
-      labels: terminologyFor(locale, await this.labels.forDocument(locale)),
-      issuer: {
-        displayName: creditNote.business.legalName,
-        taxIdentifier: creditNote.business.taxIdentifier,
-        addressLines: [
-          creditNote.business.addressLine1,
-          creditNote.business.city,
-          creditNote.business.countryCode,
-        ].filter((part): part is string => Boolean(part)),
-      },
-      party: {
-        displayName: creditNote.party.name,
-        taxIdentifier: creditNote.party.taxIdentifier ?? '',
-        addressLines: [creditNote.party.address, creditNote.party.city].filter((part): part is string =>
-          Boolean(part),
-        ),
-      },
-      kind: 'CREDIT_NOTE',
-      correctedNumber: corrected.number,
-      // As in `archiveIssued`: the stored figure is the authority, so the
-      // builder re-derives the stored per-line tax rather than pricing blind.
-      lines: creditNote.lines.map((line) => ({
-        description: line.description,
-        quantity: line.quantity.toString(),
-        unitPrice: line.unitPrice.toString(),
-        taxRate: line.taxRate.toString(),
-        net: line.netAmount.toString(),
-        fodecSubject: !Amount.parse(line.fodecAmount.toString()).isZero(),
-      })),
-      stampDuty: creditNote.stampDutyAmount.toString() === '0' ? null : creditNote.stampDutyAmount.toString(),
-      withholdingTax: creditNote.withholdingTaxAmount.toString() === '0' ? null : creditNote.withholdingTaxAmount.toString(),
-      fodec: storedFodecTotal(creditNote.lines),
-      formattedNumber: creditNote.number ?? '',
-    });
-
-    const renderer = await sharedPdfRenderer();
-    const pdf = await renderer.toPdf(renderInvoiceHtml(view));
-
-    const stored = await this.archive.store(CREDIT_NOTE, year, number, pdf);
-
-    await this.prisma.document.update({
-      where: { id: creditNote.id },
-      data: {
-        archivePath: stored.path,
-        archiveSha256: stored.sha256,
-        archivedAt: new Date(),
-      },
-    });
-
-    return { pdf, sha256: stored.sha256 };
+    // Archive missing or never written: answer the typed failure a client can
+    // show, exactly like the Customer Invoice. There is no re-render fallback
+    // here, and that is deliberate: a host without a browser cannot render,
+    // and a fallback that silently depends on one is exactly the untyped-500
+    // failure mode the typed error exists to remove. The archived bytes are
+    // written at issue (`archiveIssued`), so a healthy deployment never
+    // reaches this branch.
+    throw archiveUnavailable('Credit Note', creditNoteId);
   }
 
   async findById(id: string): Promise<CreditNoteResponse | null> {

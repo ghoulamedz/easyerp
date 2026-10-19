@@ -17,12 +17,14 @@
  * ## The note is not fiscal
  *
  * It carries a number and is immutable once issued (ADR 0006 for the trigger),
- * its own `BL-` series, but it quotes no prices and no VAT and archives no PDF:
- * stock movements live in the ledger, not in a file (ADR 0004). Expanding this
- * decision is a listed next step in the session log.
+ * its own `BL-` series, but it quotes no prices and no VAT: stock movements
+ * live in the ledger, not in a file (ADR 0004). Its archived paper (ADR 0010)
+ * is therefore a quantities-only document — what shipped, to whom, against
+ * which order — never a priced one; the archived PDF is served alongside every
+ * other paper's.
  */
 
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 
 import {
@@ -40,6 +42,12 @@ import { Prisma } from '../generated/prisma/index.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
+import { paperLocale } from '../documents/paper-document.js';
+import {
+  deliveryNotePaperView,
+  type UnitCodes,
+} from '../documents/paper-builders.js';
+import { PaperPdfService } from '../documents/paper-pdf.service.js';
 
 export const DELIVERY_NOTE = 'DELIVERY_NOTE';
 
@@ -57,11 +65,14 @@ type NoteWithOrderAndLines = Prisma.DocumentGetPayload<{
 
 @Injectable()
 export class DeliveryNoteService {
+  private readonly logger = new Logger(DeliveryNoteService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly stock: StockLedgerService,
     private readonly audit: AuditService,
+    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -191,7 +202,7 @@ export class DeliveryNoteService {
     actor: AuditActor = {},
     ipAddress?: string | null,
   ): Promise<DeliveryNote> {
-    await this.prisma.$transaction(async (tx) => {
+    const issued = await this.prisma.$transaction(async (tx) => {
       const note = await tx.document.findFirst({
         where: { id: noteId, type: DELIVERY_NOTE },
         include: {
@@ -323,11 +334,67 @@ export class DeliveryNoteService {
         },
         { ...actor, ipAddress: ipAddress ?? null },
       );
+      return { year: now.getUTCFullYear() };
     });
+
+    // The paper archives after the commit. The note ships stock and numbers
+    // itself in one transaction; a renderer outage must not strand either, so
+    // View answers a failed archive write with a typed error instead.
+    try {
+      await this.archiveIssuePaper(noteId, issued.year);
+    } catch (error) {
+      this.logger.error(
+        `Archiving delivery note ${noteId} failed; View will report its archive unavailable.`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
     const found = await this.findById(noteId);
     invariant(found, `Delivery Note ${noteId} vanished immediately after issuing.`);
     return found;
+  }
+
+  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
+  readPdf(id: string) {
+    return this.paperPdfs.readArchive('DELIVERY_NOTE', id);
+  }
+
+  /** Build the committed note's paper view and archive it. */
+  private async archiveIssuePaper(noteId: string, issueYear: number): Promise<void> {
+    const row = await this.prisma.document.findFirst({
+      where: { id: noteId, type: DELIVERY_NOTE, status: 'ISSUED' },
+      select: { number: true, issuedAt: true, locale: true, businessId: true },
+    });
+    invariant(row?.number && row.issuedAt, `Issued note ${noteId} vanished before archiving.`);
+
+    const found = (await this.findById(noteId)) as DeliveryNote;
+    const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
+    if (!business) throw notFound('Business', row.businessId);
+
+    const view = deliveryNotePaperView(
+      found,
+      business,
+      await this.unitCodes(noteId),
+      paperLocale(row.locale),
+    );
+    await this.paperPdfs.archiveAtIssue('DELIVERY_NOTE', noteId, issueYear, row.number, view);
+  }
+
+  /** Unit codes for the note's line units, printed instead of unit ids. */
+  private async unitCodes(noteId: string): Promise<UnitCodes> {
+    const rows = await this.prisma.document.findFirst({
+      where: { id: noteId, type: DELIVERY_NOTE },
+      select: { deliveryNotes: { include: { lines: { select: { unitOfMeasureId: true } } } } },
+    });
+    const ids = [
+      ...new Set((rows?.deliveryNotes[0]?.lines ?? []).map((line) => line.unitOfMeasureId)),
+    ].filter((id) => id !== '');
+    if (ids.length === 0) return new Map();
+    const units = await this.prisma.unit.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, code: true },
+    });
+    return new Map(units.map((unit) => [unit.id, unit.code]));
   }
 
   private async findOrder(id: string) {

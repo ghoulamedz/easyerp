@@ -294,8 +294,10 @@ export type SalesOrderLine = z.infer<typeof salesOrderLineSchema>;
  * A Sales Order as the API returns it.
  *
  * `party` mirrors the Customer Invoice's shape: the fields a screen or a print
- * needs, not the whole record. The order is a promise, not a fact, so it carries
- * no `archive` — an order is never served back as bytes.
+ * needs, not the whole record. The response carries no `archive` block — the
+ * archived paper is served as bytes by `GET /sales/orders/:id/pdf`, which is
+ * the only place a client reads it, so repeating the path and hash here would
+ * be a second, drifting description of the same fact.
  */
 export const salesOrderSchema = documentSchema.extend({
   businessId: z.string().min(1),

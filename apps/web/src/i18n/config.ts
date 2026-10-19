@@ -219,6 +219,15 @@ const messages = {
     printButton: 'Imprimer',
     downloadButton: 'Télécharger',
 
+    // Document detail (one view for every paper)
+    detailDetails: 'Détails du document',
+    detailNumber: 'Numéro',
+    detailStatus: 'Statut',
+    detailLines: 'Lignes',
+    detailSupplier: 'Fournisseur',
+    detailLoading: 'Chargement…',
+    detailArchiveHint: 'Version PDF conservée par le serveur.',
+
     invoice: 'Facture',
     creditNoteStatus: 'Statut de l\'avoir',
 
@@ -280,8 +289,7 @@ const messages = {
     setupTitle: 'Premier démarrage',
     setupIntro:
       'Ce déploiement ne contient encore ni entreprise ni utilisateur. Présentez le jeton du serveur, puis créez l\'entreprise et son premier administrateur. Cette page ne s\'ouvrira plus jamais après.',
-    setupToken: 'Jeton de premier démarrage',
-    setupTokenHelp: 'Valeur de FIRST_SETUP_TOKEN dans l\'environnement de l\'hôte.',
+    setupToken: 'Clé de licence',
     showToken: 'Afficher le jeton',
     hideToken: 'Masquer le jeton',
     showPassword: 'Afficher le mot de passe',
@@ -677,6 +685,15 @@ const messages = {
     printButton: 'Print',
     downloadButton: 'Download',
 
+    // Document detail (one view for every paper)
+    detailDetails: 'Document details',
+    detailNumber: 'Number',
+    detailStatus: 'Status',
+    detailLines: 'Lines',
+    detailSupplier: 'Supplier',
+    detailLoading: 'Loading…',
+    detailArchiveHint: 'The PDF the server keeps.',
+
     invoice: 'Invoice',
     creditNoteStatus: 'Credit note status',
 
@@ -737,8 +754,7 @@ const messages = {
     setupTitle: 'First run',
     setupIntro:
       'This deployment holds no Business and no User yet. Present the host token, then create the Business and its first Administrator. This screen never opens again afterwards.',
-    setupToken: 'First-run token',
-    setupTokenHelp: 'The FIRST_SETUP_TOKEN value in the host environment.',
+    setupToken: 'License key',
     showToken: 'Show token',
     hideToken: 'Hide token',
     showPassword: 'Show password',
@@ -1135,6 +1151,15 @@ const messages = {
     printButton: 'طباعة',
     downloadButton: 'تحميل',
 
+    // Document detail (one view for every paper)
+    detailDetails: 'تفاصيل المستند',
+    detailNumber: 'الرقم',
+    detailStatus: 'الحالة',
+    detailLines: 'السطور',
+    detailSupplier: 'المورّد',
+    detailLoading: 'جارٍ التحميل…',
+    detailArchiveHint: 'نسخة PDF التي يحتفظ بها الخادم.',
+
     invoice: 'فاتورة',
     creditNoteStatus: 'حالة شيك الخصم',
 
@@ -1195,8 +1220,7 @@ const messages = {
     setupTitle: 'التشغيل الأول',
     setupIntro:
       'لا يحتوي هذا النشر بعد على مؤسسة ولا مستخدم. قدِّم رمز المضيف، ثم أنشئ المؤسسة والمدير الأول. لن تُفتح هذه الشاشة مرة أخرى بعد ذلك.',
-    setupToken: 'رمز التشغيل الأول',
-    setupTokenHelp: 'قيمة FIRST_SETUP_TOKEN في بيئة المضيف.',
+    setupToken: 'مفتاح الترخيص',
     showToken: 'إظهار الرمز',
     hideToken: 'إخفاء الرمز',
     showPassword: 'إظهار كلمة المرور',

@@ -13,8 +13,9 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 
 import {
   draftProductionOrderSchema,
@@ -28,6 +29,7 @@ import {
   DocumentListService,
   type DocumentPage,
 } from '../documents/document-list.service.js';
+import { sendPdf } from '../common/pdf-response.js';
 import { ProductionOrderService } from './production-order.service.js';
 import { RequiresModule } from '../settings/modules.guard.js';
 
@@ -106,6 +108,13 @@ export class ProductionOrderController {
     const order = await this.orders.findById(id);
     if (!order) throw new NotFoundException(`No Production Order ${id}`);
     return order;
+  }
+
+  /** The archived paper (ADR 0010): the bytes the Business is answerable for. */
+  @RequirePermissions('production-order:read')
+  @Get(':id/pdf')
+  async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
+    sendPdf(response, id, await this.orders.readPdf(id));
   }
 }
 

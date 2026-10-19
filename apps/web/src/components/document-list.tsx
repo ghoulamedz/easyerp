@@ -22,13 +22,11 @@ function statusKey(status: DocumentSummary['status']): MessageKey {
 }
 
 /**
- * Endpoints whose controller serves `GET <endpoint>/:id/pdf` (verified: only
- * `sales/customer-invoice.controller.ts` (`sales/invoices`) and
- * `sales/credit-note.controller.ts` (`credit-notes`) declare a `:id/pdf` route;
- * the sales-order/delivery-note, purchasing and production controllers serve
- * no PDF/archive route). Drafts have no archive — `readArchive` refuses
- * anything but ISSUED — so rows hide View/Print until issued rather than
- * linking at a route that would refuse the request.
+ * Endpoints whose controller serves `GET <endpoint>/:id/pdf` (ADR 0010; every
+ * controller was verified while adding the operational papers' routes).
+ * Drafts have no archive — `readArchive` refuses anything but ISSUED — so
+ * rows hide View/Print until issued rather than linking at a route that
+ * would refuse the request.
  */
 const PDF_ENDPOINTS: ReadonlySet<string> = new Set(['/sales/invoices', '/credit-notes']);
 
