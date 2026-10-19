@@ -9,9 +9,6 @@
  * client — the same discipline the invoice flow enforces (ADR 0005).
  */
 
-import { createHash } from 'node:crypto';
-import { readFile, rm } from 'node:fs/promises';
-
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../common/errors.js';
@@ -20,22 +17,13 @@ import { StockLedgerService } from '../../inventory/stock-ledger.service.js';
 import { prisma, resetDatabase } from '../../identity/__tests__/harness.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { DocumentNumberingService } from '../../numbering/document-numbering.service.js';
-import { DocumentArchive } from '../document-archive.js';
-import { PaperPdfService } from '../../documents/paper-pdf.service.js';
 import { SalesOrderService } from '../sales-order.service.js';
 
 const prismaService = new PrismaService();
 const numbering = new DocumentNumberingService(prismaService);
 const audit = new AuditService(prismaService);
 const stock = new StockLedgerService(prismaService, audit);
-// A scratch archive root: the issue tests render-and-archive on the side, and a
-// failure there is caught by the issue path, never surfaced as a test failure.
-// `archiveRoot` is emptied before every test because a write to the archive is
-// immutable (`wx`): a file left by an earlier test would make the next one's
-// archive step fail, and a test would pass for the wrong reason.
-const ARCHIVE_ROOT = '/tmp/easyerp-api-spec-archive';
-const paperPdfs = new PaperPdfService(prismaService, new DocumentArchive(ARCHIVE_ROOT));
-const orders = new SalesOrderService(prismaService, numbering, stock, audit, paperPdfs);
+const orders = new SalesOrderService(prismaService, numbering, stock, audit);
 
 beforeAll(async () => {
   await resetDatabase();
@@ -43,8 +31,6 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await resetDatabase();
-  // Numbers restart per test, so the archive path repeats: clear it first.
-  await rm(ARCHIVE_ROOT, { force: true, recursive: true });
 });
 
 afterAll(async () => {
@@ -351,10 +337,10 @@ describe('issuing an order', () => {
     ]);
   });
 
-  it('archives the paper at issue and serves those same bytes back', async () => {
-    // The paper is rendered once, at issue, and the archive is the only render
-    // store: what the client downloads must be the bytes the Business filed,
-    // not a re-render of today's terminology.
+  it('prints the order from its stored row, with the figures the row holds', async () => {
+    // The row is the record: the paper is a view of it, so what prints is what was
+    // issued (ADR 0010). Nothing is filed, so nothing can go missing between the
+    // two.
     const { business, customer } = await givenDraftableOrder();
     const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
     await stock.open({ itemId: goods.id, quantity: '5' }, {}, null);
@@ -366,74 +352,12 @@ describe('issuing an order', () => {
     });
 
     const issued = await orders.issue(draft.id, {}, null);
-
-    const { pdf, sha256 } = await orders.readPdf(draft.id);
-
-    // A PDF, not an HTML error page, and the hash describes those exact bytes.
-    expect(pdf.subarray(0, 4).toString('latin1')).toBe('%PDF');
-    expect(pdf.byteLength).toBeGreaterThan(0);
-
-    // The row records the hash of the file that was written, so "the same bytes
-    // it archived" is a comparison against the document, not against a re-render.
-    const row = await prisma.document.findUniqueOrThrow({
-      where: { id: issued.id },
-      select: { archivePath: true, archiveSha256: true, archivedAt: true },
-    });
-    expect(row.archivedAt).not.toBeNull();
-    expect(row.archivePath).not.toBeNull();
-    expect(sha256).toBe(row.archiveSha256);
-  });
-
-  it('refuses to serve a paper for a draft that was never issued', async () => {
-    const { business, customer } = await givenDraftableOrder();
-    const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
-
-    const draft = await orders.createDraft({
-      businessId: business.id,
-      partyId: customer.id,
-      lines: [{ itemId: goods.id, quantity: '1' }],
-    });
-
-    // A Draft has no archive and never will — that is a NOT_FOUND, not an
-    // INTERNAL_ERROR a client can only read as "the request could not be completed".
-    await expect(orders.readPdf(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-  });
-
-  it('files the print copy as HTML at issue, and serves it back', async () => {
-    // The HTML is the copy every host can produce — it is what Print serves, and
-    // it must exist even where no browser can rasterise a PDF.
-    const { business, customer } = await givenDraftableOrder();
-    const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
-    await stock.open({ itemId: goods.id, quantity: '5' }, {}, null);
-
-    const draft = await orders.createDraft({
-      businessId: business.id,
-      partyId: customer.id,
-      lines: [{ itemId: goods.id, quantity: '2' }],
-    });
-    const issued = await orders.issue(draft.id, {}, null);
-
     const html = await orders.readPrint(draft.id);
 
-    // A whole document, not a fragment: the browser printing it needs the
-    // stylesheet and the A4 page box, or the paper prints unstyled.
     expect(html).toContain('<!doctype html>');
-    expect(html).toContain('<style>');
-    expect(html).toContain('@page');
-    // The number is on the paper, so the copy served is this document's.
     expect(html).toContain(issued.number!);
-
-    const row = await prisma.document.findUniqueOrThrow({
-      where: { id: issued.id },
-      select: { printPath: true, printSha256: true },
-    });
-    expect(row.printPath).not.toBeNull();
-    expect(row.printSha256).not.toBeNull();
-    // The row's hash describes the file, so a served copy can be checked against
-    // what was filed rather than trusted because it parsed.
-    const bytes = await readFile(row.printPath!, 'utf8');
-    expect(createHash('sha256').update(bytes).digest('hex')).toBe(row.printSha256);
-    expect(bytes).toBe(html);
+    expect(html).toContain(issued.totals.grossAmount);
+    expect(html).toContain(customer.name);
   });
 
   it('refuses to print a draft that was never issued', async () => {
@@ -446,58 +370,9 @@ describe('issuing an order', () => {
       lines: [{ itemId: goods.id, quantity: '1' }],
     });
 
+    // A Draft has no number to print — that is a NOT_FOUND, not an INTERNAL_ERROR
+    // a client can only read as "the request could not be completed".
     await expect(orders.readPrint(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
-  });
-
-  it('answers ARCHIVE_UNAVAILABLE when the filed print copy is gone', async () => {
-    const { business, customer } = await givenDraftableOrder();
-    const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
-    await stock.open({ itemId: goods.id, quantity: '5' }, {}, null);
-
-    const draft = await orders.createDraft({
-      businessId: business.id,
-      partyId: customer.id,
-      lines: [{ itemId: goods.id, quantity: '1' }],
-    });
-    const issued = await orders.issue(draft.id, {}, null);
-
-    const row = await prisma.document.findUniqueOrThrow({
-      where: { id: issued.id },
-      select: { printPath: true },
-    });
-    await rm(row.printPath!, { force: true });
-
-    await expect(orders.readPrint(draft.id)).rejects.toMatchObject({
-      code: 'ARCHIVE_UNAVAILABLE',
-    });
-  });
-
-  it('answers ARCHIVE_UNAVAILABLE, not a re-render, when the filed bytes are gone', async () => {
-    const { business, customer } = await givenDraftableOrder();
-    const goods = await givenItem({ itemType: 'FINISHED_GOOD' });
-    await stock.open({ itemId: goods.id, quantity: '5' }, {}, null);
-
-    const draft = await orders.createDraft({
-      businessId: business.id,
-      partyId: customer.id,
-      lines: [{ itemId: goods.id, quantity: '1' }],
-    });
-    const issued = await orders.issue(draft.id, {}, null);
-
-    const row = await prisma.document.findUniqueOrThrow({
-      where: { id: issued.id },
-      select: { archivePath: true },
-    });
-    expect(row.archivePath).not.toBeNull();
-
-    // Simulate losing the file (a host swap, an ephemeral root, a bad restore).
-    await rm(row.archivePath!, { force: true });
-
-    // The old fallback re-rendered here, and on a browser-less deployment the
-    // Chromium launch escaped as INTERNAL_ERROR. The honest answer is typed.
-    await expect(orders.readPdf(draft.id)).rejects.toMatchObject({
-      code: 'ARCHIVE_UNAVAILABLE',
-    });
   });
 });
 

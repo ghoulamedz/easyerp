@@ -6,7 +6,7 @@
  * under row locks. Cancellation appends REVERSAL entries.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 import { Prisma } from '../generated/prisma/index.js';
 
@@ -27,7 +27,8 @@ import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
 import { paperLocale } from '../documents/paper-document.js';
 import { productionOrderPaperView, type UnitCodes } from '../documents/paper-builders.js';
-import { PaperPdfService } from '../documents/paper-pdf.service.js';
+import { renderPaperHtml } from '../documents/paper-template.js';
+import type { PaperView } from '../documents/paper-document.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
 
 export const PRODUCTION_ORDER = 'PRODUCTION_ORDER';
@@ -41,14 +42,12 @@ const FINISHED_QUANTITY = '1';
 
 @Injectable()
 export class ProductionOrderService {
-  private readonly logger = new Logger(ProductionOrderService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly stock: StockLedgerService,
     private readonly audit: AuditService,
-    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -422,18 +421,9 @@ export class ProductionOrderService {
     });
 
     // The paper archives after the commit, like every other document's: a
-    // renderer outage must not undo an order whose stock moves are committed.
-    try {
-      await this.archiveIssuePaper(issued.orderId, issued.year);
-    } catch (error) {
-      this.logger.error(
-        `Archiving production order ${issued.orderId} failed; View will report its archive unavailable.`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
 
     const found = await this.findById(issued.orderId);
-    invariant(found, `Order ${issued.orderId} vanished immediately after issuing.`);
+        invariant(found, `Order ${issued.orderId} vanished immediately after issuing.`);
     return found;
   }
 
@@ -515,47 +505,51 @@ export class ProductionOrderService {
     return found;
   }
 
-  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
-  readPdf(id: string) {
-    return this.paperPdfs.readArchive('PRODUCTION_ORDER', id);
-  }
-
   /**
-   * The print copy: the archived HTML, which the visitor's own browser
-   * rasterises. Present on every host, unlike the PDF.
+   * The print copy: the paper rendered from its stored row, which the visitor's
+   * browser rasterises (ADR 0010).
    */
-  readPrint(id: string): Promise<string> {
-    return this.paperPdfs.readPrint('PRODUCTION_ORDER', id);
+  async readPrint(id: string): Promise<string> {
+    return renderPaperHtml(await this.paperView(id));
   }
 
-  /** Build the committed order's paper view and archive it. */
-  private async archiveIssuePaper(orderId: string, issueYear: number): Promise<void> {
+  private async paperView(orderId: string): Promise<PaperView> {
     const found = (await this.findById(orderId)) as ProductionOrderResponse;
     const row = await this.prisma.document.findFirst({
-      where: { id: orderId, type: PRODUCTION_ORDER, status: 'ISSUED' },
-      include: {
+      where: { id: orderId, type: PRODUCTION_ORDER },
+      select: {
+        number: true,
+        status: true,
+        issuedAt: true,
+        locale: true,
+        businessId: true,
         productionOrders: {
           include: { bomVersion: { include: { bom: { include: { finishedItem: true } } } } },
         },
       },
     });
+    // A Draft has no number to print: that is "there is no paper yet", not "the
+    // data is wrong", so it answers the same NOT_FOUND the document endpoint does.
+    if (row?.status !== 'ISSUED' || row.number === null || row.issuedAt === null) {
+      throw notFound('Printable document', orderId);
+    }
     invariant(
       row?.number && row.issuedAt && found,
-      `Issued order ${orderId} vanished before archiving.`,
+      `Issued order ${orderId} vanished before printing.`,
     );
 
     const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
     if (!business) throw notFound('Business', row.businessId);
 
     const finishedItem = row.productionOrders[0]?.bomVersion?.bom?.finishedItem ?? null;
-    const view = productionOrderPaperView(
+    return productionOrderPaperView(
       found,
       business,
       await this.unitCodes(orderId),
       finishedItem?.name ?? null,
       paperLocale(row.locale),
     );
-    await this.paperPdfs.archiveAtIssue('PRODUCTION_ORDER', orderId, issueYear, row.number, view);
+
   }
 
   /** Unit codes for the order's line units, resolved in one query. */

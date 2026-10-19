@@ -2,7 +2,7 @@
   "name": "easyerp",
   "version": "0.0.0",
   "private": true,
-  "description": "easyERP — one independent deployment per subscribing Business",
+  "description": "easyERP \u2014 one independent deployment per subscribing Business",
   "packageManager": "pnpm@10.18.2",
   "engines": {
     "node": ">=24.0.0"
@@ -18,7 +18,6 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:integration": "turbo run test:integration",
-    "test:golden": "turbo run test:golden",
     "verify": "turbo run lint typecheck test build",
     "db:generate": "pnpm --filter @easyerp/api prisma:generate",
     "db:validate": "pnpm --filter @easyerp/api prisma:validate",

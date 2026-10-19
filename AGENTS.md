@@ -53,54 +53,50 @@ These hold in every file. Each is a one-line restatement of an ADR; the ADR hold
 - Single-tenant schema: no `tenant_id` column.
 - Permissions are the only authorization. `resource:action` strings, checked server-side on every request; the interface grants nothing.
 
+## Git
+
+**Never commit or push on your own initiative.** Finish the edits, run the gates, and report what
+changed and what ran — then stop. A commit is the author's decision, not a step in the task: it fixes
+a boundary the human may want to move, and a push publishes that boundary to everyone else.
+
+- Leave the working tree modified and say so in the summary (which files, and why they are unstaged).
+- Stage nothing. `git add -A` before reporting is the same decision made quietly.
+- When the human asks for a commit, do it then — and if they asked for one commit, do not split it
+  into four, or squash their in-progress work into it.
+- A push is a separate yes from a commit, unless the request named both.
+- Reading history is always fine: `git log`, `git diff`, `git show`, `git blame`. Inspecting an
+  unmodified baseline (`git stash` and restore) is encouraged when it makes a claim checkable.
+
 ## Before claiming done
 
 Run the scripts `package.json` defines for the changed package, and report what actually ran. A claim is only as good as the command that produced it, and an unrun command is a hypothesis — say so.
 
-These gates cover a change before delivery: lint, strict typecheck, unit tests, integration tests against real PostgreSQL, Playwright e2e, and the document golden test. "It compiles" is not a gate, and neither is a green unit suite — every test must be able to fail.
+These gates cover a change before delivery: lint, strict typecheck, unit tests, integration tests against real PostgreSQL, Playwright e2e, and the assertions that a printed document carries the stored data. "It compiles" is not a gate, and neither is a green unit suite — every test must be able to fail.
 
-The golden test's matrix is not restated here. Which locales, VAT regimes and tax rates it covers, and why, is decided by `docs/specs/`; this file names the gate so it cannot be quietly dropped.
+The document matrix is not restated here. Which locales, VAT regimes and tax rates it covers, and why, is decided by `docs/specs/`; this file names the gate so it cannot be quietly dropped.
+
+Document printing is gated without a browser, and deliberately not by comparing
+rendered files byte for byte.
+
+- **`pnpm verify` covers it.** `apps/api/src/**/__tests__/*-print-consistency.test.ts` read the view
+  the server renders from and require its figures on the page: the number, the party, the issuer's
+  legal identity, every money amount to the stored three decimals, each tax rate of the breakdown
+  with its base and amount, the FODEC and stamp-duty lines, and never a placeholder. Restyling a
+  table, moving a column or rewording a label does not fail them; printing a different figure,
+  losing a tax group or rounding a total does.
+- **`apps/api/src/documents/__tests__/print-contract.test.ts`** asserts the structural properties no
+  fixture should be able to bless away: A4 with a margin, nothing to fetch, logical properties only
+  (the RTL regression), an Arabic-capable font stack, `dir` from the locale.
+- **Not covered:** pagination and glyph shaping. Both need a layout engine and there is none in the
+  toolchain. An invoice that spills onto a third page, or Arabic that joins badly, is caught by
+  printing one.
+- **A byte-for-byte golden is the wrong tool here.** It is re-blessed from the code that produced it,
+  so a wrong figure re-blessed becomes the wrong baseline, and every cosmetic edit turns the gate
+  red. Two such suites existed and were deleted; one of them had blessed an invoice with no tax
+  identifier on it for its whole life.
 
 - `pnpm verify` — lint, typecheck, unit tests and build across every package. The fast gate; run it before anything else.
 - `pnpm test:integration` — real PostgreSQL, real transactions, real locking, **and a real `AppModule` that is actually started**. It needs nothing set up: `pnpm db:up` has already pointed `apps/api/.env.test` at `easyerp_test` and migrated it. There is no skip; the suite fails rather than passing empty. A change that alters the module graph, a guard, or a provider binding is not done until this passes — a broken injection graph passes every unit test and only shows up when a client starts the server.
-Document rendering is gated in **two tiers**, and neither replaces the other.
-
-- **Print goldens — in `pnpm verify`, no browser.** `apps/api/src/**/__tests__/*-print-golden.test.ts`
-  renders every paper to the HTML that `GET <paper>/:id/print` serves and compares it **byte for
-  byte** against committed `.html` files under `apps/api/src/__tests__/goldens/print/`. The matrix is
-  the Customer Invoice's 3 locales × 2 VAT regimes plus a mixed-rate one, and `fr`/`en`/`ar` for each
-  of the five operational papers. It is a unit test because it needs nothing installed, so a changed
-  table header fails on the commit that causes it. `apps/api/src/documents/__tests__/print-contract.test.ts`
-  asserts the properties a future template must keep: A4, no script and nothing to fetch, logical
-  properties only (the RTL regression), an Arabic-capable font stack.
-- **`pnpm test:golden` — the browser tier.** Renders the same HTML through headless Chromium and
-  compares **byte for byte** against committed PDFs. It needs
-  `pnpm --filter @easyerp/api exec playwright-core install --with-deps chromium` and
-  `fonts-noto-core fonts-dejavu-core`, because Chromium substitutes a missing font instead of
-  failing. It is the only gate that can prove pagination and Arabic glyph shaping actually came out
-  right, because it is the only one with a layout engine.
-
-Re-blessing either tier is explicit: `UPDATE_GOLDENS=1 pnpm --filter @easyerp/api test` for the
-print goldens, `pnpm test:golden -- --update` for the PDFs. **Then read the diff.** A re-bless nobody
-read is how a layout regression becomes the new baseline.
-- `pnpm --filter @easyerp/web test:e2e` — Playwright against a production build. It seeds its own
-  fixture through the real `POST /api/setup`, so it needs a database with **no Business** in it
-  (that is what CI has): on a working database with a Business already set up, Setup is correctly
-  closed and the suite refuses to start with one explanatory message rather than a dozen URL
-  mismatches. Point `DATABASE_URL` at a fresh database to run it — `easyerp_test` and `easyerp`
-  both work after `pnpm db:reset`.
-
-Anything touching stock, money, numbering or an Issued document additionally needs a test that would have failed before the change. Concurrency changes need two-writer coverage.
-
-## Naming and shape
-
-Model the domain in `apps/api/src/<domain>/` (sales, purchasing, inventory, production, finance, identity). Shared request/response types live in `packages/contracts` and are the source for the OpenAPI document — the API and the web app import them, they are never re-declared.
-
-## Session notes
-
-Append a durable note per meaningful session to `docs/session-logs/`: what was done, strongest findings, artifacts written, unresolved questions, next steps. Use the handoff skill at the end of a session that leaves unfinished work.
-
-Everything the next session needs lives in this repository. Do not reach outside it for context — if something is missing, the note belongs in `docs/session-logs/` and the finding belongs in `docs/legacy-app-audit.md`.
 
 <!-- BEGIN:turborepo-agent-rules -->
 

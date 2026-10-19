@@ -294,8 +294,8 @@ export type SalesOrderLine = z.infer<typeof salesOrderLineSchema>;
  * A Sales Order as the API returns it.
  *
  * `party` mirrors the Customer Invoice's shape: the fields a screen or a print
- * needs, not the whole record. The response carries no `archive` block — the
- * archived paper is served as bytes by `GET /sales/orders/:id/pdf`, which is
+ * needs, not the whole record. The response carries no rendered copy — the paper
+ * is a view of the row, served as HTML by `GET /sales/orders/:id/print`, which is
  * the only place a client reads it, so repeating the path and hash here would
  * be a second, drifting description of the same fact.
  */
@@ -380,7 +380,7 @@ export type DeliveryNoteLine = z.infer<typeof deliveryNoteLineSchema>;
 
 /**
  * A Delivery Note as the API returns it. It is a Document — numbered, immutable,
- * quoted in its own series — but it is not fiscal and carries no archive: stock
+ * quoted in its own series — but it is not fiscal: stock
  * movements are recorded in the ledger, not in a file (ADR 0004).
  */
 export const deliveryNoteSchema = documentSchema.extend({
@@ -429,22 +429,6 @@ export const documentTaxGroupSchema = z.object({
 export type DocumentTaxGroup = z.infer<typeof documentTaxGroupSchema>;
 
 /**
- * Where the archival PDF lives and what it hashes to (ADR 0010).
- *
- * Null while a Draft has no document and in the small window after issue where the
- * number exists but the file has not been written yet. Nullable rather than
- * absent, so "issued but not yet archived" is representable and therefore
- * detectable instead of looking like a bug.
- */
-export const documentArchiveSchema = z.object({
-  path: z.string().min(1),
-  sha256: z.string().regex(/^[0-9a-f]{64}$/),
-  archivedAt: z.string().datetime(),
-  byteLength: z.number().int().nonnegative(),
-});
-export type DocumentArchive = z.infer<typeof documentArchiveSchema>;
-
-/**
  * A Customer Invoice as the API returns it.
  *
  * Extends `documentSchema` rather than restating it: the common fields, the status
@@ -467,7 +451,6 @@ export const customerInvoiceSchema = documentSchema.extend({
   currency: z.string().length(3),
   lines: z.array(orderLineSchema),
   taxGroups: z.array(documentTaxGroupSchema),
-  archive: documentArchiveSchema.nullable(),
 });
 export type CustomerInvoice = z.infer<typeof customerInvoiceSchema>;
 
@@ -527,7 +510,7 @@ export type CreditNoteLine = z.infer<typeof creditNoteLineSchema>;
 
 /**
  * A Credit Note as the API returns it. A fiscal Document like the Invoice it
- * corrects: numbered in its own `AV-` series, archived as a PDF, immutable once
+ * corrects: numbered in its own `AV-` series, printable from its row, immutable once
  * issued. It lists lines and tax groups just like the Invoice, and names the
  * Invoice it corrects so an accountant can close the loop without a lookup.
  */
@@ -552,7 +535,6 @@ export const creditNoteSchema = documentSchema.extend({
   }),
   lines: z.array(creditNoteLineSchema),
   taxGroups: z.array(documentTaxGroupSchema),
-  archive: documentArchiveSchema.nullable(),
 });
 export type CreditNote = z.infer<typeof creditNoteSchema>;
 
@@ -649,7 +631,7 @@ export type GoodsReceiptLine = z.infer<typeof goodsReceiptLineSchema>;
 
 /**
  * A Goods Receipt as the API returns it. It is a Document — numbered, immutable,
- * quoted in its own series — but it is not fiscal and carries no archive.
+ * quoted in its own series — but it is not fiscal.
  */
 export const goodsReceiptSchema = documentSchema.extend({
   businessId: z.string().min(1),

@@ -78,6 +78,10 @@ export async function resetDatabase(): Promise<void> {
   await prisma.authSession.deleteMany();
   await prisma.authAccount.deleteMany();
   await prisma.authUser.deleteMany();
+  // No foreign key ties verification to a user, so nothing cascades it away and a
+  // password-reset or email-change token would survive into the next test — where
+  // Better Auth would honour a token the test that created it no longer owns.
+  await prisma.authVerification.deleteMany();
   await prisma.role.deleteMany();
   await prisma.auditEntry.deleteMany();
   await prisma.moduleState.deleteMany();

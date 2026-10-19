@@ -34,13 +34,13 @@ path/hash (`apps/api/src/sales/customer-invoice.service.ts`, `finance/invoice-te
 ## 2. Behavior matrix
 | | E_INVOICING OFF | E_INVOICING ON |
 |---|---|---|
-| `draft → issue → number → PDF archive` | byte-identical to today; same numbers, same golden PDFs | identical numbering/archival; transmission is post-commit side effect |
+| `draft → issue → number → print` | identical to today; same numbers, same printed figures | identical numbering; transmission is a post-commit side effect |
 | TEIF/TTN calls | none; no network, no new required fields | after `archivePdf`: build TEIF from stored figures → transmit → persist result |
 | Stored refs | no new columns written | `eInvoicingState`, `teifRef`, `teifQr`, `ttnSignature`, `transmittedAt` |
 | Failure | n/a | `TRANSMISSION_FAILED`: number + archive stand; retry endpoint re-transmits only |
 | Retry | n/a | explicit retry route (`@RequiresModule('E_INVOICING')`); never renumbers, never re-archives over (`wx`) |
 | Credit notes | unchanged | avoir transmitted with I-12 coding; same retry rule |
-| PDF | unchanged golden | QR + TTN-ref block renders only when `ACCEPTED` data exists (else byte-identical) |
+| printed paper | unchanged figures | QR + TTN-ref block renders only when `ACCEPTED` data exists (otherwise the paper is unchanged) |
 
 ## 3. Conditional vs unconditional in code
 - Conditional (only when module enabled): TEIF build/transmit/persist; retry endpoint; QR/TTN-ref PDF
@@ -63,12 +63,12 @@ path/hash (`apps/api/src/sales/customer-invoice.service.ts`, `finance/invoice-te
 - `§1` catalog: settings spec (new code listed, toggle flips next request via `ModulesGuard`),
   setup spec (default false persisted); gates: `pnpm verify` + `pnpm test:integration` (mandatory —
   module/provider/guard change boots real `AppModule`).
-- `§2` OFF: invoice issue golden byte-compare unchanged (`pnpm test:golden`, no `--update` expected);
+- `§2` OFF: the print consistency tests are unchanged (no template or figure moves);
   no-network assertion (fake TTN unreachable + module OFF → issue still `ISSUED`, no state write).
 - `§2` ON: fake-TTN integration spec — fail → `TRANSMISSION_FAILED` → retry → `ACCEPTED`, number
   stable across retries; would-have-failed-before test (retry renumbering attempt refused).
-- `§3` template: QR/TTN block golden re-bless per locale only for ACCEPTED fixtures
-  (`pnpm test:golden -- --update`, then read the diff); OFF-matrix PDFs byte-identical.
+- `§3` template: the QR/TTN block is asserted per locale for ACCEPTED fixtures, and asserted absent otherwise
+  (the sealed print copy reads the new reference off the row); every printed figure is otherwise identical.
 - `§4` migration: backfill spec (pre-existing business reads disabled; old docs `OFF`/null refs);
   trigger spec (post-issue TEIF-col write allowed, figure rewrite still refused).
-- Global: `pnpm verify` → `pnpm test:integration` → golden → web e2e for setup/settings screens.
+- Global: `pnpm verify` (includes the print consistency tests) → `pnpm test:integration` → web e2e for setup/settings screens.

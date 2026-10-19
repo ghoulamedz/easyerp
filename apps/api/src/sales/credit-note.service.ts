@@ -16,7 +16,7 @@
  * stock act with `reason: RETURN_IN`.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import {
   documentStatusSchema,
@@ -37,13 +37,9 @@ import {
   validationFailed,
 } from '../common/errors.js';
 import { Amount } from '../finance/amount.js';
-import { buildCustomerInvoice } from '../finance/invoice-document.js';
-import { renderInvoiceHtml } from '../finance/invoice-template.js';
-import { archiveInvoicePaper, readInvoiceArchive, readInvoicePrint } from '../finance/paper-archive.js';
-import { terminologyFor } from '../finance/terminology.js';
+import { printInvoiceCopy } from '../finance/print-copy.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LabelService } from '../settings/label.service.js';
-import { DocumentArchive } from './document-archive.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
 
 export const CREDIT_NOTE = 'CREDIT_NOTE';
@@ -122,11 +118,9 @@ async function creditedByLine(
 
 @Injectable()
 export class CreditNoteService {
-  private readonly logger = new Logger(CreditNoteService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
-    private readonly archive: DocumentArchive,
     private readonly labels: LabelService,
     private readonly audit: AuditService,
   ) {}
@@ -246,7 +240,7 @@ export class CreditNoteService {
     const now = new Date();
     const year = now.getUTCFullYear();
 
-    const issued = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const creditNote = await tx.document.findFirst({
         where: { id: creditNoteId, type: CREDIT_NOTE },
         include: {
@@ -300,29 +294,21 @@ export class CreditNoteService {
       return { allocated, correctsDocumentId };
     });
 
-    // The fiscal facts (status, number, figures) are committed above. The PDF
-    // is a rendering of those facts, not one of them: if the renderer is down
-    // the issue still succeeds and View answers ARCHIVE_UNAVAILABLE when the
-    // bytes never reached the disk (readArchive — no re-render fallback).
-    try {
-      await this.archiveIssued(creditNoteId, issued.correctsDocumentId, issued.allocated, now);
-    } catch (error) {
-      this.logger.error(
-        `Archiving credit note ${creditNoteId} failed, will retry on View.`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
-
+    // Nothing is rendered here: the row committed above is the record, and the
+    // paper is a view of it, produced when it is printed (ADR 0010).
     const found = await this.findById(creditNoteId);
     invariant(found, `Credit Note ${creditNoteId} vanished immediately after issuing.`);
     return found;
   }
 
-  /** The archival copy (ADR 0010): the bytes the Business is answerable for. */
-  readArchive(creditNoteId: string): Promise<{ pdf: Buffer; sha256: string }> {
-    return readInvoiceArchive({
+  /**
+   * The print copy: the credit note rendered from its stored row, which the
+   * visitor's browser rasterises (ADR 0010).
+   */
+  readPrint(creditNoteId: string): Promise<string> {
+    return printInvoiceCopy({
       prisma: this.prisma,
-      archive: this.archive,
+      labels: this.labels,
       code: CREDIT_NOTE,
       id: creditNoteId,
       entity: 'Credit Note',
@@ -340,9 +326,6 @@ export class CreditNoteService {
       },
     });
     if (!creditNote) return null;
-
-    const byteLength =
-      creditNote.archivePath === null ? 0 : await this.archive.byteLengthOf(creditNote.archivePath);
 
     const correctedDocument = creditNote.creditNotes?.[0]?.correctsDocumentId
       ? await this.prisma.document.findFirst({
@@ -404,15 +387,6 @@ export class CreditNoteService {
         base: money(group.base.toString()),
         amount: money(group.amount.toString()),
       })),
-      archive:
-        creditNote.archivePath === null
-          ? null
-          : {
-              path: creditNote.archivePath,
-              sha256: creditNote.archiveSha256 ?? '',
-              archivedAt: (creditNote.archivedAt ?? creditNote.createdAt).toISOString(),
-              byteLength,
-            },
     };
   }
 
@@ -510,101 +484,6 @@ export class CreditNoteService {
       }
     }
   }
-
-  private async archiveIssued(
-    creditNoteId: string,
-    correctsDocumentId: string,
-    allocated: { number: string; pattern: string; sequence: number; padding: number },
-    issuedAt: Date,
-  ): Promise<void> {
-    const creditNote = await this.prisma.document.findFirst({
-      where: { id: creditNoteId, type: CREDIT_NOTE },
-      include: { lines: { orderBy: { position: 'asc' } }, business: true, party: true },
-    });
-    invariant(creditNote, `Credit Note ${creditNoteId} vanished before archiving.`);
-    const corrected = await this.prisma.document.findFirst({ where: { id: correctsDocumentId } });
-
-    const view = buildCustomerInvoice({
-      pattern: allocated.pattern,
-      sequence: allocated.sequence,
-      padding: allocated.padding,
-      year: issuedAt.getUTCFullYear(),
-      issuedAt: issuedAt.toISOString().slice(0, 10),
-      locale: localeSchema.parse(creditNote.locale),
-      vatRegime: vatRegimeSchema.parse(creditNote.vatRegime),
-      currency: creditNote.currency,
-      labels: terminologyFor(
-        localeSchema.parse(creditNote.locale),
-        await this.labels.forDocument(localeSchema.parse(creditNote.locale)),
-      ),
-      issuer: {
-        displayName: creditNote.business.legalName,
-        taxIdentifier: creditNote.business.taxIdentifier,
-        addressLines: [
-          creditNote.business.addressLine1,
-          creditNote.business.city,
-          creditNote.business.countryCode,
-        ].filter(Boolean) as readonly string[],
-      },
-      party: {
-        displayName: creditNote.party.name,
-        taxIdentifier: creditNote.party.taxIdentifier ?? '',
-        addressLines: [creditNote.party.address, creditNote.party.city].filter(
-          Boolean,
-        ) as readonly string[],
-      },
-      kind: 'CREDIT_NOTE',
-      correctedNumber: corrected?.number ?? null,
-      // The stored rows are the authority, not the Items: the FODEC figure was
-      // carried pro-rata from the corrected Invoice, so subject-ness is read
-      // back from the stored figure and the builder re-derives the stored tax.
-      lines: creditNote.lines.map((line) => ({
-        description: line.description,
-        quantity: line.quantity.toString(),
-        unitPrice: line.unitPrice.toString(),
-        taxRate: line.taxRate.toString(),
-        net: line.netAmount.toString(),
-        fodecSubject: !Amount.parse(line.fodecAmount.toString()).isZero(),
-      })),
-      stampDuty: null,
-      withholdingTax: null,
-      fodec: storedFodecTotal(creditNote.lines),
-    });
-
-    await archiveInvoicePaper({
-      prisma: this.prisma,
-      archive: this.archive,
-      code: CREDIT_NOTE,
-      documentId: creditNoteId,
-      year: issuedAt.getUTCFullYear(),
-      number: view.number,
-      html: renderInvoiceHtml(view),
-    });
-  }
-
-  /**
-   * The print copy: the archived HTML, which the visitor's browser rasterises.
-   * Present on every host, unlike the PDF.
-   */
-  readPrint(creditNoteId: string): Promise<string> {
-    return readInvoicePrint({
-      prisma: this.prisma,
-      archive: this.archive,
-      code: CREDIT_NOTE,
-      id: creditNoteId,
-      entity: 'Credit Note',
-    });
-  }
-}
-
-/**
- * The stored FODEC total for an archive render: the sum of the stored line
- * figures, never recomputed. `null` when zero, so documents without FODEC
- * render exactly as before (the template prints no FODEC row for `null`).
- */
-function storedFodecTotal(lines: readonly { fodecAmount: { toString(): string } }[]): string | null {
-  const total = sumOf(lines.map((line) => line.fodecAmount.toString()));
-  return Amount.parse(total).isZero() ? null : total;
 }
 
 function sumOf(values: readonly string[]): string {

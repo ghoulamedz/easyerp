@@ -19,6 +19,6 @@ This ADR said the archived PDF is regenerated after signing so the visible seal 
 
 What follows, and what replaces the PDF clause:
 
-- **The filed copy is the print copy** — self-contained HTML, rendered once at issue, served by `GET <paper>/:id/print`, printed by the visitor's browser in A4 (ADR 0010, amendment). It is what "consistent" is measured against, and it is gated byte for byte in `pnpm verify`.
-- **The seal still forces a second filing.** When TEIF lands, the QR and the TTN reference must appear on the paper the customer receives, so the print copy is re-rendered and re-filed after signing. This ADR's "render once per artifact lifecycle" survives exactly as written; only the artifact's format changed from a PDF to the print copy.
-- **A PDF is optional, and its absence is not a compliance gap.** Where a deployment has a browser it may still file one; a deployment without one is not withholding anything the law asks for. That is why `ARCHIVE_UNAVAILABLE` is a fair answer for the PDF while Print always works.
+- **The paper is rendered from the row**, on request, as self-contained HTML served by `GET <paper>/:id/print` and printed by the visitor's browser in A4 (ADR 0010). Nothing is filed, because the row is the record and a stored copy could only disagree with it.
+- **The seal changes what is printed, not what is stored.** When TEIF lands, the QR and the TTN reference must appear on the paper the customer receives, so the print copy reads them from the row once the signed reference is stored. This ADR's "render once per artifact lifecycle" becomes "render from the signed row": the record is the signature, the paper is a view of it.
+- **There is no PDF at all, and its absence is not a compliance gap.** The browser's own print dialog produces one on demand, and a deployment that never produces a file is withholding nothing the law asks for.

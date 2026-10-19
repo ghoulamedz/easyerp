@@ -88,7 +88,7 @@ export async function createServerlessApp(): Promise<express.Express> {
 export default async function handler(req: express.Request, res: express.Response) {
   // Fast debug endpoint - bypasses Nest init, shows which envs are present (no values leaked)
   if (req.url?.startsWith('/api/debug-env') || req.url?.startsWith('/debug-env')) {
-    const keys = ['DATABASE_URL','DATABASE_URL_UNPOOLED','BETTER_AUTH_SECRET','BETTER_AUTH_URL','CORS_ORIGINS','VERCEL_URL','VERCEL_PROJECT_PRODUCTION_URL','FIRST_SETUP_TOKEN','DOCUMENT_ARCHIVE_ROOT','NODE_ENV','API_PORT','API_HOST'];
+    const keys = ['DATABASE_URL','DATABASE_URL_UNPOOLED','BETTER_AUTH_SECRET','BETTER_AUTH_URL','CORS_ORIGINS','VERCEL_URL','VERCEL_PROJECT_PRODUCTION_URL','FIRST_SETUP_TOKEN','NODE_ENV','API_PORT','API_HOST'];
     const present: Record<string, string> = {};
     for (const k of keys) {
       const v = process.env[k];

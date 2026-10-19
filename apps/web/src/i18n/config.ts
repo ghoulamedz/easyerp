@@ -226,9 +226,7 @@ const messages = {
     detailLines: 'Lignes',
     detailSupplier: 'Fournisseur',
     detailLoading: 'Chargement…',
-    detailArchiveHint: 'Version conservée par le serveur.',
-    detailPdfUnavailable:
-      'Aucun PDF archivé sur ce déploiement : il n’y a pas de navigateur pour le produire. La boîte d’impression s’ouvre — choisissez « Enregistrer au format PDF » pour en obtenir une copie.',
+    detailArchiveHint: 'Le document tel qu’il est imprimé.',
 
     invoice: 'Facture',
     creditNoteStatus: 'Statut de l\'avoir',
@@ -692,9 +690,7 @@ const messages = {
     detailLines: 'Lines',
     detailSupplier: 'Supplier',
     detailLoading: 'Loading…',
-    detailArchiveHint: 'The copy the server keeps.',
-    detailPdfUnavailable:
-      'This deployment keeps no archived PDF: it has no browser to produce one. The print dialog opens instead — choose “Save as PDF” to keep a copy.',
+    detailArchiveHint: 'The document as it prints.',
 
     invoice: 'Invoice',
     creditNoteStatus: 'Credit note status',
@@ -1159,9 +1155,7 @@ const messages = {
     detailLines: 'السطور',
     detailSupplier: 'المورّد',
     detailLoading: 'جارٍ التحميل…',
-    detailArchiveHint: 'النسخة التي يحتفظ بها الخادم.',
-    detailPdfUnavailable:
-      'لا توجد نسخة PDF محفوظة في هذا النشر لأنه لا يوجد متصفح لإنتاجها. تُفتح نافذة الطباعة بدلاً من ذلك — اختر «حفظ بصيغة PDF» للحصول على نسخة.',
+    detailArchiveHint: 'المستند كما يُطبع.',
 
     invoice: 'فاتورة',
     creditNoteStatus: 'حالة شيك الخصم',

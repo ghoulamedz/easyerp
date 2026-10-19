@@ -373,7 +373,6 @@ describe('credit note', () => {
         },
       ],
       taxGroups: [{ rate: '19', base: '-300.000', amount: '-57.000' }],
-      archive: null,
     };
 
     const parsed = creditNoteSchema.parse(creditNote);
@@ -426,7 +425,6 @@ describe('credit note', () => {
         },
       ],
       taxGroups: [],
-      archive: null,
     };
     expect(creditNoteSchema.safeParse(creditNote).success).toBe(false);
   });
@@ -474,7 +472,6 @@ describe('credit note', () => {
         },
       ],
       taxGroups: [],
-      archive: null,
     };
     expect(creditNoteSchema.safeParse(creditNote).success).toBe(false);
   });

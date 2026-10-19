@@ -492,18 +492,6 @@ model Document {
   withholdingTaxAmount Decimal             @default(0) @db.Decimal(18, 3)
   /// Stamp duty, carried separately and never inside the VAT base (ADR 0011).
   stampDutyAmount      Decimal             @default(0) @db.Decimal(18, 3)
-  /// The three columns below are the only ones an Issued Document may still change,
-  /// because a PDF can only be written after the number exists.
-  archivePath          String?             @db.VarChar(500)
-  archivedAt           DateTime?           @db.Timestamptz(3)
-  archiveSha256        String?             @db.Char(64)
-  /// The print copy: the same paper rendered as self-contained HTML and filed
-  /// at issue. It is what Print serves, so what a client prints is the archived
-  /// document rather than a re-render, and it needs no browser on the host —
-  /// the visitor's own browser is the renderer. The PDF beside it is produced
-  /// only where the host has a rendering browser.
-  printPath            String?             @db.VarChar(500)
-  printSha256          String?             @db.Char(64)
   createdAt            DateTime            @default(now()) @db.Timestamptz(3)
   updatedAt            DateTime            @updatedAt @db.Timestamptz(3)
   lines                DocumentLine[]

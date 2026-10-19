@@ -28,7 +28,6 @@ import {
   DocumentListService,
   type DocumentPage,
 } from '../documents/document-list.service.js';
-import { sendPdf } from '../common/pdf-response.js';
 import { sendPrint } from '../common/print-response.js';
 import { GoodsReceiptService } from './goods-receipt.service.js';
 import { RequiresModule } from '../settings/modules.guard.js';
@@ -73,16 +72,10 @@ export class GoodsReceiptController {
     return receipt;
   }
 
-  /** The archived paper (ADR 0010): the bytes the Business is answerable for. */
-  @RequirePermissions('goods-receipt:read')
-  @Get(':id/pdf')
-  async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
-    sendPdf(response, id, await this.receipts.readPdf(id));
-  }
 
   /**
-   * The print copy: the archived HTML, rasterised by the visitor's own browser.
-   * Works on every host, including one that cannot run a browser at all.
+   * The print copy: the paper rendered from the stored row and rasterised by the
+   * visitor's own browser, so no host needs a browser to serve it.
    */
   @RequirePermissions('goods-receipt:read')
   @Get(':id/print')

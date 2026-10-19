@@ -28,7 +28,7 @@
  * sellable the moment the promise ends.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 
 import {
@@ -49,7 +49,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
 import { paperLocale } from '../documents/paper-document.js';import { salesOrderPaperView } from '../documents/paper-builders.js';
-import { PaperPdfService } from '../documents/paper-pdf.service.js';
+import { renderPaperHtml } from '../documents/paper-template.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from './price-document.js';
 
 export const SALES_ORDER = 'SALES_ORDER';
@@ -64,14 +64,12 @@ type DocumentWithReservation = Prisma.DocumentGetPayload<{
 
 @Injectable()
 export class SalesOrderService {
-  private readonly logger = new Logger(SalesOrderService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly stock: StockLedgerService,
     private readonly audit: AuditService,
-    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -247,7 +245,7 @@ export class SalesOrderService {
    * an order issued today never prices at yesterday's Item price.
    */
   async issue(id: string, actor: AuditActor = {}, ipAddress?: string | null): Promise<SalesOrder> {
-    const issued = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const order = await tx.document.findFirst({
         where: { id, type: SALES_ORDER },
         include: { lines: { orderBy: { position: 'asc' } }, business: true },
@@ -381,49 +379,28 @@ export class SalesOrderService {
         },
         { ...actor, ipAddress: ipAddress ?? null },
       );
-      return { year: now.getUTCFullYear() };
     });
-
-    // The paper archives after the commit, exactly like the Customer Invoice:
-    // a renderer outage must not undo a numbered order with live Reservations,
-    // and View answers a failed write with a typed error, never a re-render.
-    try {
-      await this.archiveIssuePaper(id, issued.year);
-    } catch (error) {
-      this.logger.error(
-        `Archiving sales order ${id} failed; View will report its archive unavailable.`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
 
     const found = await this.findById(id);
     if (!found) throw notFound('Sales Order', id);
     return found;
   }
 
-  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
-  readPdf(id: string) {
-    return this.paperPdfs.readArchive('SALES_ORDER', id);
-  }
-
   /**
-   * The print copy: the archived HTML, which the visitor's own browser
-   * rasterises. Present on every host, unlike the PDF.
+   * The print copy: the order rendered from its stored row, which the visitor's
+   * browser rasterises (ADR 0010).
    */
-  readPrint(id: string): Promise<string> {
-    return this.paperPdfs.readPrint('SALES_ORDER', id);
-  }
-
-  /**
-   * Build the issued order's paper view from the committed rows and archive
-   * it. Runs after the transaction, so it reads exactly what the issue stored.
-   */
-  private async archiveIssuePaper(id: string, issueYear: number): Promise<void> {
+  async readPrint(id: string): Promise<string> {
     const row = await this.prisma.document.findFirst({
-      where: { id, type: SALES_ORDER, status: 'ISSUED' },
-      select: { number: true, issuedAt: true, locale: true, businessId: true },
+      where: { id, type: SALES_ORDER },
+      select: { number: true, status: true, issuedAt: true, locale: true, businessId: true },
     });
-    invariant(row?.number && row.issuedAt, `Issued order ${id} vanished before archiving.`);
+    // A Draft has no number to print: that is "there is no paper yet", not "the
+    // data is wrong", so it answers the same NOT_FOUND the document endpoint does.
+    if (row?.status !== 'ISSUED' || row.number === null || row.issuedAt === null) {
+      throw notFound('Printable document', id);
+    }
+    invariant(row.number && row.issuedAt, `Issued order ${id} vanished before printing.`);
 
     const [found, business] = await Promise.all([
       this.findById(id) as Promise<SalesOrder>,
@@ -431,8 +408,7 @@ export class SalesOrderService {
     ]);
     if (!business) throw notFound('Business', row.businessId);
 
-    const view = salesOrderPaperView(found, business, paperLocale(row.locale));
-    await this.paperPdfs.archiveAtIssue('SALES_ORDER', id, issueYear, row.number, view);
+    return renderPaperHtml(salesOrderPaperView(found, business, paperLocale(row.locale)));
   }
 
   /**

@@ -15,7 +15,6 @@ export type DomainErrorCode =
   | 'CONFLICT'
   | 'ILLEGAL_TRANSITION'
   | 'INSUFFICIENT_STOCK'
-  | 'ARCHIVE_UNAVAILABLE'
   | 'INVARIANT_VIOLATION';
 
 const STATUS_BY_CODE: Readonly<Record<DomainErrorCode, number>> = {
@@ -26,11 +25,6 @@ const STATUS_BY_CODE: Readonly<Record<DomainErrorCode, number>> = {
   CONFLICT: 409,
   ILLEGAL_TRANSITION: 409,
   INSUFFICIENT_STOCK: 409,
-  // The document exists and is Issued, but its archived bytes cannot be served
-  // from this deployment (a serverless host without a browser cannot re-render,
-  // and an ephemeral archive root holds no file). A 4xx the client can show,
-  // never the generic 500 a browser-launch failure would otherwise become.
-  ARCHIVE_UNAVAILABLE: 404,
   INVARIANT_VIOLATION: 500,
 };
 
@@ -56,22 +50,6 @@ export function notFound(entity: string, id: string): DomainError {
   return new DomainError('NOT_FOUND', `${entity} ${id} was not found`, { entity, id });
 }
 
-/**
- * An Issued document whose archived PDF cannot be read from this deployment.
- *
- * The archive is deliberately outside the database (ADR 0010): an ephemeral or
- * browser-less host cannot fall back to re-rendering, so the honest answer is a
- * typed domain failure the client can show — not the untyped `INTERNAL_ERROR`
- * a failed Chromium launch used to raise.
- */
-export function archiveUnavailable(entity: string, id: string): DomainError {
-  return new DomainError(
-    'ARCHIVE_UNAVAILABLE',
-    `The archived PDF for ${entity} ${id} is not available on this deployment. ` +
-      'The document archive is not attached to this host, so the paper cannot be served.',
-    { entity, id },
-  );
-}
 
 export function validationFailed(
   message: string,

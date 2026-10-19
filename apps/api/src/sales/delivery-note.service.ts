@@ -18,13 +18,13 @@
  *
  * It carries a number and is immutable once issued (ADR 0006 for the trigger),
  * its own `BL-` series, but it quotes no prices and no VAT: stock movements
- * live in the ledger, not in a file (ADR 0004). Its archived paper (ADR 0010)
+ * live in the ledger, not in a file (ADR 0004). Its printed paper (ADR 0010)
  * is therefore a quantities-only document — what shipped, to whom, against
- * which order — never a priced one; the archived PDF is served alongside every
+ * which order — never a priced one; the printed paper is served alongside every
  * other paper's.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 
 import {
@@ -47,7 +47,8 @@ import {
   deliveryNotePaperView,
   type UnitCodes,
 } from '../documents/paper-builders.js';
-import { PaperPdfService } from '../documents/paper-pdf.service.js';
+import { renderPaperHtml } from '../documents/paper-template.js';
+import type { PaperView } from '../documents/paper-document.js';
 
 export const DELIVERY_NOTE = 'DELIVERY_NOTE';
 
@@ -65,14 +66,12 @@ type NoteWithOrderAndLines = Prisma.DocumentGetPayload<{
 
 @Injectable()
 export class DeliveryNoteService {
-  private readonly logger = new Logger(DeliveryNoteService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly stock: StockLedgerService,
     private readonly audit: AuditService,
-    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -202,7 +201,7 @@ export class DeliveryNoteService {
     actor: AuditActor = {},
     ipAddress?: string | null,
   ): Promise<DeliveryNote> {
-    const issued = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const note = await tx.document.findFirst({
         where: { id: noteId, type: DELIVERY_NOTE },
         include: {
@@ -261,7 +260,7 @@ export class DeliveryNoteService {
       for (const line of child.lines) {
         if (line.salesOrderLineId) {
           const reservation = reservationByLine.get(line.salesOrderLineId);
-          invariant(
+              invariant(
             reservation,
             `Delivery Note line ${line.id} references order line ${line.salesOrderLineId}, ` +
               'which has no Reservation; the order was never issued.',
@@ -339,53 +338,43 @@ export class DeliveryNoteService {
 
     // The paper archives after the commit. The note ships stock and numbers
     // itself in one transaction; a renderer outage must not strand either, so
-    // View answers a failed archive write with a typed error instead.
-    try {
-      await this.archiveIssuePaper(noteId, issued.year);
-    } catch (error) {
-      this.logger.error(
-        `Archiving delivery note ${noteId} failed; View will report its archive unavailable.`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
 
     const found = await this.findById(noteId);
     invariant(found, `Delivery Note ${noteId} vanished immediately after issuing.`);
     return found;
   }
 
-  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
-  readPdf(id: string) {
-    return this.paperPdfs.readArchive('DELIVERY_NOTE', id);
-  }
-
   /**
-   * The print copy: the archived HTML, which the visitor's own browser
-   * rasterises. Present on every host, unlike the PDF.
+   * The print copy: the paper rendered from its stored row, which the visitor's
+   * browser rasterises (ADR 0010).
    */
-  readPrint(id: string): Promise<string> {
-    return this.paperPdfs.readPrint('DELIVERY_NOTE', id);
+  async readPrint(id: string): Promise<string> {
+    return renderPaperHtml(await this.paperView(id));
   }
 
-  /** Build the committed note's paper view and archive it. */
-  private async archiveIssuePaper(noteId: string, issueYear: number): Promise<void> {
+  private async paperView(noteId: string): Promise<PaperView> {
     const row = await this.prisma.document.findFirst({
-      where: { id: noteId, type: DELIVERY_NOTE, status: 'ISSUED' },
-      select: { number: true, issuedAt: true, locale: true, businessId: true },
+      where: { id: noteId, type: DELIVERY_NOTE },
+      select: { number: true, status: true, issuedAt: true, locale: true, businessId: true },
     });
-    invariant(row?.number && row.issuedAt, `Issued note ${noteId} vanished before archiving.`);
+    // A Draft has no number to print: that is "there is no paper yet", not "the
+    // data is wrong", so it answers the same NOT_FOUND the document endpoint does.
+    if (row?.status !== 'ISSUED' || row.number === null || row.issuedAt === null) {
+      throw notFound('Printable document', noteId);
+    }
+    invariant(row?.number && row.issuedAt, `Issued note ${noteId} vanished before printing.`);
 
     const found = (await this.findById(noteId)) as DeliveryNote;
     const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
     if (!business) throw notFound('Business', row.businessId);
 
-    const view = deliveryNotePaperView(
+    return deliveryNotePaperView(
       found,
       business,
       await this.unitCodes(noteId),
       paperLocale(row.locale),
     );
-    await this.paperPdfs.archiveAtIssue('DELIVERY_NOTE', noteId, issueYear, row.number, view);
+
   }
 
   /** Unit codes for the note's line units, printed instead of unit ids. */

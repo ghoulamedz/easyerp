@@ -5,19 +5,21 @@
  *
  * The page is a thin server wrapper; this component fetches the real document
  * through `lib/api` (never a placeholder), renders the stored fields verbatim,
- * and offers the paper's archived copy two ways.
+ * and offers the paper it renders from that row.
  *
- * Print reads `GET <paper>/:id/print`, the self-contained HTML the server filed
- * at issue, and hands it to the browser's print dialog: the rendering happens in
- * the visitor's browser, so printing works on a host that has no browser to
- * launch. Download fetches `GET <paper>/:id/pdf`, the second copy only a host
- * with a rendering browser can file — and when this deployment has none, it says
- * so and opens the print dialog instead of leaving a dead button.
+ * Print reads `GET <paper>/:id/print` — the paper rendered from the document row —
+ * and hands it to the browser's print dialog. The rendering happens in the
+ * visitor's browser, so printing needs no browser on the host, and the figures on
+ * the paper are the stored ones because the server renders from the row and never
+ * from anywhere else (ADR 0010).
+ *
+ * There is no download: the paper is a view of the record, not a file we keep, so
+ * the browser's own "Save as PDF" in the print dialog is what produces a copy.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { IconAlert, IconDownload, IconPrinter } from './icons';
-import { apiGet, apiPdf, apiText, ApiError } from '../lib/api';
+import { IconAlert, IconPrinter } from './icons';
+import { apiGet, apiText, ApiError } from '../lib/api';
 import { Card, CardBody, CardHeader } from './ui';
 
 /** The fields every paper response shares (from `@easyerp/contracts`). */
@@ -57,11 +59,8 @@ export interface PaperDetailLabels {
   readonly tax: string;
   readonly gross: string;
   readonly print: string;
-  readonly download: string;
   readonly loading: string;
   readonly archiveHint: string;
-  /** Shown when this deployment has no archived PDF; Print stands in for it. */
-  readonly pdfUnavailableHint: string;
   /** The three statuses of a Document, already translated. */
   readonly statusDraft: string;
   readonly statusIssued: string;
@@ -93,7 +92,6 @@ export function DocumentPaperDetail({
 }) {
   const [document, setDocument] = useState<PaperDocument | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const printFrame = useRef<HTMLIFrameElement | null>(null);
 
@@ -116,46 +114,12 @@ export function DocumentPaperDetail({
     };
   }, [paper, id]);
 
-  /** Download the archived PDF, the copy a host with a browser filed at issue. */
-  async function download(): Promise<void> {
-    setBusy(true);
-    try {
-      const blob = await apiPdf(`${paper}/${id}/pdf`);
-      const url = URL.createObjectURL(blob);
-      const link = window.document.createElement('a');
-      link.href = url;
-      link.download = `${document?.number ?? id}.pdf`;
-      link.click();
-      URL.revokeObjectURL(url);
-      setError(null);
-      setNotice(null);
-    } catch (cause) {
-      if (!(cause instanceof ApiError)) {
-        setError(new ApiError(500, 'REQUEST_FAILED', String(cause)));
-        return;
-      }
-      setError(null);
-      if (cause.code !== 'ARCHIVE_UNAVAILABLE') {
-        setError(cause);
-        return;
-      }
-      // This deployment keeps no PDF for the document — it has no browser to
-      // make one. Download would be a dead button, so say what happened and open
-      // the print dialog, whose "Save as PDF" produces the same paper from the
-      // archived HTML.
-      setNotice(labels.pdfUnavailableHint);
-      await print();
-    } finally {
-      setBusy(false);
-    }
-  }
-
   /**
-   * Print the archived HTML.
+   * Print the paper the server renders from the document row.
    *
-   * Fetched as text rather than pointed at by URL so a missing or broken copy
-   * surfaces as a localized message instead of a blank frame, and turned into a
-   * blob so the frame's origin is this app's rather than the API's.
+   * Fetched as text rather than pointed at by URL so a failure surfaces as a
+   * localized message instead of a blank frame, and turned into a blob so the
+   * frame's origin is this app's rather than the API's.
    */
   async function print(): Promise<void> {
     setBusy(true);
@@ -306,13 +270,7 @@ export function DocumentPaperDetail({
       <Card>
         <CardHeader title={labels.archiveHint} />
         <CardBody>
-          <div className="space-y-3">
-            {notice ? (
-              <p data-testid="paper-notice" className="text-xs text-ink-muted">
-                {notice}
-              </p>
-            ) : null}
-            <div className="flex gap-2">
+          <div className="flex gap-2">
               <button
                 type="button"
                 disabled={busy}
@@ -321,17 +279,7 @@ export function DocumentPaperDetail({
               >
                 <IconPrinter className="size-4" />
                 {labels.print}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => void download()}
-                className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm text-ink hover:bg-surface-sunken disabled:opacity-50"
-              >
-                <IconDownload className="size-4" />
-                {labels.download}
-              </button>
-            </div>
+            </button>
           </div>
         </CardBody>
       </Card>

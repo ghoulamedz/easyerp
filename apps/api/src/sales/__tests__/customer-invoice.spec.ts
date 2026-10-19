@@ -16,17 +16,12 @@
  *   first version allocated through `this.prisma`, outside that transaction.
  */
 
-import { mkdtemp, rm, stat } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { DomainError } from '../../common/errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { prisma, resetDatabase } from '../../identity/__tests__/harness.js';
 import { CustomerInvoiceService } from '../customer-invoice.service.js';
-import { DocumentArchive } from '../document-archive.js';
 import { DocumentNumberingService } from '../../numbering/document-numbering.service.js';
 import { LabelService } from '../../settings/label.service.js';
 import { AuditService } from '../../audit/audit.service.js';
@@ -34,21 +29,14 @@ import { AuditService } from '../../audit/audit.service.js';
 const prismaService = new PrismaService();
 const numbering = new DocumentNumberingService(prismaService);
 
-let archiveRoot: string;
-let archive: DocumentArchive;
 let invoices: CustomerInvoiceService;
 
 beforeEach(async () => {
   await resetDatabase();
 
-  // A fresh archive per test, so a leftover PDF from an earlier test cannot make a
-  // later one pass.
-  archiveRoot = await mkdtemp(join(tmpdir(), 'easyerp-archive-'));
-  archive = new DocumentArchive(archiveRoot);
   invoices = new CustomerInvoiceService(
     prismaService,
     numbering,
-    archive,
     new LabelService(prismaService, new AuditService(prismaService)),
     new AuditService(prismaService),
   );
@@ -56,7 +44,6 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await prismaService.$disconnect();
-  await rm(archiveRoot, { force: true, recursive: true });
 });
 
 // ---------------------------------------------------------------------------
@@ -210,7 +197,7 @@ describe('issuing', () => {
     return { business, customer, item, draft };
   }
 
-  it('numbers the document, stamps it, and archives a PDF that exists on disk', async () => {
+  it('numbers the document and stamps it', async () => {
     const { draft } = await givenDraft();
 
     const issued = await invoices.issue(draft.id);
@@ -219,30 +206,36 @@ describe('issuing', () => {
     expect(issued.number).toMatch(/^FA-\d{4}-0001$/);
     expect(issued.issuedAt).not.toBeNull();
     expect(issued.totals.grossAmount).toBe('357');
-
-    // The archival copy is a real file, and the hash beside it describes those bytes.
-    expect(issued.archive).not.toBeNull();
-    expect(issued.archive?.path).toContain(
-      join('CUSTOMER_INVOICE', String(new Date().getUTCFullYear())),
-    );
-    const onDisk = await stat(issued.archive!.path);
-    expect(onDisk.size).toBe(issued.archive!.byteLength);
-    expect(onDisk.size).toBeGreaterThan(0);
-    expect(issued.archive?.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it('serves the same bytes it archived', async () => {
-    const { draft } = await givenDraft();
+  it('prints the paper from the stored row, with the figures the row holds', async () => {
+    // The row is the record (ADR 0010). The paper is a view of it, so every figure
+    // printed must be one of the stored figures — no recomputation, no rounding
+    // difference, no second source of truth.
+    const { draft, customer } = await givenDraft();
 
     const issued = await invoices.issue(draft.id);
-    const { pdf, sha256 } = await invoices.readArchive(draft.id);
+    const html = await invoices.readPrint(draft.id);
 
-    expect(pdf.byteLength).toBe(issued.archive!.byteLength);
-    // The point of storing the hash: a client can tell whether what it holds is
-    // what the Business still serves.
-    expect(sha256).toBe(issued.archive!.sha256);
-    // A PDF, not an HTML error page.
-    expect(pdf.subarray(0, 4).toString('latin1')).toBe('%PDF');
+    expect(html).toContain('<!doctype html>');
+    expect(html).toContain(issued.number!);
+    expect(html).toContain(customer.name);
+
+    // The printed figures are the stored ones, read back from the row rather than
+    // from the response: a paper is only as good as the column it came from.
+    const row = await prisma.document.findUniqueOrThrow({
+      where: { id: draft.id },
+      select: { netAmount: true, taxAmount: true, grossAmount: true },
+    });
+    expect(html).toContain(row.grossAmount.toFixed(3));
+    expect(html).toContain(row.netAmount.toFixed(3));
+    expect(html).toContain(row.taxAmount.toFixed(3));
+  });
+
+  it('refuses to print a draft, which has no number to print', async () => {
+    const { draft } = await givenDraft();
+
+    await expect(invoices.readPrint(draft.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
   });
 
   it('honours the stored Number Pattern padding', async () => {
@@ -432,17 +425,5 @@ describe('immutability of an issued document', () => {
     await expect(prisma.document.delete({ where: { id: draft.id } })).rejects.toThrow(/immutable/);
   });
 
-  it('still allows the archive columns to be written', async () => {
-    // The one concession: the number must commit before the PDF can be written,
-    // because the file name is the number. A trigger that forbade this would make
-    // archiving impossible.
-    const { draft } = await givenIssued();
 
-    await expect(
-      prisma.document.update({
-        where: { id: draft.id },
-        data: { archivePath: '/tmp/regenerated.pdf', archivedAt: new Date() },
-      }),
-    ).resolves.toBeTruthy();
-  });
 });

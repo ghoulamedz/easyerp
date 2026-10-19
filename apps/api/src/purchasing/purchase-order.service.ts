@@ -6,7 +6,7 @@
  * draft-pricing time and re-read at issue. A client cannot post a price.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import {
   draftPurchaseOrderSchema,
@@ -24,20 +24,19 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
 import { paperLocale } from '../documents/paper-document.js';
 import { purchaseOrderPaperView } from '../documents/paper-builders.js';
-import { PaperPdfService } from '../documents/paper-pdf.service.js';
+import { renderPaperHtml } from '../documents/paper-template.js';
+import type { PaperView } from '../documents/paper-document.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
 
 export const PURCHASE_ORDER = 'PURCHASE_ORDER';
 
 @Injectable()
 export class PurchaseOrderService {
-  private readonly logger = new Logger(PurchaseOrderService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly audit: AuditService,
-    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -309,7 +308,7 @@ export class PurchaseOrderService {
 
       for (const [position, line] of priced.entries()) {
         const stored = order.lines[position];
-        invariant(stored, `Line ${position} vanished while issuing ${orderId}.`);
+            invariant(stored, `Line ${position} vanished while issuing ${orderId}.`);
 
         await tx.documentLine.update({
           where: { id: stored.id },
@@ -358,15 +357,6 @@ export class PurchaseOrderService {
     });
 
     // The paper archives after the commit, like every other document's: a
-    // renderer outage must not undo a numbered commitment to a Supplier.
-    try {
-      await this.archiveIssuePaper(issued.orderId, issued.year);
-    } catch (error) {
-      this.logger.error(
-        `Archiving purchase order ${issued.orderId} failed; View will report its archive unavailable.`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
 
     const found = await this.findById(issued.orderId);
     invariant(found, `Order ${issued.orderId} vanished immediately after issuing.`);
@@ -420,33 +410,32 @@ export class PurchaseOrderService {
     return found;
   }
 
-  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
-  readPdf(id: string) {
-    return this.paperPdfs.readArchive('PURCHASE_ORDER', id);
-  }
-
   /**
-   * The print copy: the archived HTML, which the visitor's own browser
-   * rasterises. Present on every host, unlike the PDF.
+   * The print copy: the paper rendered from its stored row, which the visitor's
+   * browser rasterises (ADR 0010).
    */
-  readPrint(id: string): Promise<string> {
-    return this.paperPdfs.readPrint('PURCHASE_ORDER', id);
+  async readPrint(id: string): Promise<string> {
+    return renderPaperHtml(await this.paperView(id));
   }
 
-  /** Build the committed order's paper view and archive it. */
-  private async archiveIssuePaper(orderId: string, issueYear: number): Promise<void> {
+  private async paperView(orderId: string): Promise<PaperView> {
     const found = (await this.findById(orderId)) as PurchaseOrderResponse;
     const row = await this.prisma.document.findFirst({
-      where: { id: orderId, type: PURCHASE_ORDER, status: 'ISSUED' },
-      select: { number: true, issuedAt: true, locale: true, businessId: true },
+      where: { id: orderId, type: PURCHASE_ORDER },
+      select: { number: true, status: true, issuedAt: true, locale: true, businessId: true },
     });
-    invariant(row?.number && row.issuedAt && found, `Issued order ${orderId} vanished before archiving.`);
+    // A Draft has no number to print: that is "there is no paper yet", not "the
+    // data is wrong", so it answers the same NOT_FOUND the document endpoint does.
+    if (row?.status !== 'ISSUED' || row.number === null || row.issuedAt === null) {
+      throw notFound('Printable document', orderId);
+    }
+    invariant(row?.number && row.issuedAt && found, `Issued order ${orderId} vanished before printing.`);
 
     const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
     if (!business) throw notFound('Business', row.businessId);
 
-    const view = purchaseOrderPaperView(found, business, paperLocale(row.locale));
-    await this.paperPdfs.archiveAtIssue('PURCHASE_ORDER', orderId, issueYear, row.number, view);
+    return purchaseOrderPaperView(found, business, paperLocale(row.locale));
+
   }
 
   async findById(id: string): Promise<PurchaseOrderResponse | null> {

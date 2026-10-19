@@ -16,27 +16,6 @@ const schema = z.object({
   DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(10),
 
   /**
-   * Where archived PDFs are written (ADR 0010).
-   *
-   * Required in production and defaulted only for local use, because the failure
-   * mode of getting this wrong is not a crash: documents issue fine and the copy a
-   * client is entitled to cannot be produced later.
-   */
-  DOCUMENT_ARCHIVE_ROOT: z.string().min(1).default('var/documents'),
-
-  /**
-   * The Vercel Blob token, when filed documents are kept in Blob storage instead
-   * of on disk.
-   *
-   * Set it when the filesystem is not durable — a serverless function's `/tmp` is
-   * emptied between invocations, so a copy filed there is a 404 waiting to
-   * happen. Absent, the archive is a directory and this host is responsible for
-   * it, which is what a VPS is for. Read here rather than in the archive so that
-   * `env.ts` stays the only file that touches `process.env`.
-   */
-  BLOB_READ_WRITE_TOKEN: z.string().min(1).optional(),
-
-  /**
    * The token that opens first-run Setup (ADR 0012). Read from the host's own
    * environment. Defaulted only for local use, because a fresh checkout should
    * `pnpm dev` into a working Setup without inventing a secret.
@@ -89,16 +68,6 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
       .join('; ');
     throw new Error(`Invalid environment: ${detail}`);
-  }
-  if (
-    parsed.data.NODE_ENV === 'production' &&
-    parsed.data.DOCUMENT_ARCHIVE_ROOT === 'var/documents'
-  ) {
-    // The default is a development convenience; accepting it in production would let
-    // a rollout start with a relative path that resolves against whatever the
-    // working directory happened to be, and every issued document would be
-    // unretrievable after the next deploy.
-    throw new Error('DOCUMENT_ARCHIVE_ROOT must be set to an absolute path in production');
   }
   if (
     parsed.data.NODE_ENV === 'production' &&

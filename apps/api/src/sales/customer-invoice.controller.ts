@@ -35,7 +35,6 @@ import {
 } from '../documents/document-list.service.js';
 import { CustomerInvoiceService } from './customer-invoice.service.js';
 import { RequiresModule } from '../settings/modules.guard.js';
-import { sendPdf } from '../common/pdf-response.js';
 import { sendPrint } from '../common/print-response.js';
 
 type Actor = { id: string; email: string };
@@ -69,7 +68,7 @@ export class CustomerInvoiceController {
 
   /**
    * Issue a Draft. `201` rather than `200`: the request created a document that
-   * did not exist before — a number, a fiscal artifact and an archived file.
+   * did not exist before — a number, a fiscal artifact and a printable paper.
    */
   @RequirePermissions('customer-invoice:issue')
   @Post(':id/issue')
@@ -91,22 +90,8 @@ export class CustomerInvoiceController {
   }
 
   /**
-   * The archival copy: the artifact a client keeps (ADR 0010).
-   *
-   * Served from disk rather than re-rendered, because the archived bytes are the
-   * ones the Business is answerable for. A re-render from current terminology
-   * would produce a different PDF from the same row, which is the opposite of an
-   * archive.
-   */
-  @RequirePermissions('customer-invoice:read')
-  @Get(':id/pdf')
-  async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
-    sendPdf(response, id, await this.invoices.readArchive(id));
-  }
-
-  /**
-   * The print copy: the archived HTML, rasterised by the visitor's own browser.
-   * Works on every host, including one that cannot run a browser at all.
+   * The print copy: the paper rendered from the stored row and rasterised by the
+   * visitor's own browser, so no host needs a browser to serve it.
    */
   @RequirePermissions('customer-invoice:read')
   @Get(':id/print')

@@ -27,7 +27,6 @@ import { type CreditNote, type SessionUser } from '@easyerp/contracts';
 
 import { CurrentUser, RequirePermissions } from '../identity/authorization.js';
 import { RequiresModule } from '../settings/modules.guard.js';
-import { sendPdf } from '../common/pdf-response.js';
 import { sendPrint } from '../common/print-response.js';
 import {
   DocumentListService,
@@ -83,19 +82,10 @@ export class CreditNoteController {
     return note;
   }
 
-  /**
-   * The archival copy (ADR 0010): the bytes the Business is answerable for,
-   * served from disk rather than re-rendered.
-   */
-  @RequirePermissions('credit-note:read')
-  @Get(':id/pdf')
-  async pdf(@Param('id') id: string, @Res() response: Response): Promise<void> {
-    sendPdf(response, id, await this.notes.readArchive(id));
-  }
 
   /**
-   * The print copy: the archived HTML, rasterised by the visitor's own browser.
-   * Works on every host, including one that cannot run a browser at all.
+   * The print copy: the paper rendered from the stored row and rasterised by the
+   * visitor's own browser, so no host needs a browser to serve it.
    */
   @RequirePermissions('credit-note:read')
   @Get(':id/print')

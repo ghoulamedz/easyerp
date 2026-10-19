@@ -7,7 +7,7 @@
  * received is kept as a Discrepancy record.
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/index.js';
 
 import {
@@ -25,7 +25,8 @@ import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
 import { paperLocale } from '../documents/paper-document.js';
 import { goodsReceiptPaperView, type UnitCodes } from '../documents/paper-builders.js';
-import { PaperPdfService } from '../documents/paper-pdf.service.js';
+import { renderPaperHtml } from '../documents/paper-template.js';
+import type { PaperView } from '../documents/paper-document.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from '../sales/price-document.js';
 
 export const GOODS_RECEIPT = 'GOODS_RECEIPT';
@@ -33,14 +34,12 @@ export const GOODS_RECEIPT_REASON = 'GOODS_RECEIPT';
 
 @Injectable()
 export class GoodsReceiptService {
-  private readonly logger = new Logger(GoodsReceiptService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
     private readonly stock: StockLedgerService,
     private readonly audit: AuditService,
-    private readonly paperPdfs: PaperPdfService,
   ) {}
 
   /**
@@ -221,56 +220,46 @@ export class GoodsReceiptService {
     });
 
     // A receipt issues immutably in one transaction; its paper archives just
-    // after the commit, like every other document's.
-    try {
-      await this.archiveIssuePaper(issued.receiptId, issued.year);
-    } catch (error) {
-      this.logger.error(
-        `Archiving goods receipt ${issued.receiptId} failed; View will report its archive unavailable.`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
 
     const found = await this.findById(issued.receiptId);
-    invariant(found, `Goods Receipt ${issued.receiptId} vanished immediately after issuing.`);
+        invariant(found, `Goods Receipt ${issued.receiptId} vanished immediately after issuing.`);
     return found;
   }
 
-  /** The archived paper, served as the artifact a client keeps (ADR 0010). */
-  readPdf(id: string) {
-    return this.paperPdfs.readArchive('GOODS_RECEIPT', id);
-  }
-
   /**
-   * The print copy: the archived HTML, which the visitor's own browser
-   * rasterises. Present on every host, unlike the PDF.
+   * The print copy: the paper rendered from its stored row, which the visitor's
+   * browser rasterises (ADR 0010).
    */
-  readPrint(id: string): Promise<string> {
-    return this.paperPdfs.readPrint('GOODS_RECEIPT', id);
+  async readPrint(id: string): Promise<string> {
+    return renderPaperHtml(await this.paperView(id));
   }
 
-  /** Build the committed receipt's paper view and archive it. */
-  private async archiveIssuePaper(receiptId: string, issueYear: number): Promise<void> {
+  private async paperView(receiptId: string): Promise<PaperView> {
     const found = (await this.findById(receiptId)) as GoodsReceiptResponse;
     const row = await this.prisma.document.findFirst({
-      where: { id: receiptId, type: GOODS_RECEIPT, status: 'ISSUED' },
-      select: { number: true, issuedAt: true, locale: true, businessId: true },
+      where: { id: receiptId, type: GOODS_RECEIPT },
+      select: { number: true, status: true, issuedAt: true, locale: true, businessId: true },
     });
+    // A Draft has no number to print: that is "there is no paper yet", not "the
+    // data is wrong", so it answers the same NOT_FOUND the document endpoint does.
+    if (row?.status !== 'ISSUED' || row.number === null || row.issuedAt === null) {
+      throw notFound('Printable document', receiptId);
+    }
     invariant(
       row?.number && row.issuedAt && found,
-      `Issued receipt ${receiptId} vanished before archiving.`,
+      `Issued receipt ${receiptId} vanished before printing.`,
     );
 
     const business = await this.prisma.business.findUnique({ where: { id: row.businessId } });
     if (!business) throw notFound('Business', row.businessId);
 
-    const view = goodsReceiptPaperView(
+    return goodsReceiptPaperView(
       found,
       business,
       await this.unitCodes(receiptId),
       paperLocale(row.locale),
     );
-    await this.paperPdfs.archiveAtIssue('GOODS_RECEIPT', receiptId, issueYear, row.number, view);
+
   }
 
   /** Unit codes for the receipt's child-line units, resolved in one query. */

@@ -16,35 +16,35 @@ Non-goal (explicit): no "ICE" field — Morocco-only. Tunisia = matricule fiscal
 **Goal:** per-Item `fodecSubject` flag; FODEC line before VAT; PDF + avoir carry FODEC.
 **Touchpoints:** `packages/contracts/src/catalog.ts` (`itemSchema`/`itemInputSchema` + flag), `apps/api/src/catalog/*` (CRUD), `price-document.ts`, `customer-invoice.service.ts` + `credit-note.service.ts` (persist from stored figures), `finance/invoice-template.ts` + `invoice-document.ts` (FODEC row), TEIF payload (see §5).
 **Migration:** `Item.fodecSubject Boolean @default(false)`; `DocumentLine.fodecAmount Decimal(18,3) @default(0)`; backfill existing rows to 0.
-**Tests:** pricing unit (§0) + `customer-invoice.service` spec (issue with mixed fodec/non-fodec lines) + golden re-bless (`pnpm test:golden -- --update`, read the diff).
+**Tests:** pricing unit (§0) + `customer-invoice.service` spec (issue with mixed fodec/non-fodec lines) + the print consistency test asserting the FODEC figure reaches the page.
 **Size:** M.
 
 ### 2. Timbre rules (P2 — needs §0 totals)
 **Goal:** configurable amount (1.000 default; 1.500/2.000 grandes-surfaces tiers), exemption flag (export, EPA), "droit de timbre payé sur déclaration" + auth ref on PDF, out of VAT *and* RAS bases, timbre-on-avoir as a setting (default off).
 **Touchpoints:** `packages/contracts/src/settings.ts` (new `fiscalSettings`: `stampDutyAmount`, `stampTier`, `stampExempt`, `stampDeclarationRef`, `stampOnCreditNote`), `apps/api/src/settings/*` (service + controller + backfill defaults), `invoice-template.ts`/`invoice-document.ts` (mention line), `customer-invoice.service.ts`/`credit-note.service.ts` (apply/exempt).
 **Migration:** new `FiscalSettings` table or columns on `Business` (prefer table: `businessId` unique); `Document.stampExempt Boolean @default(false)`.
-**Tests:** settings spec (validation, backfill), invoice-issue spec (tiers, exempt path, avoir default-off), golden (mention rendering fr/en/ar).
+**Tests:** settings spec (validation, backfill), invoice-issue spec (tiers, exempt path, avoir default-off), print consistency (mention rendering fr/en/ar).
 **Size:** M. **Accountant flag:** ⚠️ avoir-timbré-ou-non is unsettled — setting, never hard-code.
 
 ### 3. EXEMPT / suspension handling (P2 — needs §2 template slots)
 **Goal:** regime fields — mention text, attestation number + date, suspended-VAT amount; block EXEMPT without attestation ref (warning vs hard block per accountant).
 **Touchpoints:** `packages/contracts/src/documents.ts` (`vatRegime` stays; add `exemptionDetails` object on draft schemas), `customer-invoice.service.ts` (validate + persist), `finance/invoice-template.ts` `renderVatSection` (attestation + suspended amount), `finance/terminology.ts` (labels ×3 locales).
 **Migration:** `Document.exemptionMention`, `exemptionAttestationNo/Date`, `suspendedVatAmount Decimal(18,3) nullable`.
-**Tests:** invoice validation spec (EXEMPT-without-ref rejected), golden EXEMPT matrix already exists — extend with attestation fixture.
+**Tests:** invoice validation spec (EXEMPT-without-ref rejected), the EXEMPT print consistency cases already exist — extend them with an attestation fixture.
 **Size:** S–M. **Accountant flag:** ⚠️ warning-vs-block and which activities qualify is a tax question — do not decide in code.
 
 ### 4. Retenue (RAS) display + certificates (P2 — needs §0–§2 bases)
 **Goal:** footer shows RAS base (TTC hors timbre), rate, net à payer; store client RAS (TEJ) certificates; Outstanding falls only on certificate, never on hope.
 **Touchpoints:** `finance/invoice-template.ts` + `invoice-document.ts` (RAS base/rate/net lines), `packages/contracts/src/payments.ts` (certificate schema), `apps/api/src/payments/payments.service.ts` + `payments.controller.ts` (certificate CRUD + allocation effect on `outstanding`), web invoice footer.
 **Migration:** new `RasCertificate` table (`id`, `businessId`, `invoiceId FK`, `certificateNo`, `rate`, `amount Decimal(18,3)`, `issuedAt`); no change to `Payment` table.
-**Tests:** payments spec (certificate reduces outstanding; missing cert does not), invoice-view spec (footer math), golden footer diff.
+**Tests:** payments spec (certificate reduces outstanding; missing cert does not), invoice-view spec (footer math), print consistency (the footer figures reach the page).
 **Size:** M. **Accountant flag:** ⚠️ rates/thresholds (1 000 DT TTC; 1/0.5/1.5/3%) are regime-dependent — confirm table before coding.
 
 ### 5. El Fatoora / TEIF transmission adapter (P1 — consumingly last of the fiscal core; needs §1–§4)
 **Goal:** replace no-op with TEIF XML (UN/EDIFACT INVOIC) emit + TTN ref/QR storage; retry on `TRANSMISSION_FAILED` never renumbers; keep timbre (TEIF I-1601); surface "stamped paper copy with TTN ref" for goods transport; couvre facture + avoir (I-12) + note d'honoraires.
 **Touchpoints:** new `apps/api/src/einvoicing/` module (builder `teif.ts`, `ttn.client.ts`, `signature` via TunTrust, retry worker), `Document` e-invoicing columns, `packages/contracts/src/documents.ts` (`EINVOICING_STATES` already exists — extend payload types), `invoice-template.ts` (QR + TTN ref block), transport-copy notice (delivery-note screen).
 **Migration:** `Document.eInvoicingState` (already implied by contract — materialize), `teifRef`, `teifQr`, `ttnSignature`, `transmittedAt` nullable columns.
-**Tests:** contract tests (golden TEIF fixtures incl. FODEC I-lines + timbre I-1601 + avoir I-12), adapter fake-TTN integration spec (fail → `TRANSMISSION_FAILED` → retry → `ACCEPTED`, number stable), no-network unit default.
+**Tests:** contract tests (TEIF fixture files incl. FODEC I-lines + timbre I-1601 + avoir I-12), adapter fake-TTN integration spec (fail → `TRANSMISSION_FAILED` → retry → `ACCEPTED`, number stable), no-network unit default.
 **Size:** L. **Accountant flag:** ⚠️⚠️ LF 2026 services calendar + April-2026 deferral proposal + note commune 02/2026 are time-sensitive — re-check JORT/DGI before committing scope; paper-instead-of-electronic fines (100–500 DT) set urgency, not design.
 
 ### 6. MF discipline (P3 — parallelizable anytime after §0; placed here to avoid blocking fiscal core)
@@ -56,7 +56,7 @@ Non-goal (explicit): no "ICE" field — Morocco-only. Tunisia = matricule fiscal
 
 ### 7. Archive durability (P3 — after PDFs stabilize in §1–§4)
 **Goal:** 10-year probative archive: one-click fiscal-year export (PDFs + SHA-256 + index), scheduled integrity check, documented restore; never tie lifetime to container disk.
-**Touchpoints:** `apps/api/src/sales/document-archive.ts` (export + `verify`), new `archive.controller.ts` (export endpoint, permission-gated), `apps/api/src/finance/golden.ts` (hash manifest), ops docs (backup/restore runbook).
+**Touchpoints:** a new fiscal-year export service (rows → the printed papers, plus a hash manifest of the export itself), `apps/api/src/finance/print-copy.ts` (the render entry point), ops docs (backup/restore runbook).
 **Migration:** optional `ArchiveVerification` log table (`ranAt`, `checked`, `failures`); archive stays on disk + export artifact.
 **Tests:** archive spec (export manifest matches files; tampered file fails verify), permission spec (export gated).
 **Size:** M.
@@ -72,4 +72,4 @@ Non-goal (explicit): no "ICE" field — Morocco-only. Tunisia = matricule fiscal
 §0 pricing formula → §1 FODEC + §2 timbre (parallel) → §3 exempt + §4 RAS (parallel, consume §0–§2) → §5 TEIF adapter (consumes all fiscal fields) → §7 archive (after PDFs final); §6 MF + §8 audit ride parallel anytime.
 
 ## Test gates per change (global)
-`pnpm verify` (lint/typecheck/unit/build) → `pnpm test:integration` (real PG + real `AppModule`; mandatory for module/provider/guard changes) → `pnpm test:golden -- --update` + read diff (any template change) → web e2e for new screens. Money/stock/numbering/Issued changes additionally need a would-have-failed-before test; concurrency needs two-writer coverage.
+`pnpm verify` (lint/typecheck/unit/build, including the print consistency tests) → `pnpm test:integration` (real PG + real `AppModule`; mandatory for module/provider/guard changes) → web e2e for new screens. Money/stock/numbering/Issued changes additionally need a would-have-failed-before test; concurrency needs two-writer coverage.

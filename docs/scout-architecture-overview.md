@@ -152,9 +152,11 @@ Issuing consumes components (`PRODUCTION_OUT`) and produces finished goods
 - **Invoices are tax-authority documents.** The model already carries TEIF e-invoicing
   fields; transmission is a replaceable adapter (currently no-op), and a document can
   be `ISSUED · TRANSMISSION_FAILED` and retried — never renumbered (ADR 0011).
-  PDFs render server-side and are byte-compared by the golden test (`fr`/`en`/`ar` ×
-  STANDARD/EXEMPT/mixed). Archives live on the **host disk, not in the DB backup** —
-  keeping ten years of invoices is the owner's download job.
+  A paper is rendered server-side from the stored row — `GET <paper>/:id/print`,
+  `fr`/`en`/`ar` × STANDARD/EXEMPT/mixed — and printed by the visitor's browser. The
+  **row is the record**: nothing is archived, so nothing is lost and nothing can
+  disagree with the database. Keeping the paper is the owner's printing job, and the
+  database backup keeps the figures.
 
 ## Start here (for the next agent)
 

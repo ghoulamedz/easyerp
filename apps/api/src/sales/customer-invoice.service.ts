@@ -30,11 +30,11 @@
  * three database triggers refuse both regardless — on the document *and* on its
  * lines and tax groups, because a parent guard alone would leave the figures editable.
  *
- * The PDF is written after the commit, then the row records its path and hash.
- * That ordering is the one concession, and it is argued in `document-archive.ts`.
+ * The paper is not rendered here at all: it is a view of the row, produced when
+ * the document is printed (ADR 0010).
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 import {
   documentStatusSchema,
@@ -55,13 +55,11 @@ import {
   validationFailed,
 } from '../common/errors.js';
 import { Amount } from '../finance/amount.js';
-import { buildCustomerInvoice, type CustomerInvoiceView } from '../finance/invoice-document.js';
-import { renderInvoiceHtml } from '../finance/invoice-template.js';
+import { buildCustomerInvoice } from '../finance/invoice-document.js';
 import { terminologyFor } from '../finance/terminology.js';
-import { archiveInvoicePaper, readInvoiceArchive, readInvoicePrint } from '../finance/paper-archive.js';
+import { printInvoiceCopy } from '../finance/print-copy.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LabelService } from '../settings/label.service.js';
-import { DocumentArchive } from './document-archive.js';
 import { DocumentNumberingService } from '../numbering/document-numbering.service.js';
 import { priceItems, repriceTotals, type DocumentPricedLine } from './price-document.js';
 
@@ -69,11 +67,9 @@ export const CUSTOMER_INVOICE = 'CUSTOMER_INVOICE';
 
 @Injectable()
 export class CustomerInvoiceService {
-  private readonly logger = new Logger(CustomerInvoiceService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly numbering: DocumentNumberingService,
-    private readonly archive: DocumentArchive,
     private readonly labels: LabelService,
     private readonly audit: AuditService,
   ) {}
@@ -156,7 +152,7 @@ export class CustomerInvoiceService {
   }
 
   /**
-   * Issue a Draft: number it, re-price it, make it immutable, archive the PDF.
+   * Issue a Draft: number it, re-price it, make it immutable.
    *
    * The render view is built *inside* the transaction from the same values that are
    * written, so the PDF and the stored rows cannot disagree and nothing is
@@ -301,67 +297,23 @@ export class CustomerInvoiceService {
       return { view, year, invoiceId: invoice.id };
     });
 
-    // The fiscal facts (status, number, figures) are committed above. The PDF
-    // is a rendering of those facts, not one of them: if the renderer is down
-    // the issue still succeeds and View answers ARCHIVE_UNAVAILABLE when the
-    // bytes never reached the disk (readArchive — no re-render fallback).
-    // Failing the whole issue on a renderer outage would strand a numbered
-    // document in a half-issued state the retry then 409s on.
-    try {
-      await this.archivePdf(issued.view, issued.invoiceId, issued.year);
-    } catch (error) {
-      this.logger.error(
-        `Archiving invoice ${issued.invoiceId} failed, will retry on View.`,
-        error instanceof Error ? error.stack : String(error),
-      );
-    }
-
+    // Nothing is rendered here. The row committed above is the record — number,
+    // figures and tax groups — and the paper is a view of it, produced when it is
+    // printed. An issue therefore cannot fail for want of a renderer, and there is
+    // no window in which a numbered document has no copy.
     const found = await this.findById(issued.invoiceId);
     invariant(found, `Invoice ${issued.invoiceId} vanished immediately after issuing.`);
     return found;
   }
 
   /**
-   * Render, store and record the archived paper.
-   *
-   * The HTML is filed on every host; the PDF only where a browser exists to
-   * rasterise it (`finance/paper-archive.ts` explains why the HTML comes first).
-   */
-  private async archivePdf(
-    view: CustomerInvoiceView,
-    invoiceId: string,
-    year: number,
-  ): Promise<void> {
-    await archiveInvoicePaper({
-      prisma: this.prisma,
-      archive: this.archive,
-      code: CUSTOMER_INVOICE,
-      documentId: invoiceId,
-      year,
-      number: view.number,
-      html: renderInvoiceHtml(view),
-    });
-  }
-
-  /**
-   * The print copy: the archived HTML, which the visitor's browser rasterises.
-   * Present on every host, unlike the PDF.
+   * The print copy: the paper rendered from the stored row, which the visitor's
+   * browser rasterises (ADR 0010).
    */
   readPrint(invoiceId: string): Promise<string> {
-    return readInvoicePrint({
+    return printInvoiceCopy({
       prisma: this.prisma,
-      archive: this.archive,
-      code: CUSTOMER_INVOICE,
-      id: invoiceId,
-      entity: 'Customer Invoice',
-    });
-  }
-
-  /** The archival copy, served as the artifact a client keeps (ADR 0010). */
-  readArchive(invoiceId: string): Promise<{ pdf: Buffer; sha256: string }> {
-    return readInvoiceArchive({
-      prisma: this.prisma,
-      archive: this.archive,
+      labels: this.labels,
       code: CUSTOMER_INVOICE,
       id: invoiceId,
       entity: 'Customer Invoice',
@@ -379,9 +331,6 @@ export class CustomerInvoiceService {
     });
 
     if (!invoice) return null;
-
-    const byteLength =
-      invoice.archivePath === null ? 0 : await this.archive.byteLengthOf(invoice.archivePath);
 
     return {
       id: invoice.id,
@@ -429,15 +378,6 @@ export class CustomerInvoiceService {
         base: money(group.base.toString()),
         amount: money(group.amount.toString()),
       })),
-      archive:
-        invoice.archivePath === null
-          ? null
-          : {
-              path: invoice.archivePath,
-              sha256: invoice.archiveSha256 ?? '',
-              archivedAt: (invoice.archivedAt ?? invoice.createdAt).toISOString(),
-              byteLength,
-            },
     };
   }
 }
@@ -494,7 +434,7 @@ function lineRow(line: DocumentPricedLine, position: number): LineRow {
 }
 
 /**
- * The stored FODEC total for an archive render: the sum of the stored line
+ * The stored FODEC total, as the column would carry it: the sum of the stored line
  * figures, never recomputed. `null` when zero, so documents without FODEC
  * render exactly as before (the template prints no FODEC row for `null`).
  */

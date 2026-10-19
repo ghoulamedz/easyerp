@@ -106,22 +106,10 @@ export function apiSend<T>(
 }
 
 /**
- * Fetch binary document bytes (a paper PDF) as a Blob, through the same error
- * choreography as `request`: 401 goes to sign-in, any other failure becomes an
- * `ApiError` whose message is localized from the error CODE. The PDF endpoints
- * answer `application/pdf`; an error response is JSON, so the body is parsed
- * only when something went wrong.
- */
-export async function apiPdf(path: string): Promise<Blob> {
-  return (await apiFile(path)).blob();
-}
-
-/**
  * Fetch a paper's print copy as text.
  *
- * Same choreography as `apiPdf` — it is the same failure surface, one
- * representation apart — so a missing archived copy surfaces as the same
- * localized `ARCHIVE_UNAVAILABLE` message rather than an empty frame.
+ * The paper's own error surface: a failure comes back as an `ApiError` whose
+ * message is localized from the error code, rather than as a blank iframe.
  */
 export async function apiText(path: string): Promise<string> {
   return (await apiFile(path)).text();

@@ -20,12 +20,8 @@
  *   the stack; without one the browser substitutes and the joins break.
  * A row that must not split across a page break (`break-inside: avoid` on `tr`) is
  * *not* asserted here: neither template carries it today, and asserting it would
- * mean either a red gate or a template change bundled into a test commit. It is
- * recorded as a follow-up in the session log for 2026-10-19.
- *
- * This is the browserless half of a pair: `pnpm test:golden` still renders the
- * same HTML through Chromium, and it is the only thing that can prove pagination
- * and glyph shaping actually came out right.
+ * mean either a red gate or a template change bundled into a commit that is about
+ * tests. It is recorded as a follow-up in the session log for 2026-10-19.
  */
 
 import { describe, expect, it } from 'vitest';

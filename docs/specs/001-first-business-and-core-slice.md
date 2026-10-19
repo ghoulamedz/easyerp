@@ -228,16 +228,39 @@ The setup and domain endpoints are exercised over HTTP against a real PostgreSQL
 
 Setup is a screen a person uses exactly once, so the screen itself is the product for that moment. The existing browser suite is extended to complete Setup end to end in a real browser and assert the resulting sign-in works. Arabic is exercised for correct right-to-left layout, following the existing right-to-left test.
 
-### Golden document tests
+### What the printed documents are tested for
 
-Document rendering is checked against golden output. Archived PDFs are compared for
-stability, since a document a client has filed must remain reproducible.
+The documents were compared byte for byte against committed renderings. That is
+gone, and the reasoning is worth keeping because the same mistake is easy to
+re-make: a golden is re-blessed from the code that produced it, so a wrong figure
+re-blessed becomes the wrong baseline, while every cosmetic edit turns the gate
+red. It needed a browser in the fast loop and it asserted layout — not the thing
+the Business is answerable for.
 
-The matrix is **3 locales × 2 VAT regimes, plus one STANDARD document mixing Tunisian
-rates** — six documents, not nine.
+What is asserted now is **the data on the paper is the data in the row**:
 
-Two axes are being counted, and conflating them was the error in the earlier draft
-of this spec, which said "three VAT regimes". They are not the same thing:
+- `apps/api/src/finance/__tests__/invoice-print-consistency.test.ts` and
+  `apps/api/src/documents/__tests__/paper-print-consistency.test.ts` read the view
+  the server renders from and require its figures on the page: the number, the
+  dates, the issuer's legal identity, the party, every line's quantity and figures,
+  the totals to the stored three decimals, each tax rate of the breakdown with its
+  base and amount, the FODEC row, the stamp-duty line, and a placeholder never.
+- Both run in `pnpm verify`, with no browser and no database, in milliseconds.
+- Restyling a table, moving a column or rewording a label does not fail them.
+  Printing a different number, losing a tax group or rounding a total does.
+
+`print-contract.test.ts` covers the structural half: A4 with a margin, no script
+and nothing to fetch, logical properties only (the RTL regression), an
+Arabic-capable font stack, `dir` from the locale. These are asserted independently
+of any fixture, so no re-bless can bless them away.
+
+**Not covered by any test:** pagination and glyph shaping. Both need a layout
+engine, and there is no longer one in the toolchain. An invoice that spills onto a
+third page, or Arabic that joins badly, is caught by printing one.
+
+**The matrix and why it is 3x2-and-one.** Two axes are being counted, and conflating
+them was the error in the earlier draft of this spec, which said "three VAT
+regimes". They are not the same thing:
 
 - The **VAT regime** is a fact about the Business, and there are exactly two:
   `STANDARD` prints a per-rate breakdown, `EXEMPT` prints a legal mention instead
@@ -247,69 +270,30 @@ of this spec, which said "three VAT regimes". They are not the same thing:
   **7%** reduced. Whether a given Item sits at one of them is data the Business
   enters, not something the product decides.
 
-So the six documents are `fr`/`en`/`ar` × `STANDARD`/`EXEMPT`, and the seventh
-exercises a `STANDARD` invoice whose lines carry 19%, 13% and 7% at once, because a
+So the fiscal documents are exercised as `fr`/`en`/`ar` × `STANDARD`/`EXEMPT`, plus
+one `STANDARD` invoice whose lines carry 19%, 13% and 7% at once — because a
 breakdown that only ever renders one rate has never been tested against the case it
 exists for: grouping several rates, keeping each group's base and amount intact, and
-having the groups sum to the total.
-
-**How the matrix grows when more Document types gain a PDF.** Running the full
-3 × 2 + 1 matrix for every type would be six more types at seven documents each,
-and a golden suite that size is a suite nobody reads the diff of. The rule is:
-
-- **Fiscal documents carry the full matrix.** A `CUSTOMER_INVOICE` keeps its seven.
-  A `CREDIT_NOTE` gets five: `fr`/`en`/`ar` × `STANDARD`, plus one `EXEMPT` and one
-  mixed-rate. Both print a per-rate breakdown or the EXEMPT mention, so both axes
-  genuinely change their output.
-- **Every other Document type gets `fr`/`en`/`ar` × `STANDARD` — three.** A Sales
-  Order, Delivery Note, Purchase Order, Goods Receipt or Production Order proves
-  direction, RTL and font fallback, which is what varies between locales.
-
-The reasoning is that the EXEMPT branch and the multi-rate grouping live in shared
-template code already exercised twice over; what genuinely varies per type is its
-header, its field set and its series. Two types at seven documents is fourteen
-covering both axes; twenty-two covering neither axis is waste. If a type later
-turns out to carry a layout the shared code does not reach, that type grows — the
-rule is a default, not a ceiling.
+having the groups sum to the total. Every operational paper is exercised in all
+three locales, since what varies per type is its header, its field set and its
+series.
 
 **Every figure above is unverified and awaits an accountant.** Tunisian VAT is
 changed by each loi de finances, and the thresholds that decide whether a small
 Business is subject to VAT at all were not confirmed from a primary source while
 this was written. ADR 0009 is the rule that applies: no legal text reaches a document
-template until a human has approved it. Until then the golden test proves the
-_arithmetic and layout_ — that a breakdown sums to the total, that an EXEMPT invoice
-carries the mention and no breakdown, that Arabic lays out right-to-left — and not
-that a rate is the right rate.
+template until a human has approved it. Until then the tests prove the _arithmetic
+and the data on the page_ — that a breakdown sums to the total, that an EXEMPT
+invoice carries the mention and no breakdown, that the Arabic page is marked RTL —
+and not that a rate is the right rate. Two gaps found by writing them are recorded
+as `it.fails` rather than fixed: the fiscal template prints no tax identifier for
+either party, and a Sales Order prints no VAT row although its gross differs from
+its net. Both need a human's wording (ADR 0009).
 
-**Implemented, in two tiers.** The API renders a Customer Invoice from an HTML
-template (`apps/api/src/finance/`); that HTML is what `GET <paper>/:id/print`
-serves, and it is what the browser prints.
-
-- **Print goldens** compare the served HTML byte for byte against committed
-  `.html` files under `apps/api/src/__tests__/goldens/print/`, for the seven
-  documents above plus `fr`/`en`/`ar` of each operational paper. No browser, so
-  they run in `pnpm verify`: a changed column or a lost mention fails on the
-  commit that causes it, and the failure names the differing line.
-- **The PDF golden** renders the same HTML through headless Chromium and compares
-  PDFs under `apps/api/src/finance/__tests__/goldens/`. It is the second tier
-  because pagination and Arabic glyph shaping need a layout engine; nothing in the
-  first tier can stand in for it. `pnpm test:golden`.
-
-The properties a future template must keep are asserted independently of any
-golden, in `apps/api/src/documents/__tests__/print-contract.test.ts`: A4, nothing
-to fetch, logical properties only, an Arabic-capable font stack. A re-bless can
-therefore never bless away the reason the paper prints at all. Two properties of it were found rather than designed, and both
-are worth stating:
-
-- Chromium's PDF output is byte-identical between renders **except** for Skia's
-  `/CreationDate` and `/ModDate`. Those two fields are normalised to a fixed
-  instant before comparison, and the normalisation throws unless it finds exactly
-  two fields — so a change in the producer's output fails loudly instead of
-  quietly reducing the byte comparison to a comparison of two timestamps.
-- Arabic is tested by measuring geometry, not by reading `dir="rtl"` back out of
-  the markup. A template that reintroduces one physical property keeps the
-  document left-to-right while still carrying `dir="rtl"`, and only the position
-  of the inline-start edge catches it.
+**Implemented.** The API renders every paper from the stored row, on request, as
+self-contained HTML (`apps/api/src/finance/print-copy.ts`,
+`apps/api/src/documents/paper-template.ts`), and `GET <paper>/:id/print` serves it
+for all seven types. Nothing is filed, no renderer exists, and the browser prints.
 
 The tax rates are rendered from data, never from literals in the template
 (CONTEXT.md), and the EXEMPT mention is a visibly unapproved placeholder rather
@@ -317,7 +301,7 @@ than an invented legal sentence.
 
 ### Gates
 
-Lint, strict typecheck, unit tests, integration tests against real PostgreSQL including the real application module actually being started, browser tests, and the document golden tests. "It compiles" is not a gate, and neither is a green unit suite: every test must be able to fail.
+Lint, strict typecheck, unit tests, integration tests against real PostgreSQL including the real application module actually being started, browser tests, and the tests that assert the printed documents carry the stored data. "It compiles" is not a gate, and neither is a green unit suite: every test must be able to fail.
 
 ## Out of Scope
 
