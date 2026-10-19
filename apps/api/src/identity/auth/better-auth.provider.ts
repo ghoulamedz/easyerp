@@ -14,6 +14,7 @@ import { env } from '../../config/env.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { type SessionProvider, readSessionHeaders } from './session-provider.js';
 import { mayObtainSession, toSessionUser } from './session-user.js';
+import { trustedOrigins } from './trusted-origins.js';
 
 /** The Express handler that serves `/api/auth/*`. */
 export type NodeAuthHandler = ReturnType<typeof toNodeHandler>;
@@ -23,6 +24,47 @@ export interface BetterAuthInstance {
   api: {
     getSession: (options: { headers: Headers }) => Promise<{ user: unknown } | null>;
   };
+}
+
+/**
+ * What `hooks.before` receives at runtime: the request plus Better Auth's own
+ * context, whose `isTrustedOrigin`/`trustedOrigins` are the predicate and list
+ * the origin middleware will use a moment later.
+ */
+interface EndpointContext {
+  readonly request?: { readonly headers: { get: (name: string) => string | null } } | undefined;
+  readonly context: {
+    readonly trustedOrigins: readonly string[];
+    readonly isTrustedOrigin: (url: string) => boolean;
+  };
+}
+
+/** The Origin Better Auth would reject, with the list it measures against. */
+function rejectedOrigin(ctx: EndpointContext): { origin: string; trusted: string[] } | undefined {
+  // Defensive on both hops: this hook must observe, never fail a request. If a
+  // future better-auth hands a different context shape, the diagnostic goes
+  // quiet and the origin check itself is untouched.
+  const origin = ctx?.request?.headers?.get('origin');
+  if (!origin || origin === 'null') return undefined;
+  const decision = ctx?.context;
+  if (typeof decision?.isTrustedOrigin !== 'function') return undefined;
+  if (decision.isTrustedOrigin(origin)) return undefined;
+  return { origin, trusted: [...(decision.trustedOrigins ?? [])] };
+}
+
+/**
+ * One warning per rejected Origin, not one per attempt: a browser retrying a
+ * sign-in must not turn a single misconfiguration into a wall of log lines.
+ */
+const reportedRejectedOrigins = new Set<string>();
+
+function warnRejectedOrigin(origin: string, trusted: readonly string[]): void {
+  if (reportedRejectedOrigins.has(origin)) return;
+  reportedRejectedOrigins.add(origin);
+  process.stderr.write(
+    `[auth] origin rejected: ${origin} is not in trustedOrigins [${trusted.join(', ')}]. ` +
+      'Set CORS_ORIGINS to the web origin the browser uses; Vercel hostnames are added automatically.\n',
+  );
 }
 
 /**
@@ -47,13 +89,25 @@ async function createBetterAuth(prisma: PrismaService): Promise<BetterAuthInstan
     import('better-auth/node'),
   ]);
 
+  // The web origin, plus the Vercel hostnames when they exist. The CORS layer in
+  // `main.ts` builds its list with this same function, so the two cannot drift.
+  const origins = trustedOrigins({
+    corsOrigins: env().CORS_ORIGINS,
+    vercelUrl: env().VERCEL_URL,
+    vercelProjectProductionUrl: env().VERCEL_PROJECT_PRODUCTION_URL,
+  });
+
   const auth = betterAuth({
     // The adapter is typed against its own Prisma build; the shape it needs is
     // the one our generated client has.
     database: prismaAdapter(prisma as never, { provider: 'postgresql' }),
     secret: env().BETTER_AUTH_SECRET,
+    // The browser's URL for `/api/auth/*`, i.e. the web origin — not the API's
+    // own hostname. Better Auth derives cookies, links and its implicit trusted
+    // origin from this value, and the only origin a browser ever presents here
+    // is the one it called, which is the web app's (see `config/env.ts`).
     baseURL: env().BETTER_AUTH_URL,
-    trustedOrigins: env().CORS_ORIGINS,
+    trustedOrigins: origins,
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 8,
@@ -109,6 +163,24 @@ async function createBetterAuth(prisma: PrismaService): Promise<BetterAuthInstan
     /// Better Auth verifies this table exists before serving any request, so it
     /// must be named here as well as created in the schema.
     verification: { modelName: 'AuthVerification' },
+    hooks: {
+      /**
+       * A rejected origin is a 403 that names nothing: Better Auth throws from
+       * inside its own middleware, and the process's logger is not wired to
+       * anything a deployment keeps. This hook runs before that middleware,
+       * asks Better Auth's own `isTrustedOrigin` — the predicate that will
+       * decide — and warns once per rejected Origin with the list it was
+       * measured against. It observes only: the request is then accepted or
+       * rejected exactly as it would have been.
+       */
+      before: async (ctx) => {
+        // `hooks.before` is typed as a bare middleware context, but the dispatcher
+        // hands it the endpoint context, which is where Better Auth's origin
+        // decision lives (see `dispatchAuthEndpoint` in better-auth).
+        const rejected = rejectedOrigin(ctx as unknown as EndpointContext);
+        if (rejected) warnRejectedOrigin(rejected.origin, rejected.trusted);
+      },
+    },
     advanced: {
       useSecureCookies: env().isProduction,
       cookiePrefix: 'easyerp',

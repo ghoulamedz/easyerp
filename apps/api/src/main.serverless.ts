@@ -17,6 +17,7 @@ import { AppModule } from './app.module.js';
 import { DomainExceptionFilter } from './common/domain-exception.filter.js';
 import { loadEnv } from './config/env.js';
 import { getAuth } from './identity/auth/better-auth.provider.js';
+import { trustedOrigins } from './identity/auth/trusted-origins.js';
 import { PrismaService } from './prisma/prisma.service.js';
 
 /** A document body is small; anything larger is a bug or an attack. */
@@ -63,8 +64,14 @@ export async function createServerlessApp(): Promise<express.Express> {
   app.use(express.json({ limit: BODY_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
+  // Same list as Better Auth's trustedOrigins, from the same function: CORS and
+  // the origin check must not disagree about who may send credentials.
   app.enableCors({
-    origin: env.CORS_ORIGINS,
+    origin: trustedOrigins({
+      corsOrigins: env.CORS_ORIGINS,
+      vercelUrl: env.VERCEL_URL,
+      vercelProjectProductionUrl: env.VERCEL_PROJECT_PRODUCTION_URL,
+    }),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   });
@@ -81,7 +88,7 @@ export async function createServerlessApp(): Promise<express.Express> {
 export default async function handler(req: express.Request, res: express.Response) {
   // Fast debug endpoint - bypasses Nest init, shows which envs are present (no values leaked)
   if (req.url?.startsWith('/api/debug-env') || req.url?.startsWith('/debug-env')) {
-    const keys = ['DATABASE_URL','DATABASE_URL_UNPOOLED','BETTER_AUTH_SECRET','BETTER_AUTH_URL','CORS_ORIGINS','FIRST_SETUP_TOKEN','DOCUMENT_ARCHIVE_ROOT','NODE_ENV','API_PORT','API_HOST'];
+    const keys = ['DATABASE_URL','DATABASE_URL_UNPOOLED','BETTER_AUTH_SECRET','BETTER_AUTH_URL','CORS_ORIGINS','VERCEL_URL','VERCEL_PROJECT_PRODUCTION_URL','FIRST_SETUP_TOKEN','DOCUMENT_ARCHIVE_ROOT','NODE_ENV','API_PORT','API_HOST'];
     const present: Record<string, string> = {};
     for (const k of keys) {
       const v = process.env[k];

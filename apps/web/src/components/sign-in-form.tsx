@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button, Card, CardBody } from './ui';
 import { useSession } from '../lib/client-session';
-import { IconAlert, IconShield, IconEye, IconEyeOff } from './icons';
+import { IconAlert, IconEye, IconEyeOff } from './icons';
 import { translatorFor, type Locale } from '../i18n/config';
 
 /**
@@ -14,11 +14,6 @@ import { translatorFor, type Locale } from '../i18n/config';
  * This is the real integration, not a mock: Better Auth is mounted at
  * `/api/auth` before any body parser (ADR 0007), and this form posts to it
  * through the same origin.
- *
- * It cannot succeed yet, and the page says so rather than failing silently: no
- * user exists, because user creation arrives with the administration screen. A
- * form that looks ready and rejects every attempt is a worse first impression
- * than one that names its own gap.
  */
 export function SignInForm({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
@@ -131,11 +126,6 @@ export function SignInForm({ locale }: { locale: Locale }) {
             {working ? t('signInWorking') : t('signInSubmit')}
           </Button>
         </form>
-
-        <p className="flex items-start gap-2 rounded-lg bg-surface-sunken px-3 py-2 text-xs text-ink-muted">
-          <IconShield className="mt-0.5 size-4 shrink-0 text-ink-subtle" />
-          {t('signInNotice')}
-        </p>
 
         {/* Shown only with a session: a signed-out visitor sent to the dashboard
             would bounce straight back through the session gate, looping here. */}

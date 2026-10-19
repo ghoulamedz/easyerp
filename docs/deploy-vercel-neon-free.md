@@ -65,8 +65,35 @@ Demo-only path (disposable data, costs nothing). Client data never lives here
    `apps/api/src/config/env.ts`; a missing one crashes boot):
    - `DATABASE_URL` = Neon **pooled** string
    - `BETTER_AUTH_SECRET` = `openssl rand -base64 48` (min 32 chars)
-   - `BETTER_AUTH_URL` = web project URL, e.g. `https://easyerp-web-<org>.vercel.app`
-   - `CORS_ORIGINS` = same web URL exactly (comma-separated, **no wildcards**)
+   - `BETTER_AUTH_URL` = **web project URL**, e.g.
+     `https://easyerp-web-<org>.vercel.app` — the same origin as `CORS_ORIGINS`.
+     The browser never calls the API directly: it calls same-origin `/api/*`
+     (including `/api/auth/*`) and Next rewrites that to `API_INTERNAL_URL`. So
+     the URL the browser uses for auth is the Web's, and that is what Better Auth
+     must build its cookies, links and implicit trusted origin from. Naming the
+     API's own hostname here describes an origin no browser presents.
+   - `CORS_ORIGINS` = the **web origin** exactly (comma-separated, **no
+     wildcards** — `env.ts` refuses `*`). For a stable production deploy use the
+     project's production domain, e.g.
+     `https://easyerp-web-<org>.vercel.app`, not a per-deployment hostname.
+     - **Why this failed before (403 `{"code":"INVALID_ORIGIN"}` at sign-in):**
+       `deploy-demo.yml` took the API and Web URLs from `vercel ls`, whose first
+       entry is a *per-deployment* hostname; `vercel deploy --prod` mints a new
+       one on every run, so the visitor's real `Origin` was absent from
+       `trustedOrigins` and Better Auth answered 403. The workflow now resolves
+       the Web project's stable production domain (Vercel API
+       `targets.production.alias`) and writes that, and it writes
+       `BETTER_AUTH_URL` from the same value instead of from the API's URL.
+     - **Runtime safety net (no workflow needed):** Vercel injects `VERCEL_URL`
+       (this deployment) and `VERCEL_PROJECT_PRODUCTION_URL` (the project's
+       stable domain) into the function. `apps/api/src/identity/auth/
+       trusted-origins.ts` unions both with `CORS_ORIGINS` (exact origins only,
+       no wildcards) and the same list drives Express CORS, so a new deployment
+       hostname cannot break sign-in and CORS cannot disagree with the origin
+       check. Setting `CORS_ORIGINS` by hand stays required; the union only adds
+       names Vercel already owns.
+     - A rejection now names itself: the API logs one line at warn level,
+       `[auth] origin rejected: <origin> is not in trustedOrigins [...]`.
    - `FIRST_SETUP_TOKEN` = `openssl rand -base64 32` (must differ from
      `dev-first-setup-token` or production boot throws)
    - `NODE_ENV` = `production`

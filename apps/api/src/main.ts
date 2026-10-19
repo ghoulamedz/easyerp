@@ -17,6 +17,7 @@ import { AppModule } from './app.module.js';
 import { DomainExceptionFilter } from './common/domain-exception.filter.js';
 import { loadEnv } from './config/env.js';
 import { getAuth } from './identity/auth/better-auth.provider.js';
+import { trustedOrigins } from './identity/auth/trusted-origins.js';
 import { PrismaService } from './prisma/prisma.service.js';
 
 /** A document body is small; anything larger is a bug or an attack. */
@@ -49,9 +50,16 @@ async function bootstrap(): Promise<void> {
   app.use(express.json({ limit: BODY_LIMIT }));
   app.use(express.urlencoded({ extended: true, limit: BODY_LIMIT }));
 
-  // Exact origins only. A wildcard alongside credentials is an open door.
+  // Exact origins only. A wildcard alongside credentials is an open door. The
+  // list is the same one Better Auth trusts, built by the same function, so CORS
+  // and the origin check cannot disagree about who may send a credentialed
+  // request.
   app.enableCors({
-    origin: env.CORS_ORIGINS,
+    origin: trustedOrigins({
+      corsOrigins: env.CORS_ORIGINS,
+      vercelUrl: env.VERCEL_URL,
+      vercelProjectProductionUrl: env.VERCEL_PROJECT_PRODUCTION_URL,
+    }),
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'DELETE'],
   });

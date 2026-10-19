@@ -281,8 +281,6 @@ const messages = {
     signInSubmit: 'Se connecter',
     signInWorking: 'Connexion…',
     signInError: 'Identifiants refusés.',
-    signInNotice:
-      'Aucun compte n\'existe encore : la création d\'utilisateurs arrive avec l\'écran d\'administration.',
     signInBack: 'Retour au tableau de bord',
 
     // Setup (one-time, ADR 0012)
@@ -747,7 +745,6 @@ const messages = {
     signInSubmit: 'Sign in',
     signInWorking: 'Signing in…',
     signInError: 'Those credentials were refused.',
-    signInNotice: 'No account exists yet: user creation arrives with the administration screen.',
     signInBack: 'Back to the dashboard',
 
     // Setup (one-time, ADR 0012)
@@ -1213,7 +1210,6 @@ const messages = {
     signInSubmit: 'دخول',
     signInWorking: 'جارٍ الدخول…',
     signInError: 'رُفضت هذه البيانات.',
-    signInNotice: 'لا يوجد حساب بعد: إنشاء المستخدمين يأتي مع شاشة الإدارة.',
     signInBack: 'العودة إلى لوحة القيادة',
 
     // Setup (one-time, ADR 0012)

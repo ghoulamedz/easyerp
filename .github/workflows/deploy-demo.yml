@@ -246,6 +246,7 @@ jobs:
     needs: [neon-db, vercel-env-pre, deploy-api]
     outputs:
       web_url: ${{ steps.web_url.outputs.web_url }}
+      web_production_url: ${{ steps.web_url.outputs.web_production_url }}
     env:
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
       API_INTERNAL_URL: ${{ needs.deploy-api.outputs.api_url }}
@@ -278,6 +279,8 @@ jobs:
 
       - name: Get Web deployment URL
         id: web_url
+        env:
+          VERCEL_PROJECT_ID_WEB: ${{ secrets.VERCEL_PROJECT_ID_WEB }}
         run: |
           set -euo pipefail
           vercel ls --scope ${{ secrets.VERCEL_ORG_ID }} --json > /tmp/vercel_ls.json
@@ -293,6 +296,27 @@ jobs:
           fi
           echo "web_url=https://$URL" >> $GITHUB_OUTPUT
           echo "Web deployed to: https://$URL"
+
+          # The origin a visitor actually uses is the project's stable production
+          # domain, not this deployment's hostname: `vercel deploy --prod` mints a
+          # new per-deployment hostname on every run, so a CORS_ORIGINS pinned to
+          # it rejects the very next deploy's visitors at sign-in (403
+          # INVALID_ORIGIN). The project record keeps the stable domain; ask the
+          # API for it instead of guessing from the deployment list.
+          TEAM_QUERY=""
+          if [ -n "${VERCEL_ORG_ID:-}" ]; then TEAM_QUERY="?teamId=${VERCEL_ORG_ID}"; fi
+          PROJECT_JSON=$(curl -sf -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID_WEB}${TEAM_QUERY}" || echo '{}')
+          PROD_DOMAIN=$(echo "$PROJECT_JSON" | jq -r '
+            ([(.targets.production.alias // [])[]] + [(.alias // [])[] | select(.target == "production") | .domain])
+            | .[0] // empty' 2>/dev/null || true)
+          if [ -n "$PROD_DOMAIN" ] && [ "$PROD_DOMAIN" != "null" ]; then
+            echo "web_production_url=https://$PROD_DOMAIN" >> $GITHUB_OUTPUT
+            echo "Web production domain: https://$PROD_DOMAIN"
+          else
+            echo "::warning::Could not resolve the Web project's stable production domain; CORS_ORIGINS falls back to this deployment's hostname and will move on the next deploy (the API's VERCEL_PROJECT_PRODUCTION_URL union still covers the stable domain at runtime)."
+            echo "web_production_url=https://$URL" >> $GITHUB_OUTPUT
+          fi
 
   vercel-env-final:
     name: Final Env Vars (real URLs)
@@ -315,10 +339,24 @@ jobs:
           for var in BETTER_AUTH_URL CORS_ORIGINS; do
             vercel env rm "$var" production --yes --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} 2>/dev/null || true
           done
-          # BETTER_AUTH_URL = where /api/auth/* is served (the API itself)
-          # CORS_ORIGINS   = where the browser comes from (the Web)
-          vercel env add BETTER_AUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-api.outputs.api_url }}"
-          vercel env add CORS_ORIGINS production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "${{ needs.deploy-web.outputs.web_url }}"
+          # Both are the origin the BROWSER uses, which is the Web's stable
+          # production domain, never a per-deployment hostname:
+          #   BETTER_AUTH_URL = where the browser sees /api/auth/* (the Web; Next
+          #                     rewrites /api/* to the API), so Better Auth's own
+          #                     trusted origin, cookies and links name the origin a
+          #                     browser actually presents.
+          #   CORS_ORIGINS    = the same origin, exact, comma-separated, never a
+          #                     wildcard. Vercel also injects VERCEL_URL and
+          #                     VERCEL_PROJECT_PRODUCTION_URL into the function at
+          #                     runtime and the API unions them in, so a fresh
+          #                     deployment hostname cannot break sign-in.
+          WEB_ORIGIN="${{ needs.deploy-web.outputs.web_production_url }}"
+          if [ -z "$WEB_ORIGIN" ]; then
+            echo "::error::No Web origin resolved; refusing to write a placeholder CORS_ORIGINS that would reject every visitor."
+            exit 1
+          fi
+          vercel env add BETTER_AUTH_URL production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "$WEB_ORIGIN"
+          vercel env add CORS_ORIGINS production --token=${{ secrets.VERCEL_TOKEN }} --scope=${{ secrets.VERCEL_ORG_ID }} --project=${{ secrets.VERCEL_PROJECT_ID_API }} <<< "$WEB_ORIGIN"
 
       - name: Update Web project URL environment variables
         run: |
