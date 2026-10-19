@@ -21,85 +21,17 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { buildCustomerInvoice, type CustomerInvoiceView } from '../invoice-document.js';
 import { renderInvoiceHtml } from '../invoice-template.js';
 import { compareToGolden, normalisePdfTimestamps } from '../golden.js';
 import { PdfRenderer } from '../pdf.js';
-import { LOCALES, terminologyFor, type Locale } from '../terminology.js';
 
-const ISSUER = {
-  displayName: 'Société Atelier du Sahel',
-  taxIdentifier: '1234567/A/M/000',
-  addressLines: ['12 rue de la Liberté', '1000 Tunis', 'Tunisie'],
-};
-
-const PARTY = {
-  displayName: 'Carthage Distribution',
-  taxIdentifier: '9876543/B/M/000',
-  addressLines: ['Zone industrielle de Ben Arous', '2033 Ben Arous', 'Tunisie'],
-};
-
-/**
- * Line data whose totals reconcile by hand, so a golden that changes is a change
- * in presentation and a failing assertion is a real arithmetic defect.
- *
- *   2 x 125.000 @ 19%  ->  net 250.000  tax 47.500
- *   1 x  40.000 @ 13%  ->  net  40.000  tax  5.200
- *   3.5 x 12.000 @ 7%  ->  net  42.000  tax  2.940
- *                          net 332.000  tax 55.640  gross 387.640
- */
-const MIXED_RATE_LINES = [
-  {
-    description: 'Prestation de développement',
-    quantity: '2',
-    unitPrice: '125.000',
-    taxRate: '19',
-  },
-  { description: 'Licence annuelle', quantity: '1', unitPrice: '40.000', taxRate: '13' },
-  { description: 'Support technique', quantity: '3.5', unitPrice: '12.000', taxRate: '7' },
-];
-
-const STANDARD_LINES = [
-  {
-    description: 'Prestation de développement',
-    quantity: '2',
-    unitPrice: '125.000',
-    taxRate: '19',
-  },
-  { description: 'Fournitures', quantity: '1', unitPrice: '80.000', taxRate: '19' },
-];
-
-/** An exempt Business charges no VAT, so the lines carry no rate. */
-const EXEMPT_LINES = [
-  { description: 'Prestation exonérée de TVA', quantity: '2', unitPrice: '125.000', taxRate: '0' },
-  { description: 'Fournitures', quantity: '1', unitPrice: '80.000', taxRate: '0' },
-];
-
-function invoice(
-  locale: Locale,
-  vatRegime: 'STANDARD' | 'EXEMPT',
-  lines: typeof MIXED_RATE_LINES,
-  overrides: Partial<Parameters<typeof buildCustomerInvoice>[0]> = {},
-): CustomerInvoiceView {
-  return buildCustomerInvoice({
-    // Padding 4 is the database default; exercising it here is what proves the
-    // stored value reaches the document.
-    pattern: 'FA-{year}-{seq}',
-    sequence: 42,
-    padding: 4,
-    year: 2026,
-    issuedAt: '2026-10-04',
-    locale,
-    vatRegime,
-    currency: 'TND',
-    labels: terminologyFor(locale),
-    issuer: ISSUER,
-    party: PARTY,
-    lines,
-    stampDuty: vatRegime === 'STANDARD' ? '1.000' : undefined,
-    ...overrides,
-  });
-}
+import {
+  EXEMPT_LINES,
+  invoice,
+  LOCALES,
+  MIXED_RATE_LINES,
+  STANDARD_LINES,
+} from './invoice-fixtures.js';
 
 let renderer: PdfRenderer;
 

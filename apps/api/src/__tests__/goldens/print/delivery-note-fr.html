@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="fr" dir="ltr">
+  <head>
+    <meta charset="utf-8" />
+    <title>BON DE LIVRAISON</title>
+    <style>
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Noto Sans", "Noto Naskh Arabic", "Noto Sans Arabic", "DejaVu Sans", sans-serif;
+    font-size: 10pt;
+    line-height: 1.45;
+    color: #101418;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  .numeric {
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8mm;
+    padding-block-end: 4mm;
+    border-block-end: 2px solid #101418;
+  }
+
+  .document-title {
+    margin: 0;
+    font-size: 18pt;
+    letter-spacing: 0.04em;
+  }
+
+  .document-meta {
+    display: flex;
+    gap: 8mm;
+    margin: 0;
+  }
+
+  .document-meta dt {
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #5a6472;
+  }
+
+  .document-meta dd {
+    margin: 0;
+    font-size: 11pt;
+  }
+
+  .document-number {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .parties {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8mm;
+    padding-block: 4mm;
+  }
+
+  .party {
+    flex: 1 1 0;
+    min-inline-size: 60mm;
+  }
+
+  .party-heading {
+    margin: 0 0 1mm;
+    font-size: 8pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #5a6472;
+  }
+
+  .party-name {
+    font-weight: 600;
+  }
+
+  .party-address {
+    color: #38404d;
+  }
+
+  .lines {
+    margin-block-start: 2mm;
+  }
+
+  .lines th,
+  .lines td {
+    border-block-end: 1px solid #d5dae1;
+    padding-block: 1.6mm;
+    padding-inline: 2mm;
+  }
+
+  .lines thead th {
+    font-size: 8pt;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #5a6472;
+    border-block-end: 1px solid #101418;
+  }
+
+  .totals {
+    flex: 0 0 auto;
+    min-inline-size: 62mm;
+    margin-inline-start: auto;
+  }
+
+  .totals th {
+    font-weight: 400;
+    text-align: start;
+    padding-block: 1.2mm;
+    padding-inline-end: 4mm;
+  }
+
+  .totals-grand th,
+  .totals-grand td {
+    border-block-start: 1px solid #101418;
+    font-weight: 600;
+    padding-block-start: 2mm;
+  }
+</style>
+  </head>
+  <body>
+    <header class="masthead">
+      <h1 class="document-title">BON DE LIVRAISON</h1>
+      <dl class="document-meta">
+        <div>
+          <dt>Numéro</dt>
+          <dd class="document-number">BL-2026-0042</dd>
+        </div>
+        <div>
+          <dt>Date</dt>
+          <dd>2026-10-04</dd>
+        </div>
+        <div>
+          <dt>Commande</dt>
+          <dd class="document-number">BC-2026-0042</dd>
+        </div>
+      </dl>
+    </header>
+
+    <div class="parties">
+      
+      <section class="party">
+        <h2 class="party-heading">Émetteur</h2>
+        <div class="party-name">Société Atelier du Sahel</div>
+        <div class="party-address">1234567/A/M/000</div>
+        <div class="party-address"><div>12 rue de la Liberté</div><div>1000 Tunis</div><div>TN</div></div>
+      </section>
+      
+      <section class="party">
+        <h2 class="party-heading">Client</h2>
+        <div class="party-name">Carthage Distribution</div>
+        
+        <div class="party-address"><div>Zone industrielle de Ben Arous</div><div>2033 Ben Arous</div><div>TN</div></div>
+      </section>
+    </div>
+
+    
+      <table class="lines">
+        <thead>
+          <tr>
+            <th>Désignation</th>
+            <th class="numeric">Quantité</th>
+        <th class="numeric">Unité</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Prestation de développement</td>
+            <td class="numeric">2</td>
+            <td class="numeric">PCS</td>
+          </tr>
+          <tr>
+            <td>Fournitures</td>
+            <td class="numeric">1.5</td>
+            <td class="numeric">KG</td>
+          </tr>
+        </tbody>
+      </table>
+
+    <div class="footer">
+      
+    </div>
+  </body>
+</html>

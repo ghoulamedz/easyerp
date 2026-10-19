@@ -281,10 +281,24 @@ _arithmetic and layout_ — that a breakdown sums to the total, that an EXEMPT i
 carries the mention and no breakdown, that Arabic lays out right-to-left — and not
 that a rate is the right rate.
 
-**Implemented.** The API renders a Customer Invoice from an HTML template through
-headless Chromium (`apps/api/src/finance/`), and the seven documents above are
-committed as PDFs under `apps/api/src/finance/__tests__/goldens/`. The gate is
-`pnpm test:golden`. Two properties of it were found rather than designed, and both
+**Implemented, in two tiers.** The API renders a Customer Invoice from an HTML
+template (`apps/api/src/finance/`); that HTML is what `GET <paper>/:id/print`
+serves, and it is what the browser prints.
+
+- **Print goldens** compare the served HTML byte for byte against committed
+  `.html` files under `apps/api/src/__tests__/goldens/print/`, for the seven
+  documents above plus `fr`/`en`/`ar` of each operational paper. No browser, so
+  they run in `pnpm verify`: a changed column or a lost mention fails on the
+  commit that causes it, and the failure names the differing line.
+- **The PDF golden** renders the same HTML through headless Chromium and compares
+  PDFs under `apps/api/src/finance/__tests__/goldens/`. It is the second tier
+  because pagination and Arabic glyph shaping need a layout engine; nothing in the
+  first tier can stand in for it. `pnpm test:golden`.
+
+The properties a future template must keep are asserted independently of any
+golden, in `apps/api/src/documents/__tests__/print-contract.test.ts`: A4, nothing
+to fetch, logical properties only, an Arabic-capable font stack. A re-bless can
+therefore never bless away the reason the paper prints at all. Two properties of it were found rather than designed, and both
 are worth stating:
 
 - Chromium's PDF output is byte-identical between renders **except** for Skia's

@@ -16,3 +16,14 @@ Two consequences are deliberate. Print output is the *filed* HTML, so a document
 Nothing here weakens the immutability claim. Both copies are written once under the document number and refused on re-write, and the row records each one's sha256.
 
 Where the bytes live is deployment configuration: a directory named by `DOCUMENT_ARCHIVE_ROOT` on a VPS, or Vercel Blob when `BLOB_READ_WRITE_TOKEN` is set, because a serverless filesystem is not durable. The choice is made once in the composition root; no service knows which backend it is talking to.
+
+## Second amendment: the print copy is the gated artifact
+
+The first amendment made the HTML the copy every host can produce and named the PDF the archival artifact. The gate did not follow: the only test that read a document was the PDF golden, so the artifact every deployment depends on was the one with no regression test, and the artifact half of them cannot produce was the one with a byte-for-byte suite and a browser install.
+
+The gate is now split along the same line as the artifact:
+
+- **Print goldens** (`*-print-golden.test.ts`) compare the served HTML byte for byte against committed files, in `pnpm verify`, with no browser. Every paper is covered, and the properties a template must keep — A4, self-contained, logical properties only, an Arabic-capable font stack — are asserted in `print-contract.test.ts` so that a re-blessed golden cannot quietly bless away the thing that made it printable.
+- **The PDF golden** stays as the second tier, on the hosts that can run it, because pagination and Arabic shaping need a layout engine and no byte comparison of markup can stand in for one.
+
+Consequence worth stating: a template change now fails the cheap gate first, with a line diff, before anyone spends a browser launch discovering it. The expensive gate is for the questions only it can answer.

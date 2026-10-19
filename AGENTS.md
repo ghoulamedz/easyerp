@@ -63,7 +63,26 @@ The golden test's matrix is not restated here. Which locales, VAT regimes and ta
 
 - `pnpm verify` — lint, typecheck, unit tests and build across every package. The fast gate; run it before anything else.
 - `pnpm test:integration` — real PostgreSQL, real transactions, real locking, **and a real `AppModule` that is actually started**. It needs nothing set up: `pnpm db:up` has already pointed `apps/api/.env.test` at `easyerp_test` and migrated it. There is no skip; the suite fails rather than passing empty. A change that alters the module graph, a guard, or a provider binding is not done until this passes — a broken injection graph passes every unit test and only shows up when a client starts the server.
-- `pnpm test:golden` — renders a Customer Invoice through headless Chromium and compares it **byte for byte** against committed PDFs, in French, English and Arabic, for both VAT regimes plus a mixed-rate document. It needs `pnpm --filter @easyerp/api exec playwright-core install --with-deps chromium` and `fonts-noto-core fonts-dejavu-core`, because Chromium substitutes a missing font instead of failing. After an intended template change: `pnpm test:golden -- --update`, **then read the diff**. A re-bless nobody read is how a layout regression becomes the new baseline.
+Document rendering is gated in **two tiers**, and neither replaces the other.
+
+- **Print goldens — in `pnpm verify`, no browser.** `apps/api/src/**/__tests__/*-print-golden.test.ts`
+  renders every paper to the HTML that `GET <paper>/:id/print` serves and compares it **byte for
+  byte** against committed `.html` files under `apps/api/src/__tests__/goldens/print/`. The matrix is
+  the Customer Invoice's 3 locales × 2 VAT regimes plus a mixed-rate one, and `fr`/`en`/`ar` for each
+  of the five operational papers. It is a unit test because it needs nothing installed, so a changed
+  table header fails on the commit that causes it. `apps/api/src/documents/__tests__/print-contract.test.ts`
+  asserts the properties a future template must keep: A4, no script and nothing to fetch, logical
+  properties only (the RTL regression), an Arabic-capable font stack.
+- **`pnpm test:golden` — the browser tier.** Renders the same HTML through headless Chromium and
+  compares **byte for byte** against committed PDFs. It needs
+  `pnpm --filter @easyerp/api exec playwright-core install --with-deps chromium` and
+  `fonts-noto-core fonts-dejavu-core`, because Chromium substitutes a missing font instead of
+  failing. It is the only gate that can prove pagination and Arabic glyph shaping actually came out
+  right, because it is the only one with a layout engine.
+
+Re-blessing either tier is explicit: `UPDATE_GOLDENS=1 pnpm --filter @easyerp/api test` for the
+print goldens, `pnpm test:golden -- --update` for the PDFs. **Then read the diff.** A re-bless nobody
+read is how a layout regression becomes the new baseline.
 - `pnpm --filter @easyerp/web test:e2e` — Playwright against a production build. It seeds its own
   fixture through the real `POST /api/setup`, so it needs a database with **no Business** in it
   (that is what CI has): on a working database with a Business already set up, Setup is correctly
