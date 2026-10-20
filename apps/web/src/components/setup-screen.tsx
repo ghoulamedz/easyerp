@@ -50,8 +50,10 @@ function generateId(): string {
 export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: string | null }) {
   const t = translatorFor(locale);
 
-  // Prefill is a development convenience only: production ships empty fields
-  // so no token, name or password ever leaves in the bundle.
+  // A company's own identity — its token, names, address and administrator — is
+  // prefilled in development only, so no plausible-looking token, company name or
+  // password ever leaves in a production bundle. The country, currency, units and
+  // Tax Rates below are the opposite case and are *not* gated: see there.
   const devPrefill = process.env.NODE_ENV === 'development';
   const seed = (value: string): string => (devPrefill ? value : '');
 
@@ -59,9 +61,14 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
   const [legalName, setLegalName] = useState(seed('My Company SARL'));
   const [displayName, setDisplayName] = useState(seed('My Company'));
   const [taxIdentifier, setTaxIdentifier] = useState(seed('1234567/A/M/000'));
-  const [countryCode, setCountryCode] = useState(seed('TN'));
+  // Country, currency, units and Tax Rates are the facts *every* Business on this
+  // deployment starts from, so they are prefilled everywhere — the demo and a
+  // client's first `/setup` alike. They are not secrets and not specific to one
+  // company, and an empty form made a person invent `TVA19` from memory before
+  // they could add a single Item.
+  const [countryCode, setCountryCode] = useState('TN');
   const [vatRegime, setVatRegime] = useState<'STANDARD' | 'EXEMPT'>('STANDARD');
-  const [currency, setCurrency] = useState(seed('TND'));
+  const [currency, setCurrency] = useState('TND');
   const [phone, setPhone] = useState(seed('+216 12 345 678'));
   const [email, setEmail] = useState(seed('contact@mycompany.tn'));
   const [addressLine1, setAddressLine1] = useState(seed('123 Main Street'));
@@ -71,23 +78,20 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
   const [adminName, setAdminName] = useState(seed('Admin User'));
   const [adminEmail, setAdminEmail] = useState(seed('admin@mycompany.tn'));
   const [adminPassword, setAdminPassword] = useState(seed('password123'));
-  const [units, setUnits] = useState<UnitRow[]>(
-    devPrefill
-      ? [
-          { id: 'initial-pcs', code: 'PCS', allowsFraction: false },
-          { id: 'initial-kg', code: 'KG', allowsFraction: true },
-        ]
-      : [],
-  );
-  const [rates, setRates] = useState<RateRow[]>(
-    devPrefill
-      ? [
-          { id: 'initial-tva19', code: 'TVA19', rate: '19' },
-          { id: 'initial-tva13', code: 'TVA13', rate: '13' },
-          { id: 'initial-tva07', code: 'TVA07', rate: '7' },
-        ]
-      : [],
-  );
+  // A kilogram is weighed and a piece is counted, so `allowsFraction` is not a
+  // preference — it is what stops an invoice quoting 1.5 pieces.
+  const [units, setUnits] = useState<UnitRow[]>([
+    { id: 'initial-kg', code: 'KG', allowsFraction: true },
+    { id: 'initial-piece', code: 'PIECE', allowsFraction: false },
+  ]);
+  // The three Tunisian VAT rates in force (19% standard, 13%, 7%). They are the
+  // rows an Item must reference, and `SetupService` refuses a STANDARD Business
+  // with no Tax Rate at all.
+  const [rates, setRates] = useState<RateRow[]>([
+    { id: 'initial-tva19', code: 'TVA19', rate: '19' },
+    { id: 'initial-tva13', code: 'TVA13', rate: '13' },
+    { id: 'initial-tva07', code: 'TVA07', rate: '7' },
+  ]);
 
   // Show/hide states for password fields
   const [showToken, setShowToken] = useState(false);

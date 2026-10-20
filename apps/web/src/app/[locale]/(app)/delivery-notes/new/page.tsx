@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { DeliveryNoteForm } from '@/components/delivery-note-form';
+import { DeliveryNoteUnifiedForm } from '@/components/delivery-note-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -24,7 +24,7 @@ export default async function NewDeliveryNotePage({
   return (
     <div className="space-y-6">
       <PageHeader title={t('newDeliveryNote')} description={t('deliveryNotesDescription')} />
-      <DeliveryNoteForm locale={typedLocale} />
+      <DeliveryNoteUnifiedForm locale={typedLocale} />
     </div>
   );
 }

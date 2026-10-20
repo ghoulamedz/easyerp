@@ -283,6 +283,71 @@ describe('issuing a Delivery Note', () => {
     expect(await prisma.stockLedgerEntry.count({ where: { reason: 'DELIVERY_NOTE' } })).toBe(1);
   });
 
+  it('replaces the line set on a draft edit', async () => {
+    const { business, issued, orderLine } = await givenIssuedOrder('4');
+    const draft = await deliveryNotes.createDraft({
+      businessId: business.id,
+      salesOrderId: issued.id,
+      lines: [{ itemId: orderLine.itemId, quantity: '1', salesOrderLineId: orderLine.id }],
+    });
+
+    await deliveryNotes.update(draft.id, {
+      lines: [{ itemId: orderLine.itemId, quantity: '3', salesOrderLineId: orderLine.id }],
+    });
+
+    const stored = await prisma.document.findUniqueOrThrow({
+      where: { id: draft.id },
+      include: { deliveryNotes: { include: { lines: { orderBy: { position: 'asc' } } } } },
+    });
+    // One line carrying the new quantity: the set is replaced, never merged.
+    expect(stored.deliveryNotes[0]?.lines).toHaveLength(1);
+    expect(stored.deliveryNotes[0]?.lines[0]?.quantity.toFixed(3)).toBe('3.000');
+    expect(stored.status).toBe('DRAFT');
+    // Nothing shipped: editing a draft must not move stock (ADR 0004). The ledger
+    // holds only the opening balance the fixture set, and no shipping entry.
+    const entries = await prisma.stockLedgerEntry.findMany({ where: { itemId: orderLine.itemId } });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.reason).toBe('OPENING_BALANCE');
+  });
+
+  it('refuses to edit an issued note, which has already shipped', async () => {
+    const { business, issued, orderLine } = await givenIssuedOrder('4');
+    const draft = await deliveryNotes.createDraft({
+      businessId: business.id,
+      salesOrderId: issued.id,
+      lines: [{ itemId: orderLine.itemId, quantity: '2', salesOrderLineId: orderLine.id }],
+    });
+    const note = await deliveryNotes.issue(draft.id, {}, null);
+
+    await expect(
+      deliveryNotes.update(note.id, { lines: [{ itemId: orderLine.itemId, quantity: '9' }] }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+
+    const stored = await prisma.document.findUniqueOrThrow({
+      where: { id: note.id },
+      include: { deliveryNotes: { include: { lines: true } } },
+    });
+    expect(stored.deliveryNotes[0]?.lines[0]?.quantity.toFixed(3)).toBe('2.000');
+  });
+
+  it('refuses a line that belongs to another order', async () => {
+    const { business, issued, orderLine } = await givenIssuedOrder('4');
+    const other = await givenIssuedOrder('2');
+    const draft = await deliveryNotes.createDraft({
+      businessId: business.id,
+      salesOrderId: issued.id,
+      lines: [{ itemId: orderLine.itemId, quantity: '1', salesOrderLineId: orderLine.id }],
+    });
+
+    // The same refusal a create makes: an edit must not be able to introduce a line
+    // the create would have rejected.
+    await expect(
+      deliveryNotes.update(draft.id, {
+        lines: [{ itemId: other.orderLine.itemId, quantity: '1', salesOrderLineId: other.orderLine.id }],
+      }),
+    ).rejects.toMatchObject({ code: 'VALIDATION_FAILED' });
+  });
+
   it('prints the quantities-only paper, with no prices on it', async () => {
     // A Delivery Note quotes quantities, never prices: an operational note that
     // printed a price it never charged would be a wrong paper. The row carries the

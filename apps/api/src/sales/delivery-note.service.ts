@@ -29,6 +29,7 @@ import { Decimal } from 'decimal.js';
 
 import {
   deliveryNoteSchema,
+  deliveryNoteUpdateSchema,
   documentStatusSchema,
   draftDeliveryNoteSchema,
   money,
@@ -185,6 +186,120 @@ export class DeliveryNoteService {
     );
 
     return { id: created.id, status: created.status };
+  }
+
+  /**
+   * Edit a Draft note: replace the line set, or change the recipient.
+   *
+   * Only a Draft, for the reason every document shares: an Issued note has moved
+   * stock and released promises, and rewriting its lines would leave the ledger
+   * describing goods the paper no longer mentions.
+   *
+   * The lines are rebuilt from the Items rather than patched in place, exactly as
+   * `createDraft` does, so an edit cannot introduce a line that a create would have
+   * refused — a deactivated Item, or a line pointing at another order's line.
+   */
+  async update(
+    id: string,
+    payload: unknown,
+    actor: AuditActor = {},
+    ipAddress?: string | null,
+  ): Promise<{ id: string; status: string }> {
+    const input = deliveryNoteUpdateSchema.parse(payload);
+
+    const note = await this.prisma.document.findFirst({
+      where: { id, type: DELIVERY_NOTE },
+      include: { deliveryNotes: { include: { lines: { orderBy: { position: 'asc' } } } } },
+    });
+    if (!note) throw notFound('Delivery Note', id);
+    if (note.status !== 'DRAFT') {
+      throw conflict(
+        `Only a Draft note can be edited; ${id} is ${note.status}. An issued note has shipped its ` +
+          'goods and released its promises.',
+        { id, status: note.status },
+      );
+    }
+
+    const detail = note.deliveryNotes[0];
+    invariant(detail, `Delivery Note ${id} has no detail row.`);
+
+    let partyId = note.partyId;
+    if (input.partyId !== undefined) {
+      if (detail.salesOrderId !== null && input.partyId !== note.partyId) {
+        throw conflict(
+          `This note fulfils Sales Order ${detail.salesOrderId} and must ship to its Customer.`,
+          { salesOrderId: detail.salesOrderId, partyId: input.partyId },
+        );
+      }
+      const party = await this.prisma.party.findFirst({
+        where: { id: input.partyId, isActive: true, roles: { has: 'CUSTOMER' } },
+      });
+      if (!party) {
+        throw validationFailed(`No active Party ${input.partyId} holding the CUSTOMER role.`, {
+          partyId: input.partyId,
+        });
+      }
+      partyId = party.id;
+    }
+
+    if (input.lines === undefined) {
+      await this.prisma.document.update({ where: { id }, data: { partyId } });
+      return { id, status: note.status };
+    }
+
+    const order = detail.salesOrderId === null ? null : await this.findOrder(detail.salesOrderId);
+    const orderLineIds = new Set(order?.lines.map((line) => line.id) ?? []);
+
+    const items = await this.prisma.item.findMany({
+      where: { id: { in: [...new Set(input.lines.map((line) => line.itemId))] }, isActive: true },
+    });
+    const itemById = new Map(items.map((item) => [item.id, item]));
+
+    const lines = input.lines.map((line, position) => {
+      const item = itemById.get(line.itemId);
+      if (!item) {
+        throw validationFailed(
+          `Item ${line.itemId} is missing or deactivated; goods must be real before they leave.`,
+          { itemId: line.itemId },
+        );
+      }
+      if (line.salesOrderLineId && !orderLineIds.has(line.salesOrderLineId)) {
+        throw validationFailed(
+          `Line ${position} names Sales Order line ${line.salesOrderLineId}, which does not belong ` +
+            'to the order this note fulfils.',
+          { salesOrderLineId: line.salesOrderLineId },
+        );
+      }
+      return {
+        position,
+        itemId: item.id,
+        description: line.description ?? item.description ?? item.name,
+        quantity: new Decimal(line.quantity),
+        unitOfMeasureId: item.saleUnitId ?? item.baseUnitId,
+        salesOrderLineId: line.salesOrderLineId ?? null,
+      };
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.deliveryNoteLine.deleteMany({ where: { deliveryNoteId: detail.id } });
+      await tx.document.update({ where: { id }, data: { partyId } });
+      await tx.deliveryNoteLine.createMany({
+        data: lines.map((line) => ({ ...line, deliveryNoteId: detail.id })),
+      });
+    });
+
+    await this.audit.record(
+      this.prisma,
+      {
+        action: 'delivery-note.updated',
+        entityType: DELIVERY_NOTE,
+        entityId: id,
+        after: { status: note.status, lineCount: lines.length },
+      },
+      { ...actor, ipAddress: ipAddress ?? null },
+    );
+
+    return { id, status: note.status };
   }
 
   /**

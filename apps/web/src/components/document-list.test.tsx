@@ -424,6 +424,26 @@ describe('DocumentList view/print', () => {
     expect(edits[0]).toHaveAttribute('href', '/en/sales-orders/o-1/edit');
   });
 
+  it('shows one create button, not two, on an empty list', async () => {
+    // A fresh database rendered both "New sales order" and "Add the first order",
+    // two links to one screen — the second was a copy of the first under a
+    // different name.
+    stubList('/sales/orders', []);
+    renderList('/sales/orders');
+
+    expect(await screen.findByRole('link', { name: 'Add the first order' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'New sales order' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(1);
+  });
+
+  it('shows the create button once the list has rows', async () => {
+    stubList('/sales/orders', [draftRow]);
+    renderList('/sales/orders');
+
+    expect(await screen.findByRole('link', { name: 'New sales order' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Add the first order' })).not.toBeInTheDocument();
+  });
+
   it('offers no View link when the page names no detail screen', async () => {
     stubList('/sales/orders', [issuedRow]);
     render(
@@ -595,8 +615,9 @@ describe('DocumentList button visibility by status', () => {
     renderList('/sales/orders');
 
     await screen.findAllByText('Acme SARL');
-    
-
+    // The session that carries the permissions loads asynchronously, so waiting for
+    // the row text alone is a race: `findByRole` waits for the buttons themselves.
+    await screen.findByRole('button', { name: 'Issue' });
 
     expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();

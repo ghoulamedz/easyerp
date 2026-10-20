@@ -11,11 +11,15 @@ import { usePathname } from 'next/navigation';
 import { AppNav, navItemsFor } from './app-nav';
 import { IconClose, IconMenu } from './icons';
 import { cx } from './ui';
+import { isNavVisible, useModuleStates } from '../lib/use-modules';
 import { translatorFor, type Locale } from '../i18n/config';
 
 export function MobileNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   const t = translatorFor(locale);
+  // The drawer hides a switched-off Module's entries for the same reason the rail
+  // does: the route 403s on the API, so a link to it is a link to an error.
+  const moduleStates = useModuleStates();
 
   // "Open" is recorded together with the path it was opened on, so a navigation
   // closes the drawer by *derivation* rather than by an effect watching the path
@@ -76,7 +80,9 @@ export function MobileNav({ locale }: { locale: Locale }) {
               </button>
             </div>
             <AppNav
-              items={navItemsFor(t, locale)}
+              items={navItemsFor(t, locale).filter((item) =>
+                isNavVisible(item.key, moduleStates),
+              )}
               currentPath={pathname}
               label={t('navMain')}
               onNavigate={close}

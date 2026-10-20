@@ -8,7 +8,7 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { DeliveryNoteForm } from './delivery-note-form';
+import { DeliveryNoteUnifiedForm } from './delivery-note-unified';
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -52,7 +52,7 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('DeliveryNoteForm', () => {
+describe('DeliveryNoteUnifiedForm', () => {
   it('drafts the note and returns to the list', async () => {
     const user = userEvent.setup();
     const seen: { url: string; body: unknown }[] = [];
@@ -64,7 +64,7 @@ describe('DeliveryNoteForm', () => {
       return refs()(url);
     }) as unknown as typeof fetch;
 
-    render(<DeliveryNoteForm locale="en" />);
+    render(<DeliveryNoteUnifiedForm locale="en" />);
 
     expect(await screen.findByLabelText('Customer')).toBeInTheDocument();
     await user.clear(screen.getByLabelText('Quantity'));
@@ -94,7 +94,7 @@ describe('DeliveryNoteForm', () => {
       return refs()(url);
     }) as unknown as typeof fetch;
 
-    render(<DeliveryNoteForm locale="en" />);
+    render(<DeliveryNoteUnifiedForm locale="en" />);
 
     expect(await screen.findByLabelText('Customer')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Create' }));
@@ -154,7 +154,7 @@ describe('DeliveryNoteForm', () => {
       return refs()(url);
     }) as unknown as typeof fetch;
 
-    render(<DeliveryNoteForm locale="en" />);
+    render(<DeliveryNoteUnifiedForm locale="en" />);
 
     expect(await screen.findByLabelText('Customer')).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Linked order (optional)'), 'o-1');
@@ -185,7 +185,7 @@ describe('DeliveryNoteForm', () => {
       }
       return baseImpl!(url, init);
     });
-    render(<DeliveryNoteForm locale="en" />);
+    render(<DeliveryNoteUnifiedForm locale="en" />);
     const cancel = await screen.findByRole('button', { name: 'Cancel' });
     await user.click(cancel);
     expect(push).toHaveBeenCalledWith('/en/delivery-notes');

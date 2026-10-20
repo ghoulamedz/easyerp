@@ -179,6 +179,73 @@ describe('Catalog & counterparties (spec 001 stories 25–32)', () => {
     expect((audit[0]?.after as unknown as ItemRecord)?.salePrice).toBe('12.500');
   });
 
+  it('opens the Stock Ledger with the initial quantity the Item is created with', async () => {
+    await bootBusiness();
+    const response = await api('POST', '/items', {
+      ...itemPayload('SAV-QTY'),
+      initialQuantity: '25.5',
+    });
+    expect(response.status).toBe(201);
+    const item = (await response.json()) as ItemRecord;
+
+    // The quantity is not a column: it is the first ledger entry, and on-hand is
+    // the ledger (ADR 0004). Asserting the entry — not the Item — is the point.
+    const entries = await prisma.stockLedgerEntry.findMany({ where: { itemId: item.id } });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]?.reason).toBe('OPENING_BALANCE');
+    expect(entries[0]?.direction).toBe('IN');
+    expect(entries[0]?.quantity.toFixed(3)).toBe('25.500');
+    expect(entries[0]?.balanceAfter.toFixed(3)).toBe('25.500');
+
+    const audit = await prisma.auditEntry.findMany({
+      where: { action: 'stock.opening_balance', entityId: item.id },
+    });
+    expect(audit).toHaveLength(1);
+  });
+
+  it('writes no ledger entry when the initial quantity is omitted or zero', async () => {
+    await bootBusiness();
+    const omitted = await api('POST', '/items', itemPayload('SAV-ZERO'));
+    const zero = await api('POST', '/items', {
+      ...itemPayload('SAV-ZERO2'),
+      initialQuantity: '0',
+    });
+    expect(omitted.status).toBe(201);
+    expect(zero.status).toBe(201);
+
+    // An Item that starts empty has no opening entry to explain; the stock screen
+    // still shows it, because a position of zero is a real state.
+    for (const response of [omitted, zero]) {
+      const item = (await response.json()) as ItemRecord;
+      await expect(
+        prisma.stockLedgerEntry.count({ where: { itemId: item.id } }),
+      ).resolves.toBe(0);
+    }
+  });
+
+  it('refuses a negative initial quantity', async () => {
+    await bootBusiness();
+    await expect(
+      api('POST', '/items', { ...itemPayload('SAV-NEG'), initialQuantity: '-1' }).then(
+        (r) => r.status,
+      ),
+    ).resolves.toBe(422);
+  });
+
+  it('refuses an edit that carries an initial quantity', async () => {
+    // Stock moves through the ledger, never by editing the Item. The update schema
+    // is strict, so the field is refused by name instead of being ignored.
+    await bootBusiness();
+    const created = await api('POST', '/items', itemPayload('SAV-LOCKED'));
+    const item = (await created.json()) as ItemRecord;
+
+    const response = await api('PATCH', `/items/${item.id}`, { initialQuantity: '99' });
+    expect(response.status).toBe(422);
+    await expect(
+      prisma.stockLedgerEntry.count({ where: { itemId: item.id } }),
+    ).resolves.toBe(0);
+  });
+
   it('derives isService from the item type, not from anything the client sends', async () => {
     await bootBusiness();
     const response = await api('POST', '/items', itemPayload('SRV-001', 'SERVICE'));

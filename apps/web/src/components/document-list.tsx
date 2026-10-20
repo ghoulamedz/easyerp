@@ -160,15 +160,9 @@ function DocumentListBody({
                   href={newHref}
                   className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover"
                 >
-                  {t(newKey)}
+                  {t(addFirstKey)}
                 </Link>
               ) : null}
-              <Link
-                href={newHref}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover"
-              >
-                {t(addFirstKey)}
-              </Link>
             </>
           )}
         </div>
@@ -179,6 +173,20 @@ function DocumentListBody({
   return (
     <div className="space-y-4">
       {filters}
+      {/* The create button belongs to the list that has rows to add to. An *empty*
+          list says it once, in its own words (`addFirstKey`); rendering both here
+          and there is how a fresh database showed two buttons that did the same
+          thing under two names. */}
+      {canCreate ? (
+        <div className="flex justify-end">
+          <Link
+            href={newHref}
+            className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover"
+          >
+            {t(newKey)}
+          </Link>
+        </div>
+      ) : null}
       <div className="divide-y divide-line">
         {rows.map((row) => (
           <div key={row.id} className="py-4">

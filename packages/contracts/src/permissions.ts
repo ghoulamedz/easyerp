@@ -29,8 +29,15 @@ export const PERMISSION_CATALOG = {
     'purchase-order:issue',
     'purchase-order:cancel',
   ],
-  deliveryNote: ['delivery-note:read', 'delivery-note:create', 'delivery-note:issue'],
-  goodsReceipt: ['goods-receipt:read', 'goods-receipt:create', 'goods-receipt:issue'],
+  deliveryNote: [
+    'delivery-note:read',
+    'delivery-note:create',
+    'delivery-note:update',
+    'delivery-note:issue',
+  ],
+  // No `goods-receipt:update`: a receipt is issued at creation and corrected on the
+  // stock ledger, never by editing the document.
+  goodsReceipt: ['goods-receipt:read', 'goods-receipt:create'],
   customerInvoice: [
     'customer-invoice:read',
     'customer-invoice:create',

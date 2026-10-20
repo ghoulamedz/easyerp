@@ -6,6 +6,7 @@ import { translatorFor, type Locale } from '../i18n/config';
 import { apiSend } from '../lib/api';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
+import { MODULES_CHANGED_EVENT } from '../lib/use-modules';
 
 export function ModulesList({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
@@ -42,6 +43,10 @@ export function ModulesList({ locale }: { locale: Locale }) {
     setError(null);
     try {
       await apiSend(`/settings/modules/${module}`, 'PUT', { isEnabled: next });
+      // The rail and the drawer are already mounted with the old list; tell them to
+      // re-read rather than leaving a switched-off Module's link on screen until the
+      // next full page load.
+      window.dispatchEvent(new Event(MODULES_CHANGED_EVENT));
     } catch (e) {
       setOverrides((prev) => {
         const { [module]: _dropped, ...rest } = prev;

@@ -5,7 +5,7 @@
  */
 
 import { z } from 'zod';
-import { moneySchema, quantitySchema, rateSchema } from './numeric.js';
+import { moneySchema, nonNegativeDecimalSchema, quantitySchema, rateSchema } from './numeric.js';
 import { pageQuerySchema } from './pagination.js';
 
 export const ITEM_TYPES = [
@@ -83,6 +83,24 @@ export const itemInputSchema = itemSchema
   })
   .strict();
 export type ItemInput = z.infer<typeof itemInputSchema>;
+
+/**
+ * What a client may send when **creating** an Item.
+ *
+ * One field more than an edit carries: `initialQuantity`. It is not a column —
+ * on-hand is the Stock Ledger and the ledger is the only place a quantity may
+ * live (ADR 0004) — it is the opening entry an Item is born with, so the catalog
+ * and the inventory agree from the first row instead of asking a person to
+ * remember a second screen.
+ *
+ * It is absent from `itemInputSchema`, which an edit parses, and the schemas are
+ * `.strict()`: an update that carries an initial quantity is refused by name.
+ * Stock moves afterwards through the ledger, never by editing the Item.
+ */
+export const itemCreateSchema = itemInputSchema.extend({
+  initialQuantity: nonNegativeDecimalSchema.default('0'),
+});
+export type ItemCreateInput = z.infer<typeof itemCreateSchema>;
 
 export const PARTY_ROLES = ['CUSTOMER', 'SUPPLIER'] as const;
 export type PartyRole = (typeof PARTY_ROLES)[number];

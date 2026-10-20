@@ -19,6 +19,7 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  creditNoteUpdateSchema,
   documentStatusSchema,
   draftCreditNoteSchema,
   localeSchema,
@@ -96,13 +97,25 @@ function reversalOf(
 
 type PrismaClient = Pick<PrismaService, 'document' | 'documentLine' | '$executeRaw'>;
 
-/** Quantities already corrected per Invoice line, as positive magnitudes. */
+/**
+ * Quantities already corrected per Invoice line, as positive magnitudes.
+ *
+ * `exceptDocumentId` is the note being *edited*. Its own stored lines are the
+ * correction this edit is replacing, so counting them would make every edit see its
+ * previous figures as somebody else's and refuse to grow — the one direction an edit
+ * exists for. Other drafts still count: two drafts correcting the same remainder
+ * should produce one Issued note and one clear refusal.
+ */
 async function creditedByLine(
   client: Pick<PrismaService, 'documentLine'>,
   invoiceLineIds: readonly string[],
+  exceptDocumentId?: string,
 ): Promise<Map<string, Amount>> {
   const rows = await client.documentLine.findMany({
-    where: { correctsDocumentLineId: { in: [...invoiceLineIds] } },
+    where: {
+      correctsDocumentLineId: { in: [...invoiceLineIds] },
+      ...(exceptDocumentId === undefined ? {} : { documentId: { not: exceptDocumentId } }),
+    },
     select: { correctsDocumentLineId: true, quantity: true },
   });
   const credited = new Map<string, Amount>();
@@ -226,6 +239,112 @@ export class CreditNoteService {
     );
 
     return { id: created.id, status: created.status };
+  }
+
+  /**
+   * Edit a Draft Credit Note: which Invoice lines it reverses, and how much of each.
+   *
+   * The Invoice it corrects is not editable. Which Invoice a correction belongs to is
+   * the document's identity, and re-pointing it would leave the stored figures
+   * quoting one invoice while the row named another — so the patch schema has no
+   * `invoiceId`, and a body carrying one is refused by name.
+   *
+   * Only a Draft, for the reason the invoice has: the database refuses to rewrite an
+   * Issued document or its lines, and the correction for a wrong correction is
+   * another Credit Note.
+   */
+  async update(
+    id: string,
+    payload: unknown,
+    actor: AuditActor = {},
+    ipAddress?: string | null,
+  ): Promise<{ id: string; status: string }> {
+    const input = creditNoteUpdateSchema.parse(payload);
+
+    const note = await this.prisma.document.findFirst({
+      where: { id, type: CREDIT_NOTE },
+      include: { creditNotes: true },
+    });
+    if (!note) throw notFound('Credit Note', id);
+    if (note.status !== 'DRAFT') {
+      throw conflict(
+        `Only a Draft Credit Note can be edited; ${id} is ${note.status}. An issued one is ` +
+          'immutable, and the correction for a wrong correction is another Credit Note.',
+        { id, status: note.status },
+      );
+    }
+
+    const detail = note.creditNotes[0];
+    invariant(detail, `Credit Note ${id} has no detail row.`);
+
+    if (input.lines === undefined) {
+      return { id, status: note.status };
+    }
+
+    // The reversal is re-derived from the *Invoice's* stored figures, never from the
+    // Item's current price: a price that moved since the invoice was issued must not
+    // change what a correction of it claims.
+    const rows = await this.reversalRows(detail.correctsDocumentId, input.lines, id);
+
+    const taxGroups = new Map<string, { base: Amount; amount: Amount }>();
+    for (const row of rows) {
+      const group = taxGroups.get(row.taxRate) ?? { base: Amount.zero(), amount: Amount.zero() };
+      group.base = group.base.plus(Amount.parse(row.netAmount));
+      group.amount = group.amount.plus(Amount.parse(row.taxAmount));
+      taxGroups.set(row.taxRate, group);
+    }
+
+    const netAmount = sumOf(rows.map((row) => row.netAmount));
+    const taxAmount = sumOf(rows.map((row) => row.taxAmount));
+    const grossAmount = sumOf(rows.map((row) => row.grossAmount));
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.documentLine.deleteMany({ where: { documentId: id } });
+      await tx.documentTaxGroup.deleteMany({ where: { documentId: id } });
+      await tx.document.update({
+        where: { id },
+        data: { netAmount, taxAmount, grossAmount },
+      });
+      await tx.documentLine.createMany({
+        data: rows.map((row, position) => ({
+          documentId: id,
+          position,
+          itemId: row.itemId,
+          unitOfMeasureId: row.unitOfMeasureId,
+          description: row.description,
+          quantity: row.quantity,
+          unitPrice: row.unitPrice,
+          taxRate: row.taxRate,
+          netAmount: row.netAmount,
+          fodecAmount: row.fodecAmount,
+          taxAmount: row.taxAmount,
+          grossAmount: row.grossAmount,
+          correctsDocumentLineId: row.correctsDocumentLineId,
+        })),
+      });
+      await tx.documentTaxGroup.createMany({
+        data: [...taxGroups].map(([rateValue, group], position) => ({
+          documentId: id,
+          position,
+          rate: rateValue,
+          base: group.base.toString(),
+          amount: group.amount.toString(),
+        })),
+      });
+    });
+
+    await this.audit.record(
+      this.prisma,
+      {
+        action: 'credit-note.updated',
+        entityType: CREDIT_NOTE,
+        entityId: id,
+        after: { status: note.status, grossAmount },
+      },
+      { ...actor, ipAddress: ipAddress ?? null },
+    );
+
+    return { id, status: note.status };
   }
 
   /**
@@ -399,6 +518,7 @@ export class CreditNoteService {
   private async reversalRows(
     invoiceId: string,
     requested: readonly { invoiceLineId: string; quantity: string }[],
+    exceptDocumentId?: string,
   ): Promise<ReversalRow[]> {
     const invoice = await this.prisma.document.findFirst({
       where: { id: invoiceId, type: 'CUSTOMER_INVOICE' },
@@ -409,6 +529,7 @@ export class CreditNoteService {
     const credited = await creditedByLine(
       this.prisma,
       requested.map((line) => line.invoiceLineId),
+      exceptDocumentId,
     );
 
     return requested.map((line) => {

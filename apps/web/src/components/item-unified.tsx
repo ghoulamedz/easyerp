@@ -1,7 +1,12 @@
 'use client';
 
 /**
- * New Item form.
+ * Item form — unified for create and edit.
+ *
+ * Create (no `id`): POST /items → new item with initial quantity, then Save stays,
+ * Issue redirects to the list. Edit (`id` provided): PATCH /items/:id,
+ * then Save stays. The initial quantity field is editable only on create;
+ * on edit it is disabled (stock adjustments only from Stock screen).
  *
  * Money travels as decimal strings and the server resolves every price and tax
  * rate (ADR 0005): the client sends amounts, never computed totals. Units and
@@ -11,7 +16,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { TaxRateRecord, UnitRecord } from '@easyerp/contracts';
+import type { Item, StockLedgerEntry, TaxRateRecord, UnitRecord } from '@easyerp/contracts';
 import { ITEM_TYPES } from '@easyerp/contracts';
 import { apiGet, apiSend } from '../lib/api';
 import { translatorFor, type Locale } from '../i18n/config';
@@ -37,7 +42,13 @@ function asArray<T>(data: unknown): readonly T[] {
   return [];
 }
 
-export function ItemForm({ locale }: { locale: Locale }) {
+export function ItemUnifiedForm({
+  locale,
+  id,
+}: {
+  locale: Locale;
+  id?: string;
+}) {
   const t = translatorFor(locale);
   const router = useRouter();
 
@@ -50,6 +61,7 @@ export function ItemForm({ locale }: { locale: Locale }) {
   const [taxRateId, setTaxRateId] = useState('');
   const [salePrice, setSalePrice] = useState('0');
   const [purchasePrice, setPurchasePrice] = useState('0');
+  const [initialQuantity, setInitialQuantity] = useState('0');
   const [reorderPoint, setReorderPoint] = useState('');
   const [isActive, setIsActive] = useState(true);
   const [fodecSubject, setFodecSubject] = useState(false);
@@ -57,39 +69,82 @@ export function ItemForm({ locale }: { locale: Locale }) {
   const [units, setUnits] = useState<readonly UnitRecord[]>([]);
   const [rates, setRates] = useState<readonly TaxRateRecord[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(true);
+  // Initialised from the prop: an edit has something to load, a create does not.
+  // Setting this from inside the effect would be a synchronous setState in an
+  // effect body — a cascading render for a value that is known before it runs.
+  const [loadingItem, setLoadingItem] = useState(Boolean(id));
+  /** The Item's current on-hand, read from its ledger entries (ADR 0004). */
+  const [onHand, setOnHand] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isEdit = Boolean(id);
+
   useEffect(() => {
     let cancelled = false;
-    Promise.all([apiGet<unknown>('/settings/units'), apiGet<unknown>('/settings/tax-rates')])
-      .then(([u, r]) => {
+
+    Promise.all([
+      apiGet<unknown>('/settings/units'),
+      apiGet<unknown>('/settings/tax-rates'),
+      id ? apiGet<Item>(`/items/${id}`) : Promise.resolve(null),
+    ])
+      .then(async ([u, r, item]) => {
         if (cancelled) return;
         const unitList = asArray<UnitRecord>(u);
         const rateList = asArray<TaxRateRecord>(r);
         setUnits(unitList);
         setRates(rateList);
         if (unitList.length > 0) setBaseUnitId(unitList[0]?.id ?? '');
-        if (rateList.length > 0) setTaxRateId(rateList[0]?.id ?? '');
+
+        if (item) {
+          setCode(item.code);
+          setName(item.name);
+          setDescription(item.description ?? '');
+          setItemType(item.itemType);
+          setBaseUnitId(item.baseUnitId);
+          setSaleUnitId(item.saleUnitId ?? '');
+          setTaxRateId(item.taxRateId);
+          setSalePrice(item.salePrice);
+          setPurchasePrice(item.purchasePrice);
+          setReorderPoint(item.reorderPoint ?? '');
+          setIsActive(item.isActive);
+          setFodecSubject(item.fodecSubject);
+        } else {
+          if (rateList.length > 0) setTaxRateId(rateList[0]?.id ?? '');
+        }
+
+        // On an edit the quantity is a fact about the ledger, not a field to set:
+        // the last entry's balance is what the Item holds, and the stock screen is
+        // where it moves. Reading it here means the box is not a mystery zero.
+        if (id && item) {
+          const entries = await apiGet<readonly StockLedgerEntry[]>(
+            `/inventory/stock/entries/${id}`,
+          ).catch(() => [] as readonly StockLedgerEntry[]);
+          if (cancelled) return;
+          setOnHand(entries.at(-1)?.balanceAfter ?? '0');
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : t('loadFailed'));
       })
       .finally(() => {
-        if (!cancelled) setLoadingRefs(false);
+        if (!cancelled) {
+          setLoadingRefs(false);
+          setLoadingItem(false);
+        }
       });
+
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [id, locale]);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
     event.preventDefault();
     setWorking(true);
     setError(null);
     try {
-      await apiSend('/items', 'POST', {
+      const payload = {
         code: code.trim(),
         name: name.trim(),
         description: description.trim() === '' ? null : description.trim(),
@@ -103,7 +158,19 @@ export function ItemForm({ locale }: { locale: Locale }) {
         reorderPoint: reorderPoint.trim() === '' ? null : reorderPoint.trim(),
         isActive,
         fodecSubject,
-      });
+      };
+
+      if (isEdit) {
+        // No initial quantity on an edit: the schema is strict and refuses it, and
+        // stock moves through the ledger (ADR 0004).
+        await apiSend(`/items/${id}`, 'PATCH', payload);
+      } else {
+        await apiSend('/items', 'POST', {
+          ...payload,
+          initialQuantity: initialQuantity.trim() === '' ? '0' : initialQuantity.trim(),
+        });
+      }
+
       router.push(`/${locale}/items`);
       router.refresh();
     } catch (failure) {
@@ -113,11 +180,24 @@ export function ItemForm({ locale }: { locale: Locale }) {
     }
   };
 
-  if (loadingRefs) {
+  if (loadingRefs || loadingItem) {
     return (
       <Card>
         <CardBody>
           <p className="text-sm text-ink-muted">{t('loading')}</p>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card>
+        <CardBody>
+          <p role="alert" className="flex items-start gap-2 text-sm text-danger">
+            <IconAlert className="mt-0.5 size-4 shrink-0" />
+            {error}
+          </p>
         </CardBody>
       </Card>
     );
@@ -246,6 +326,23 @@ export function ItemForm({ locale }: { locale: Locale }) {
               />
             </div>
             <div>
+              <Label htmlFor="item-initial-quantity">
+                {isEdit ? t('itemOnHand') : t('itemInitialQuantity')}
+              </Label>
+              <input
+                id="item-initial-quantity"
+                dir="ltr"
+                inputMode="decimal"
+                value={isEdit ? (onHand ?? '…') : initialQuantity}
+                onChange={isEdit ? undefined : (e) => setInitialQuantity(e.target.value)}
+                disabled={isEdit}
+                className={FIELD}
+              />
+              {isEdit ? (
+                <p className="mt-1 text-xs text-ink-subtle">{t('itemOnHandHint')}</p>
+              ) : null}
+            </div>
+            <div>
               <Label htmlFor="item-reorder">{t('itemReorderPoint')}</Label>
               <input
                 id="item-reorder"
@@ -298,7 +395,11 @@ export function ItemForm({ locale }: { locale: Locale }) {
               {t('cancel')}
             </Button>
             <Button type="submit" variant="primary" disabled={working} className="w-full">
-              {working ? t('formCreating') : t('formCreate')}
+              {working
+                ? t('formSaving')
+                : isEdit
+                  ? t('formSave')
+                  : t('formCreate')}
             </Button>
           </div>
         </form>

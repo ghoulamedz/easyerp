@@ -1,14 +1,14 @@
 /**
  * @vitest-environment jsdom
  *
- * The customer-invoice form: the draft carries the document locale, no amounts
- * travel, and a refusal stays on the screen.
+ * The credit-note form: only issued invoices qualify, reversal quantities
+ * default to the billed figures, and an overdraw refusal stays put.
  */
 
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CustomerInvoiceForm } from './customer-invoice-form';
+import { CreditNoteUnifiedForm } from './credit-note-unified';
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -18,11 +18,19 @@ vi.mock('next/navigation', () => ({
 }));
 
 const profile = { id: 'b-1', displayName: 'My Company', legalName: 'My Company SARL' };
-const parties = {
-  items: [{ id: 'p-1', code: 'ACME', name: 'Acme SARL', roles: ['CUSTOMER'] }],
-  total: 1,
+const invoices = {
+  items: [
+    { id: 'v-draft', number: null, partyName: 'Acme', status: 'DRAFT' },
+    { id: 'v-1', number: 'FA-2026-0001', partyName: 'Acme', status: 'ISSUED' },
+  ],
+  total: 2,
   page: 1,
   pageSize: 25,
+};
+const detail = {
+  id: 'v-1',
+  number: 'FA-2026-0001',
+  lines: [{ id: 'il-1', itemId: 'i-1', description: 'Widget', quantity: '3' }],
 };
 const items = {
   items: [{ id: 'i-1', code: 'WIDGET', name: 'Widget' }],
@@ -35,7 +43,9 @@ function refs() {
   return async (url: unknown) => {
     const u = String(url);
     if (u === '/api/settings/business') return { ok: true, status: 200, json: async () => profile };
-    if (u.startsWith('/api/parties')) return { ok: true, status: 200, json: async () => parties };
+    if (u.startsWith('/api/sales/invoices/'))
+      return { ok: true, status: 200, json: async () => detail };
+    if (u.startsWith('/api/sales/invoices')) return { ok: true, status: 200, json: async () => invoices };
     if (u.startsWith('/api/items')) return { ok: true, status: 200, json: async () => items };
     throw new Error(`unexpected ${u}`);
   };
@@ -45,53 +55,55 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('CustomerInvoiceForm', () => {
-  it('drafts the invoice with the document locale and returns to the list', async () => {
+describe('CreditNoteUnifiedForm', () => {
+  it('offers only issued invoices and drafts the reversal', async () => {
     const user = userEvent.setup();
     const seen: { url: string; body: unknown }[] = [];
     global.fetch = vi.fn(async (url: unknown, init?: RequestInit) => {
-      if (String(url) === '/api/sales/invoices' && init?.method === 'POST') {
+      if (String(url) === '/api/credit-notes' && init?.method === 'POST') {
         seen.push({ url: String(url), body: JSON.parse(String(init.body)) });
-        return { ok: true, status: 201, json: async () => ({ id: 'v-1' }) };
+        return { ok: true, status: 201, json: async () => ({ id: 'c-1' }) };
       }
       return refs()(url);
     }) as unknown as typeof fetch;
 
-    render(<CustomerInvoiceForm locale="fr" />);
+    render(<CreditNoteUnifiedForm locale="en" />);
 
-    expect(await screen.findByLabelText('Client')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Créer' }));
+    const select = await screen.findByLabelText('Corrected invoice');
+    const options = Array.from((select as HTMLSelectElement).options).map((o) => o.value);
+    expect(options).toEqual(['v-1']);
 
-    await waitFor(() => expect(push).toHaveBeenCalledWith('/fr/customer-invoices'));
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/en/credit-notes'));
     expect(seen[0]?.body).toEqual({
       businessId: 'b-1',
-      partyId: 'p-1',
-      locale: 'fr',
-      lines: [{ itemId: 'i-1', quantity: '1' }],
+      invoiceId: 'v-1',
+      lines: [{ invoiceLineId: 'il-1', quantity: '3' }],
     });
   });
 
-  it('shows the refusal without navigating', async () => {
+  it('shows the overdraw refusal without navigating', async () => {
     const user = userEvent.setup();
     global.fetch = vi.fn(async (url: unknown) => {
-      if (String(url).startsWith('/api/sales/invoices')) {
+      if (String(url).startsWith('/api/credit-notes')) {
         return {
           ok: false,
-          status: 422,
+          status: 409,
           json: async () => ({
-            error: { code: 'VALIDATION_FAILED', message: 'An invoice needs a line' },
+            error: { code: 'CONFLICT', message: 'Correcting 9 would overdraw Invoice line il-1' },
           }),
         };
       }
       return refs()(url);
     }) as unknown as typeof fetch;
 
-    render(<CustomerInvoiceForm locale="en" />);
+    render(<CreditNoteUnifiedForm locale="en" />);
 
-    expect(await screen.findByLabelText('Customer')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Corrected invoice')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Create' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('The submitted data is invalid.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('The action conflicts with the current state.');
     expect(push).not.toHaveBeenCalled();
   });
 
@@ -107,10 +119,10 @@ describe('CustomerInvoiceForm', () => {
       }
       return baseImpl!(url, init);
     });
-    render(<CustomerInvoiceForm locale="en" />);
+    render(<CreditNoteUnifiedForm locale="en" />);
     const cancel = await screen.findByRole('button', { name: 'Cancel' });
     await user.click(cancel);
-    expect(push).toHaveBeenCalledWith('/en/customer-invoices');
+    expect(push).toHaveBeenCalledWith('/en/credit-notes');
     expect(posts).toHaveLength(0);
   });
 });

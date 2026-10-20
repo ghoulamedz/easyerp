@@ -31,6 +31,8 @@ export default async function CustomerInvoicesPage({ params }: { params: Promise
         addFirstKey="addFirstCustomerInvoice"
         emptyKey="noCustomerInvoices"
         detailBaseHref={`/${typedLocale}/invoices`}
+        editPermission="customer-invoice:update"
+        editBaseHref={`/${typedLocale}/customer-invoices`}
         issuePermission="customer-invoice:issue"
       />
     </div>

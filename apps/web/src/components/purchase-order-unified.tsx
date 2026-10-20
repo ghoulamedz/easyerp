@@ -71,13 +71,17 @@ export function PurchaseOrderUnifiedForm({
   ]);
 
   const [loadingRefs, setLoadingRefs] = useState(true);
-  const [loadingOrder, setLoadingOrder] = useState(false);
+  // Initialised from the prop: an edit has something to load, a create does not.
+  // Setting this from inside the effect would be a synchronous setState in an
+  // effect body — a cascading render for a value that is known before it runs.
+  const [loadingOrder, setLoadingOrder] = useState(Boolean(id));
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const missingRefs = parties.length === 0 || items.length === 0;
+
   useEffect(() => {
     let cancelled = false;
-    if (id) setLoadingOrder(true);
 
     Promise.all([
       apiGet<BusinessProfile>('/settings/business'),
@@ -93,7 +97,18 @@ export function PurchaseOrderUnifiedForm({
         setParties(suppliers);
         setItems(stocked);
 
-        if (order && order.status === 'DRAFT') {
+        if (order && order.status !== 'DRAFT') {
+          // An issued order is read-only everywhere (ADR 0018): the list hides the
+          // Edit link, and this is the second half of that rule.
+          setError(t('editOnlyDraft'));
+          // Clear the loading flag on the way out: returning from inside `.then`
+          // skips the `setLoadingRefs(false)` at its end, and the refusal would
+          // then render as a form that loads forever.
+          setLoadingRefs(false);
+          return;
+        }
+
+        if (order) {
           setPartyId(order.party?.id ?? '');
           setLines(
             order.lines.length > 0
@@ -135,39 +150,36 @@ export function PurchaseOrderUnifiedForm({
     setWorking(true);
 
     const payload = {
-      partyId: partyId || undefined,
-      lines: lines.map((line) => ({
-        itemId: line.itemId,
-        quantity: line.quantity,
-      })),
+      // A supplier is optional on a Purchase Order, and the schema says so with
+      // `undefined` — an empty string is not a Party id and would be refused.
+      ...(partyId === '' ? {} : { partyId }),
+      lines: lines
+        .filter((line) => line.itemId !== '')
+        .map((line) => ({
+          itemId: line.itemId,
+          quantity: line.quantity.trim(),
+          ...(line.description.trim() === '' ? {} : { description: line.description.trim() }),
+        })),
     };
 
     try {
-      let res: Response;
-      if (id) {
-        res = await apiSend(`/purchasing/orders/${id}`, 'PATCH', payload);
-      } else {
-        res = await apiSend('/purchasing/orders', 'POST', payload);
-      }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? t('saveFailed'));
+      // `apiSend` throws an `ApiError` already localized from the server's
+      // `{ error: { code, message } }`; inspecting `response.ok` would replace
+      // every explanation with "Save failed".
+      const saved = id
+        ? await apiSend<PurchaseOrder>(`/purchasing/orders/${id}`, 'PATCH', payload)
+        : // `draftPurchaseOrderSchema` names `businessId`; without it every create
+          // was a 422 that no screen explained.
+          await apiSend<PurchaseOrder>('/purchasing/orders', 'POST', { businessId, ...payload });
 
       if (action === 'issue') {
-        const issueRes = await apiSend<{ ok: boolean; message?: string }>(
-          `/purchasing/orders/${data.id}/issue`,
-          'POST',
-          {},
-        );
-        if (!issueRes.ok) {
-          const issueData = issueRes;
-          throw new Error(issueData.message ?? t('issueFailed'));
-        }
+        await apiSend(`/purchasing/orders/${saved.id}/issue`, 'POST');
       }
 
       router.push(`/${locale}/purchasing/orders`);
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t(action === 'issue' ? 'issueFailed' : 'saveFailed'));
+      setError(err instanceof Error ? err.message : t('saveFailed'));
     } finally {
       setWorking(false);
     }
@@ -228,6 +240,7 @@ export function PurchaseOrderUnifiedForm({
                   <select
                     id={`line-item-${line.key}`}
                     required
+                    disabled={items.length === 0}
                     value={line.itemId}
                     onChange={(e) =>
                       setLines(
@@ -321,7 +334,7 @@ export function PurchaseOrderUnifiedForm({
             <Button
               type="submit"
               variant="primary"
-              disabled={working}
+              disabled={working || missingRefs}
               onClick={(e) => void onSubmit(e, 'save')}
               className="w-full sm:w-auto"
             >
@@ -334,7 +347,7 @@ export function PurchaseOrderUnifiedForm({
             <Button
               type="submit"
               variant="secondary"
-              disabled={working || !isEdit}
+              disabled={working || !isEdit || missingRefs}
               onClick={(e) => void onSubmit(e, 'issue')}
               className="w-full sm:w-auto"
             >

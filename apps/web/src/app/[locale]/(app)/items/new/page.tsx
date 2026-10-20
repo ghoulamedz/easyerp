@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { ItemForm } from '@/components/item-form';
+import { ItemUnifiedForm } from '@/components/item-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -20,7 +20,7 @@ export default async function NewItemPage({ params }: { params: Promise<{ locale
   return (
     <div className="space-y-6">
       <PageHeader title={t('newItem')} description={t('itemsDescription')} />
-      <ItemForm locale={typedLocale} />
+      <ItemUnifiedForm locale={typedLocale} />
     </div>
   );
 }

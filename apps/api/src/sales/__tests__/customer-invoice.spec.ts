@@ -17,6 +17,7 @@
  */
 
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
+import { ZodError } from 'zod';
 
 import { DomainError } from '../../common/errors.js';
 import { PrismaService } from '../../prisma/prisma.service.js';
@@ -196,6 +197,52 @@ describe('issuing', () => {
     });
     return { business, customer, item, draft };
   }
+
+  it('replaces the line set on a draft edit and re-prices it from the Items', async () => {
+    const { draft, item } = await givenDraft('3');
+
+    await invoices.update(draft.id, { lines: [{ itemId: item.id, quantity: '5' }] });
+
+    const row = await prisma.document.findUniqueOrThrow({
+      where: { id: draft.id },
+      include: { lines: { orderBy: { position: 'asc' } }, taxes: true },
+    });
+    // One line, not two: an edit replaces the set rather than adding to it, so the
+    // totals cannot depend on how many edits arrived.
+    expect(row.lines).toHaveLength(1);
+    expect(row.lines[0]?.quantity.toFixed(3)).toBe('5.000');
+    expect(row.status).toBe('DRAFT');
+    expect(row.number).toBeNull();
+    expect(row.taxes.length).toBeGreaterThan(0);
+  });
+
+  it('refuses to edit an issued invoice, and leaves its rows alone', async () => {
+    // The database triggers refuse this too; the service check is the readable half.
+    const { draft, item } = await givenDraft('3');
+    await invoices.issue(draft.id);
+
+    await expect(
+      invoices.update(draft.id, { lines: [{ itemId: item.id, quantity: '9' }] }),
+    ).rejects.toMatchObject({ code: 'CONFLICT' });
+
+    const lines = await prisma.documentLine.findMany({ where: { documentId: draft.id } });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]?.quantity.toFixed(3)).toBe('3.000');
+  });
+
+  it('refuses an edit that carries money, and an empty patch', async () => {
+    const { draft, item } = await givenDraft();
+
+    // ADR 0005: the server resolves every price, so `unitPrice` is not a field a
+    // client may send — the strict schema names it instead of ignoring it. A
+    // `ZodError` here is what the HTTP filter renders as a 422 with issue paths.
+    await expect(
+      invoices.update(draft.id, {
+        lines: [{ itemId: item.id, quantity: '1', unitPrice: '1.000' }],
+      }),
+    ).rejects.toBeInstanceOf(ZodError);
+    await expect(invoices.update(draft.id, {})).rejects.toBeInstanceOf(ZodError);
+  });
 
   it('numbers the document and stamps it', async () => {
     const { draft } = await givenDraft();

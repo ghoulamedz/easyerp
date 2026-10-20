@@ -381,6 +381,22 @@ export const draftDeliveryNoteSchema = z.strictObject({
 });
 export type DraftDeliveryNote = z.infer<typeof draftDeliveryNoteSchema>;
 
+/**
+ * A partial edit of a Draft Delivery Note. Lines, when present, replace the whole
+ * set — the same rule as an order, because a line set that can be merged is a line
+ * set whose order and totals depend on history.
+ */
+export const deliveryNoteUpdateSchema = z
+  .object({
+    partyId: z.string().min(1).optional(),
+    lines: z.array(deliveryNoteLineInputSchema).min(1).optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, {
+    message: 'an empty patch changes nothing and is a client bug',
+  });
+export type DeliveryNoteUpdate = z.infer<typeof deliveryNoteUpdateSchema>;
+
 /** A Delivery Note line as served: the resolved item and, if fulfilled, its order line. */
 export const deliveryNoteLineSchema = z.object({
   id: z.string().min(1),
@@ -470,6 +486,23 @@ export const draftCustomerInvoiceSchema = z.strictObject({
 });
 export type DraftCustomerInvoice = z.infer<typeof draftCustomerInvoiceSchema>;
 
+/**
+ * A partial edit of a Draft Customer Invoice. `locale` travels too: it decides the
+ * language of the paper, and a draft that prints in the wrong one has not been
+ * reviewed yet — which is what a draft is for.
+ */
+export const customerInvoiceUpdateSchema = z
+  .object({
+    partyId: z.string().min(1).optional(),
+    locale: localeSchema.optional(),
+    lines: z.array(orderLineInputSchema).min(1).optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, {
+    message: 'an empty patch changes nothing and is a client bug',
+  });
+export type CustomerInvoiceUpdate = z.infer<typeof customerInvoiceUpdateSchema>;
+
 // ---------------------------------------------------------------------------
 // Credit Note (spec 001 stories 63–69; ADR 0006, ADR 0016, ADR 0017)
 // ---------------------------------------------------------------------------
@@ -495,6 +528,22 @@ export const draftCreditNoteSchema = z.strictObject({
   lines: z.array(creditNoteLineInputSchema).min(1),
 });
 export type DraftCreditNote = z.infer<typeof draftCreditNoteSchema>;
+
+/**
+ * A partial edit of a Draft Credit Note. The Invoice it corrects is *not* part of
+ * the patch: which Invoice a correction belongs to is the document's identity, and
+ * re-pointing it would leave the stored figures quoting one invoice while the row
+ * names another.
+ */
+export const creditNoteUpdateSchema = z
+  .object({
+    lines: z.array(creditNoteLineInputSchema).min(1).optional(),
+  })
+  .strict()
+  .refine((patch) => Object.keys(patch).length > 0, {
+    message: 'an empty patch changes nothing and is a client bug',
+  });
+export type CreditNoteUpdate = z.infer<typeof creditNoteUpdateSchema>;
 
 /**
  * A Credit Note line as served. It is a priced line — same shape as an order
@@ -624,6 +673,15 @@ export const draftGoodsReceiptSchema = z.strictObject({
   lines: z.array(goodsReceiptLineInputSchema).min(1),
 });
 export type DraftGoodsReceipt = z.infer<typeof draftGoodsReceiptSchema>;
+
+/*
+ * There is deliberately no `goodsReceiptUpdateSchema`. A Goods Receipt is issued
+ * at creation — `createDraft` numbers it and appends the ledger entries in the
+ * same transaction, and the controller exposes no issue route because there is
+ * nothing left to issue. Editing one would mean rewriting stock movements that
+ * already happened, so the correction for a wrong receipt is a reversal on the
+ * ledger, not a patch to the document.
+ */
 
 /** A Goods Receipt line as served. */
 export const goodsReceiptLineSchema = z.object({

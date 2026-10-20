@@ -16,6 +16,7 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -64,6 +65,21 @@ export class CreditNoteController {
   }
 
   @RequirePermissions('credit-note:issue')
+  /**
+   * Edit a Draft Credit Note. The Invoice it corrects is not part of the patch: that
+   * link is the document's identity, and the schema refuses a body carrying one.
+   */
+  @RequirePermissions('credit-note:update')
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: SessionUser,
+    @Req() request: Request,
+  ) {
+    return this.notes.update(id, body, actorOf(user), ipOf(request));
+  }
+
   @Post(':id/issue')
   @HttpCode(HttpStatus.CREATED)
   async issue(

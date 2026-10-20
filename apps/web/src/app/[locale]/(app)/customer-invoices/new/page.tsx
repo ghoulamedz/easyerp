@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { CustomerInvoiceForm } from '@/components/customer-invoice-form';
+import { CustomerInvoiceUnifiedForm } from '@/components/customer-invoice-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -26,7 +26,7 @@ export default async function NewCustomerInvoicePage({
   return (
     <div className="space-y-6">
       <PageHeader title={t('newCustomerInvoice')} description={t('customerInvoicesDescription')} />
-      <CustomerInvoiceForm locale={typedLocale} />
+      <CustomerInvoiceUnifiedForm locale={typedLocale} />
     </div>
   );
 }

@@ -20,6 +20,7 @@ export function ItemsList({ locale }: { locale: Locale }) {
     ...(itemType ? { itemType } : {}),
   });
   const canCreate = useHasPermission('item:create');
+  const canUpdate = useHasPermission('item:update');
 
   if (result.state === 'loading') {
     return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
@@ -115,6 +116,16 @@ export function ItemsList({ locale }: { locale: Locale }) {
                 <p className="font-medium text-success">{item.salePrice}</p>
               </div>
             </div>
+            {canUpdate ? (
+              <div className="mt-2">
+                <Link
+                  href={`/${locale}/items/${item.id}/edit`}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
+                >
+                  {t('editButton')}
+                </Link>
+              </div>
+            ) : null}
           </div>
         ))}
       </div>

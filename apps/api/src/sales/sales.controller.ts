@@ -120,6 +120,21 @@ export class SalesController {
     return this.deliveryNotes.createDraft(body, actorOf(user), ipOf(request));
   }
 
+  /**
+   * Edit a Draft note. The API refuses an issued one — that is the invariant, not a
+   * courtesy of the interface (ADR 0006, ADR 0018).
+   */
+  @RequirePermissions('delivery-note:update')
+  @Patch('delivery-notes/:id')
+  updateDeliveryNote(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: SessionUser,
+    @Req() request: Request,
+  ) {
+    return this.deliveryNotes.update(id, body, actorOf(user), ipOf(request));
+  }
+
   @RequirePermissions('delivery-note:issue')
   @Post('delivery-notes/:id/issue')
   @HttpCode(HttpStatus.CREATED)

@@ -31,6 +31,8 @@ export default async function DeliveryNotesPage({ params }: { params: Promise<{ 
         addFirstKey="addFirstDeliveryNote"
         emptyKey="noDeliveryNotes"
         detailBaseHref={`/${typedLocale}/delivery-notes`}
+        editPermission="delivery-note:update"
+        editBaseHref={`/${typedLocale}/delivery-notes`}
         issuePermission="delivery-note:issue"
       />
     </div>

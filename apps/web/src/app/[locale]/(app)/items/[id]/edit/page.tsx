@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { ItemEditForm } from '@/components/item-edit-form';
+import { ItemUnifiedForm } from '@/components/item-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -24,7 +24,7 @@ export default async function EditItemPage({
   return (
     <div className="space-y-6">
       <PageHeader title={t('editItem')} description={t('itemsDescription')} />
-      <ItemEditForm locale={typedLocale} id={id} />
+      <ItemUnifiedForm locale={typedLocale} id={id} />
     </div>
   );
 }

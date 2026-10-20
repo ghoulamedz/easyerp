@@ -37,6 +37,7 @@
 import { Injectable } from '@nestjs/common';
 
 import {
+  customerInvoiceUpdateSchema,
   documentStatusSchema,
   draftCustomerInvoiceSchema,
   localeSchema,
@@ -149,6 +150,103 @@ export class CustomerInvoiceService {
     );
 
     return { id: created.id, status: created.status };
+  }
+
+  /**
+   * Edit a Draft invoice: the Customer, the language of the paper, or the lines.
+   *
+   * Only a Draft. An Issued invoice is guarded by database triggers on the document
+   * *and* on its lines and tax groups, so this method's own status check is the
+   * readable half of a rule the database enforces regardless — the same rule that
+   * makes a Credit Note the only correction for an issued invoice.
+   *
+   * Lines replace the whole set and are re-priced from the Items, exactly as
+   * `createDraft` prices them: an edit that merged lines would make the stored
+   * totals depend on the order the edits arrived in.
+   */
+  async update(
+    id: string,
+    payload: unknown,
+    actor: AuditActor = {},
+    ipAddress?: string | null,
+  ): Promise<{ id: string; status: string }> {
+    const input = customerInvoiceUpdateSchema.parse(payload);
+
+    const invoice = await this.prisma.document.findFirst({
+      where: { id, type: CUSTOMER_INVOICE },
+    });
+    if (!invoice) throw notFound('Customer Invoice', id);
+    if (invoice.status !== 'DRAFT') {
+      throw conflict(
+        `Only a Draft invoice can be edited; ${id} is ${invoice.status}. An issued invoice is ` +
+          'immutable and is corrected by a Credit Note.',
+        { id, status: invoice.status },
+      );
+    }
+
+    let partyId = invoice.partyId;
+    if (input.partyId !== undefined) {
+      const party = await this.prisma.party.findFirst({
+        where: { id: input.partyId, isActive: true, roles: { has: 'CUSTOMER' } },
+      });
+      if (!party) {
+        throw validationFailed(
+          `No active Party ${input.partyId} holding the CUSTOMER role.`,
+          { partyId: input.partyId },
+        );
+      }
+      partyId = party.id;
+    }
+
+    const locale = input.locale ?? localeSchema.parse(invoice.locale);
+
+    if (input.lines === undefined) {
+      await this.prisma.document.update({ where: { id }, data: { partyId, locale } });
+      return { id, status: invoice.status };
+    }
+
+    const priced = await priceItems(this.prisma, input.lines);
+    const totals = documentTotals(priced);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.documentLine.deleteMany({ where: { documentId: id } });
+      await tx.documentTaxGroup.deleteMany({ where: { documentId: id } });
+      await tx.document.update({
+        where: { id },
+        data: {
+          partyId,
+          locale,
+          netAmount: totals.netAmount,
+          taxAmount: totals.taxAmount,
+          grossAmount: totals.grossAmount,
+        },
+      });
+      await tx.documentLine.createMany({
+        data: priced.map((line, position) => ({ documentId: id, ...lineRow(line, position) })),
+      });
+      await tx.documentTaxGroup.createMany({
+        data: totals.taxGroups.map((group, position) => ({
+          documentId: id,
+          position,
+          rate: group.rate,
+          base: group.base,
+          amount: group.amount,
+        })),
+      });
+    });
+
+    await this.audit.record(
+      this.prisma,
+      {
+        action: 'customer-invoice.updated',
+        entityType: CUSTOMER_INVOICE,
+        entityId: id,
+        after: { status: invoice.status, grossAmount: totals.grossAmount },
+      },
+      { ...actor, ipAddress: ipAddress ?? null },
+    );
+
+    return { id, status: invoice.status };
   }
 
   /**

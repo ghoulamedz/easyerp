@@ -10,8 +10,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { PurchaseOrderEditForm } from './purchase-order-edit-form';
-import { ProductionOrderEditForm } from './production-order-edit-form';
+import { PurchaseOrderUnifiedForm } from './purchase-order-unified';
+import { ProductionOrderUnifiedForm } from './production-order-unified';
 import { UnitEditForm } from './unit-edit-form';
 import { RoleEditForm } from './role-edit-form';
 import { LabelEditForm } from './label-edit-form';
@@ -59,11 +59,12 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-describe('PurchaseOrderEditForm', () => {
-  it('prefills the draft and replaces the whole line set without a businessId', async () => {
+describe('PurchaseOrderUnifiedForm (edit)', () => {
+  it('prefills the draft and replaces the whole line set, keeping the supplier', async () => {
     const seen: Seen[] = [];
     mockFetch(
       {
+        '/api/settings/business': { id: 'b-1', displayName: 'My Company' },
         '/api/parties': parties,
         '/api/items': items,
         '/api/purchasing/orders/o-1': {
@@ -76,7 +77,7 @@ describe('PurchaseOrderEditForm', () => {
       seen,
     );
     const user = userEvent.setup();
-    render(<PurchaseOrderEditForm locale="en" id="o-1" />);
+    render(<PurchaseOrderUnifiedForm locale="en" id="o-1" />);
 
     expect(await screen.findByLabelText('Supplier')).toBeInTheDocument();
     expect(screen.getByLabelText('Quantity')).toHaveValue('2');
@@ -86,7 +87,7 @@ describe('PurchaseOrderEditForm', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]).toEqual({
       url: '/api/purchasing/orders/o-1',
-      method: 'POST',
+      method: 'PATCH',
       body: { partyId: 'p-1', lines: [{ itemId: 'i-1', quantity: '2' }] },
     });
   });
@@ -95,13 +96,14 @@ describe('PurchaseOrderEditForm', () => {
     const seen: Seen[] = [];
     mockFetch(
       {
+        '/api/settings/business': { id: 'b-1', displayName: 'My Company' },
         '/api/parties': parties,
         '/api/items': items,
         '/api/purchasing/orders/o-9': { id: 'o-9', status: 'ISSUED', party: null, lines: [] },
       },
       seen,
     );
-    render(<PurchaseOrderEditForm locale="en" id="o-9" />);
+    render(<PurchaseOrderUnifiedForm locale="en" id="o-9" />);
 
     expect(await screen.findByText('Only drafts can be edited.')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
@@ -109,11 +111,12 @@ describe('PurchaseOrderEditForm', () => {
   });
 });
 
-describe('ProductionOrderEditForm', () => {
+describe('ProductionOrderUnifiedForm (edit)', () => {
   it('sends lines only: the drafted version is immutable', async () => {
     const seen: Seen[] = [];
     mockFetch(
       {
+        '/api/settings/business': { id: 'b-1', displayName: 'My Company' },
         '/api/items': items,
         '/api/production/orders/o-2': {
           id: 'o-2',
@@ -124,7 +127,7 @@ describe('ProductionOrderEditForm', () => {
       seen,
     );
     const user = userEvent.setup();
-    render(<ProductionOrderEditForm locale="en" id="o-2" />);
+    render(<ProductionOrderUnifiedForm locale="en" id="o-2" />);
 
     expect(await screen.findByLabelText('Quantity')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -133,7 +136,7 @@ describe('ProductionOrderEditForm', () => {
     expect(seen).toHaveLength(1);
     expect(seen[0]).toEqual({
       url: '/api/production/orders/o-2',
-      method: 'POST',
+      method: 'PATCH',
       body: { lines: [{ itemId: 'i-1', quantity: '4' }] },
     });
   });

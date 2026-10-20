@@ -8,7 +8,7 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { PurchaseOrderForm } from './purchase-order-form';
+import { PurchaseOrderUnifiedForm } from './purchase-order-unified';
 
 const push = vi.fn();
 const refresh = vi.fn();
@@ -43,7 +43,7 @@ beforeEach(() => {
   }) as unknown as typeof fetch;
 });
 
-describe('PurchaseOrderForm', () => {
+describe('PurchaseOrderUnifiedForm', () => {
   it('drafts the order with supplier, item and quantity, then returns to the list', async () => {
     const user = userEvent.setup();
     const seen: { url: string; body: unknown }[] = [];
@@ -63,7 +63,7 @@ describe('PurchaseOrderForm', () => {
       },
     );
 
-    render(<PurchaseOrderForm locale="en" />);
+    render(<PurchaseOrderUnifiedForm locale="en" />);
 
     expect(await screen.findByLabelText('Supplier')).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Supplier'), 'p-1');
@@ -98,7 +98,7 @@ describe('PurchaseOrderForm', () => {
       };
     });
 
-    render(<PurchaseOrderForm locale="en" />);
+    render(<PurchaseOrderUnifiedForm locale="en" />);
 
     expect(await screen.findByLabelText('Supplier')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Add a line' }));
@@ -121,7 +121,7 @@ describe('PurchaseOrderForm', () => {
       }
       return baseImpl!(url, init);
     });
-    render(<PurchaseOrderForm locale="en" />);
+    render(<PurchaseOrderUnifiedForm locale="en" />);
     const cancel = await screen.findByRole('button', { name: 'Cancel' });
     await user.click(cancel);
     expect(push).toHaveBeenCalledWith('/en/purchasing/orders');

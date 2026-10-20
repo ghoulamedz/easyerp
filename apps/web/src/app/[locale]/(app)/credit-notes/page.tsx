@@ -31,6 +31,8 @@ export default async function CreditNotesPage({ params }: { params: Promise<{ lo
         addFirstKey="addFirstCreditNote"
         emptyKey="noCreditNotes"
         detailBaseHref={`/${typedLocale}/credit-notes`}
+        editPermission="credit-note:update"
+        editBaseHref={`/${typedLocale}/credit-notes`}
         issuePermission="credit-note:issue"
       />
     </div>

@@ -19,6 +19,7 @@ import {
   HttpStatus,
   NotFoundException,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -71,6 +72,21 @@ export class CustomerInvoiceController {
    * did not exist before — a number, a fiscal artifact and a printable paper.
    */
   @RequirePermissions('customer-invoice:issue')
+  /**
+   * Edit a Draft invoice. The status check here is the readable half of a rule the
+   * database triggers enforce on the document and on its lines (ADR 0006, ADR 0018).
+   */
+  @RequirePermissions('customer-invoice:update')
+  @Patch(':id')
+  update(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: SessionUser,
+    @Req() request: Request,
+  ) {
+    return this.invoices.update(id, body, actorOf(user), ipOf(request));
+  }
+
   @Post(':id/issue')
   @HttpCode(HttpStatus.CREATED)
   async issue(

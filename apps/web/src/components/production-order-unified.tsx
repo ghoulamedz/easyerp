@@ -1,4 +1,3 @@
-/* eslint-disable @next/next/no-sync-scripts -- false positive on useState declarations */
 'use client';
 /**
  * Production Order form — unified for create and edit.
@@ -73,10 +72,14 @@ export function ProductionOrderUnifiedForm({
   ]);
 
   const [loadingRefs, setLoadingRefs] = useState(true);
-  const [loadingOrder, setLoadingOrder] = useState(true);
+  // Only an edit has an order to load; a create is ready as soon as the reference
+  // lists arrive. Deriving it from the prop keeps the effect free of setState.
+  const [loadingOrder, setLoadingOrder] = useState(Boolean(id));
   const [loadingVersions, setLoadingVersions] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const missingRefs = boms.length === 0 || items.length === 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +117,9 @@ export function ProductionOrderUnifiedForm({
         if (order) {
           if (order.status !== 'DRAFT') {
             setError(t('editOnlyDraft'));
+            // Returning from inside `.then` skips the `setLoadingRefs(false)` at its
+            // end, so the refusal has to clear it itself.
+            setLoadingRefs(false);
             return;
           }
           if (id) {
@@ -148,7 +154,6 @@ export function ProductionOrderUnifiedForm({
       .catch((err) => {
         if (!cancelled) setError(err instanceof Error ? err.message : t('loadFailed'));
       })
-      // eslint-disable-next-line @next/next/no-sync-scripts -- loading state transitions are synchronous by design
       .finally(() => {
         if (!cancelled) setLoadingOrder(false);
       });
@@ -166,9 +171,9 @@ export function ProductionOrderUnifiedForm({
     setWorking(true);
 
     try {
-      let res: Response;
+      let saved: ProductionOrder;
       if (id) {
-        res = await apiSend(`/production/orders/${id}`, 'PATCH', {
+        saved = await apiSend(`/production/orders/${id}`, 'PATCH', {
           lines: lines
             .filter((line) => line.itemId !== '')
             .map((line) => ({
@@ -178,7 +183,7 @@ export function ProductionOrderUnifiedForm({
             })),
         });
       } else {
-        res = await apiSend('/production/orders', 'POST', {
+        saved = await apiSend('/production/orders', 'POST', {
           businessId,
           bomVersionId,
           lines: lines
@@ -190,19 +195,11 @@ export function ProductionOrderUnifiedForm({
             })),
         });
       }
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message ?? t('saveFailed'));
 
+      // `apiSend` throws an `ApiError` whose message the API already localized, so a
+      // refusal reaches the reader verbatim instead of as "Save failed".
       if (action === 'issue') {
-        const issueRes = await apiSend<{ ok: boolean; message?: string }>(
-          `/production/orders/${data.id}/issue`,
-          'POST',
-          {},
-        );
-        if (!issueRes.ok) {
-          const issueData = issueRes;
-          throw new Error(issueData.message ?? t('issueFailed'));
-        }
+        await apiSend(`/production/orders/${saved.id}/issue`, 'POST');
       }
 
       router.push(`/${locale}/production/orders`);
@@ -292,6 +289,7 @@ export function ProductionOrderUnifiedForm({
                   <select
                     id={`line-item-${line.key}`}
                     required
+                    disabled={items.length === 0}
                     value={line.itemId}
                     onChange={(e) =>
                       setLines(

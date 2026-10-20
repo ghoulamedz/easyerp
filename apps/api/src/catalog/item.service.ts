@@ -20,8 +20,10 @@
  */
 
 import { Injectable } from '@nestjs/common';
+import { Decimal } from 'decimal.js';
 
 import {
+  itemCreateSchema,
   itemInputSchema,
   itemListQuerySchema,
   itemSchema,
@@ -32,6 +34,7 @@ import {
 import { AuditService } from '../audit/audit.service.js';
 import { conflict, notFound, validationFailed } from '../common/errors.js';
 import { Prisma } from '../generated/prisma/index.js';
+import { StockLedgerService } from '../inventory/stock-ledger.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 const ITEM_ENTITY = 'ITEM';
@@ -95,14 +98,28 @@ export class ItemService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly ledger: StockLedgerService,
   ) {}
 
+  /**
+   * Create an Item, and the opening quantity it starts with.
+   *
+   * The quantity is optional and zero by default. When it is not zero it becomes
+   * the Item's first Stock Ledger Entry (`OPENING_BALANCE`) inside the *same*
+   * transaction as the Item row: an Item that exists while its opening quantity
+   * silently failed to land is an inventory that disagrees with its own catalog,
+   * and there is no later screen that could notice.
+   *
+   * From then on the ledger is the only way the quantity moves (ADR 0004). The
+   * field is not stored on the Item, is not accepted by `update`, and the stock
+   * screen is where it is corrected.
+   */
   async create(
     input: unknown,
     actor: { id: string; email: string },
     ipAddress?: string | null,
   ): Promise<Item> {
-    const parsed = itemInputSchema.parse(input);
+    const parsed = itemCreateSchema.parse(input);
     await this.assertReferences(
       parsed.baseUnitId,
       parsed.purchaseUnitId,
@@ -111,23 +128,47 @@ export class ItemService {
     );
 
     try {
-      const row = await this.prisma.item.create({
-        data: {
-          code: parsed.code,
-          name: parsed.name,
-          description: parsed.description,
-          itemType: parsed.itemType,
-          baseUnitId: parsed.baseUnitId,
-          purchaseUnitId: parsed.purchaseUnitId,
-          saleUnitId: parsed.saleUnitId,
-          taxRateId: parsed.taxRateId,
-          fodecSubject: parsed.fodecSubject,
-          salePrice: parsed.salePrice,
-          purchasePrice: parsed.purchasePrice,
-          reorderPoint: parsed.reorderPoint,
-          isActive: parsed.isActive,
-          customFields: (parsed.customFields ?? {}) as Prisma.InputJsonValue,
-        },
+      const row = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.item.create({
+          data: {
+            code: parsed.code,
+            name: parsed.name,
+            description: parsed.description,
+            itemType: parsed.itemType,
+            baseUnitId: parsed.baseUnitId,
+            purchaseUnitId: parsed.purchaseUnitId,
+            saleUnitId: parsed.saleUnitId,
+            taxRateId: parsed.taxRateId,
+            fodecSubject: parsed.fodecSubject,
+            salePrice: parsed.salePrice,
+            purchasePrice: parsed.purchasePrice,
+            reorderPoint: parsed.reorderPoint,
+            isActive: parsed.isActive,
+            customFields: (parsed.customFields ?? {}) as Prisma.InputJsonValue,
+          },
+        });
+
+        const opening = new Decimal(parsed.initialQuantity);
+        if (!opening.isZero()) {
+          const entry = await this.ledger.appendEntry(tx, {
+            itemId: created.id,
+            reason: 'OPENING_BALANCE',
+            quantity: opening,
+            createdByUserId: actor.id ?? null,
+          });
+          await this.audit.record(
+            tx,
+            {
+              action: 'stock.opening_balance',
+              entityType: ITEM_ENTITY,
+              entityId: created.id,
+              after: { entryId: entry.id, quantity: entry.quantity.toFixed(3) },
+            },
+            { ...actor, ipAddress: ipAddress ?? null },
+          );
+        }
+
+        return created;
       });
       const record = toRecord(row);
       await this.audit.record(

@@ -1,19 +1,36 @@
 'use client';
 
 /**
- * New Delivery Note form (standalone, or fulfilling a Sales Order).
+ * Delivery Note form — unified for create and edit.
  *
- * A note may fulfil a Sales Order, but it never has to (expansion Q11): without
- * a linked order this form drafts the standalone note — recipient plus lines.
- * Picking an issued order prefills the lines still open on it (quantity minus
- * deliveredQuantity, fully-delivered lines skipped) and locks the recipient to
- * the order's customer. Stock moves only on issue, from the list, never from
- * this draft.
+ * A note either fulfils an issued Sales Order or stands alone. When it fulfils one,
+ * picking the order prefills the lines with what is still open — the quantities
+ * promised but not yet shipped — because those are the only lines a note against
+ * that order may carry.
+ *
+ * Create (no `id`): `POST /sales/delivery-notes`. Edit (`id`): `PATCH
+ * /sales/delivery-notes/:id`.
+ *
+ * On an edit the fulfilled order is **shown and not chosen**. It is the document's
+ * identity — the server refuses a patch that moves it, and a note that changed the
+ * order it ships would leave its lines pointing at another order's lines. The
+ * recipient stays editable, except that a note fulfilling an order must ship to that
+ * order's Customer, which the server enforces and this screen mirrors by disabling
+ * the select.
+ *
+ * Issuing is what moves stock and releases Reservations; a draft edit moves neither
+ * (ADR 0004).
  */
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import type { BusinessProfile, DocumentSummary, Item, Party } from '@easyerp/contracts';
+import type {
+  BusinessProfile,
+  DeliveryNote,
+  DocumentSummary,
+  Item,
+  Party,
+} from '@easyerp/contracts';
 import { apiGet, apiSend } from '../lib/api';
 import { translatorFor, type Locale } from '../i18n/config';
 import { Button, Card, CardBody } from './ui';
@@ -88,7 +105,11 @@ function remainingOf(quantity: string, delivered: string): string | null {
   return frac === '' ? whole : `${whole}.${frac}`;
 }
 
-export function DeliveryNoteForm({ locale }: { locale: Locale }) {
+function emptyLine(itemId: string): LineRow {
+  return { key: rowKey(), itemId, quantity: '1', description: '', salesOrderLineId: null };
+}
+
+export function DeliveryNoteUnifiedForm({ locale, id }: { locale: Locale; id?: string }) {
   const t = translatorFor(locale);
   const router = useRouter();
 
@@ -98,24 +119,29 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
   const [items, setItems] = useState<readonly Item[]>([]);
   const [orders, setOrders] = useState<readonly DocumentSummary[]>([]);
   const [salesOrderId, setSalesOrderId] = useState('');
-  const [lines, setLines] = useState<LineRow[]>([
-    { key: 'line-1', itemId: '', quantity: '1', description: '', salesOrderLineId: null },
-  ]);
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [lines, setLines] = useState<LineRow[]>([emptyLine('')]);
 
   const [loadingRefs, setLoadingRefs] = useState(true);
+  const [loadingNote, setLoadingNote] = useState(Boolean(id));
   const [loadingLines, setLoadingLines] = useState(false);
   const [working, setWorking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isEdit = Boolean(id);
+  const missingRefs = parties.length === 0 || items.length === 0;
+
   useEffect(() => {
     let cancelled = false;
+
     Promise.all([
       apiGet<BusinessProfile>('/settings/business'),
       apiGet<unknown>('/parties'),
       apiGet<unknown>('/items'),
       apiGet<unknown>('/sales/orders'),
+      id ? apiGet<DeliveryNote>(`/sales/delivery-notes/${id}`) : Promise.resolve(null),
     ])
-      .then(([profile, p, i, o]) => {
+      .then(([profile, p, i, o, note]) => {
         if (cancelled) return;
         setBusinessId(profile.id);
         const customers = asArray<Party>(p).filter((party) => party.roles.includes('CUSTOMER'));
@@ -125,25 +151,48 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
         // Only an issued order can be shipped against: reservations are created
         // at issue, so only issued orders have reservable lines.
         setOrders(asArray<DocumentSummary>(o).filter((order) => order.status === 'ISSUED'));
-        if (customers.length > 0) setPartyId(customers[0]?.id ?? '');
-        setLines((prev) =>
-          prev.map((line, index) =>
-            index === 0 && line.itemId === '' ? { ...line, itemId: stocked[0]?.id ?? '' } : line,
-          ),
-        );
+
+        if (note && note.status !== 'DRAFT') {
+          setError(t('editOnlyDraft'));
+          setLoadingRefs(false);
+          return;
+        }
+
+        if (note) {
+          setPartyId(note.party?.id ?? '');
+          setSalesOrderId(note.salesOrderId ?? '');
+          setLines(
+            note.lines.length > 0
+              ? note.lines.map((line) => ({
+                  key: rowKey(),
+                  itemId: line.itemId,
+                  quantity: line.quantity,
+                  description: line.description,
+                  salesOrderLineId: line.salesOrderLineId,
+                }))
+              : [emptyLine(stocked[0]?.id ?? '')],
+          );
+        } else if (customers.length > 0) {
+          const first = customers[0]!;
+          const firstItem = stocked[0];
+          setPartyId(first.id);
+          setLines([emptyLine(firstItem?.id ?? '')]);
+        }
+        setLoadingRefs(false);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : t('loadFailed'));
       })
       .finally(() => {
-        if (!cancelled) setLoadingRefs(false);
+        if (!cancelled) setLoadingNote(false);
       });
+
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [id, locale, t]);
 
+  // Picking an order (a create-time choice only) prefills what is still open.
   useEffect(() => {
     if (salesOrderId === '') return;
     let cancelled = false;
@@ -151,6 +200,9 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
       .then((detail) => {
         if (cancelled) return;
         setPartyId(detail.partyId);
+        setOrderNumber(
+          orders.find((order) => order.id === salesOrderId)?.number ?? null,
+        );
         const open = detail.lines.flatMap((line) => {
           const remaining = remainingOf(line.quantity, line.deliveredQuantity);
           if (remaining === null) return [];
@@ -164,19 +216,7 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
             },
           ];
         });
-        setLines(
-          open.length > 0
-            ? open
-            : [
-                {
-                  key: rowKey(),
-                  itemId: items[0]?.id ?? '',
-                  quantity: '1',
-                  description: '',
-                  salesOrderLineId: null,
-                },
-              ],
-        );
+        setLines(open.length > 0 ? open : [emptyLine(items[0]?.id ?? '')]);
       })
       .catch((e) => {
         if (!cancelled) setError(e instanceof Error ? e.message : t('loadFailed'));
@@ -187,55 +227,61 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salesOrderId]);
+  }, [salesOrderId, items, orders]);
 
   const onPickOrder = (next: string): void => {
     setSalesOrderId(next);
     if (next === '') {
       // Back to standalone: the link ids leave with the order.
-      setLines([
-        {
-          key: rowKey(),
-          itemId: items[0]?.id ?? '',
-          quantity: '1',
-          description: '',
-          salesOrderLineId: null,
-        },
-      ]);
+      setLines([emptyLine(items[0]?.id ?? '')]);
+      setOrderNumber(null);
     } else {
       setLoadingLines(true);
     }
   };
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>): Promise<void> => {
+  const onSubmit = async (event: FormEvent, action: 'save' | 'issue'): Promise<void> => {
     event.preventDefault();
-    setWorking(true);
     setError(null);
+    setWorking(true);
+
+    const payload = {
+      partyId,
+      lines: lines
+        .filter((line) => line.itemId !== '')
+        .map((line) => ({
+          itemId: line.itemId,
+          quantity: line.quantity.trim(),
+          ...(line.description.trim() === '' ? {} : { description: line.description.trim() }),
+          ...(line.salesOrderLineId ? { salesOrderLineId: line.salesOrderLineId } : {}),
+        })),
+    };
+
     try {
-      await apiSend('/sales/delivery-notes', 'POST', {
-        businessId,
-        partyId,
-        ...(salesOrderId === '' ? {} : { salesOrderId }),
-        lines: lines
-          .filter((line) => line.itemId !== '')
-          .map((line) => ({
-            itemId: line.itemId,
-            quantity: line.quantity.trim(),
-            ...(line.description.trim() === '' ? {} : { description: line.description.trim() }),
-            ...(line.salesOrderLineId ? { salesOrderLineId: line.salesOrderLineId } : {}),
-          })),
-      });
+      const saved = id
+        ? await apiSend<DeliveryNote>(`/sales/delivery-notes/${id}`, 'PATCH', payload)
+        : await apiSend<DeliveryNote>('/sales/delivery-notes', 'POST', {
+            businessId,
+            // The order link is a create-time decision; a patch that moved it is
+            // refused, because the lines below name that order's lines.
+            ...(salesOrderId === '' ? {} : { salesOrderId }),
+            ...payload,
+          });
+
+      if (action === 'issue') {
+        await apiSend(`/sales/delivery-notes/${saved.id}/issue`, 'POST');
+      }
+
       router.push(`/${locale}/delivery-notes`);
       router.refresh();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t('loadFailed'));
+      setError(failure instanceof Error ? failure.message : t('saveFailed'));
     } finally {
       setWorking(false);
     }
   };
 
-  if (loadingRefs) {
+  if (loadingRefs || loadingNote) {
     return (
       <Card>
         <CardBody>
@@ -245,25 +291,56 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
     );
   }
 
+  if (error) {
+    return (
+      <Card>
+        <CardBody>
+          <p role="alert" className="flex items-start gap-2 text-sm text-danger">
+            <IconAlert className="mt-0.5 size-4 shrink-0" />
+            {error}
+          </p>
+        </CardBody>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardBody>
-        <form onSubmit={onSubmit} className="space-y-4">
+        <form className="space-y-4">
+          {missingRefs ? (
+            <div className="rounded-lg border border-line bg-surface-sunken p-3 text-sm text-ink-muted">
+              {parties.length === 0 && items.length === 0
+                ? t('createCustomerAndItemFirst')
+                : parties.length === 0
+                  ? t('createCustomerFirst')
+                  : t('createItemFirst')}
+            </div>
+          ) : null}
+
           <div>
             <Label htmlFor="note-order">{t('linkOrder')}</Label>
-            <select
-              id="note-order"
-              value={salesOrderId}
-              onChange={(e) => onPickOrder(e.target.value)}
-              className={FIELD}
-            >
-              <option value="">—</option>
-              {orders.map((order) => (
-                <option key={order.id} value={order.id}>
-                  {order.number ?? t('statusDraft')} — {order.partyName}
-                </option>
-              ))}
-            </select>
+            {isEdit ? (
+              // The order a note fulfils is its identity, not a field: the server
+              // refuses a patch that moves it.
+              <p className="text-sm text-ink" id="note-order">
+                {salesOrderId === '' ? '—' : (orderNumber ?? salesOrderId)}
+              </p>
+            ) : (
+              <select
+                id="note-order"
+                value={salesOrderId}
+                onChange={(e) => onPickOrder(e.target.value)}
+                className={FIELD}
+              >
+                <option value="">—</option>
+                {orders.map((order) => (
+                  <option key={order.id} value={order.id}>
+                    {order.number ?? t('statusDraft')} — {order.partyName}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {loadingLines ? <p className="text-sm text-ink-muted">{t('loading')}</p> : null}
@@ -273,8 +350,8 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
             <select
               id="note-party"
               required
+              disabled={salesOrderId !== '' || parties.length === 0}
               value={partyId}
-              disabled={salesOrderId !== ''}
               onChange={(e) => setPartyId(e.target.value)}
               className={FIELD}
             >
@@ -295,9 +372,12 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
                   <select
                     id={`line-item-${line.key}`}
                     required
+                    disabled={items.length === 0}
                     value={line.itemId}
                     onChange={(e) =>
-                      setLines(lines.map((l) => (l.key === line.key ? { ...l, itemId: e.target.value } : l)))
+                      setLines(
+                        lines.map((l) => (l.key === line.key ? { ...l, itemId: e.target.value } : l)),
+                      )
                     }
                     className={FIELD}
                   >
@@ -317,7 +397,9 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
                     inputMode="decimal"
                     value={line.quantity}
                     onChange={(e) =>
-                      setLines(lines.map((l) => (l.key === line.key ? { ...l, quantity: e.target.value } : l)))
+                      setLines(
+                        lines.map((l) => (l.key === line.key ? { ...l, quantity: e.target.value } : l)),
+                      )
                     }
                     className={FIELD}
                   />
@@ -328,7 +410,9 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
                     id={`line-desc-${line.key}`}
                     value={line.description}
                     onChange={(e) =>
-                      setLines(lines.map((l) => (l.key === line.key ? { ...l, description: e.target.value } : l)))
+                      setLines(
+                        lines.map((l) => (l.key === line.key ? { ...l, description: e.target.value } : l)),
+                      )
                     }
                     className={FIELD}
                   />
@@ -348,29 +432,11 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
               type="button"
               variant="secondary"
               size="sm"
-              onClick={() =>
-                setLines([
-                  ...lines,
-                  {
-                    key: rowKey(),
-                    itemId: items[0]?.id ?? '',
-                    quantity: '1',
-                    description: '',
-                    salesOrderLineId: null,
-                  },
-                ])
-              }
+              onClick={() => setLines([...lines, emptyLine(items[0]?.id ?? '')])}
             >
               {t('orderAddLine')}
             </Button>
           </fieldset>
-
-          {error ? (
-            <p role="alert" className="flex items-start gap-2 text-sm text-danger">
-              <IconAlert className="mt-0.5 size-4 shrink-0" />
-              {error}
-            </p>
-          ) : null}
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
@@ -380,12 +446,27 @@ export function DeliveryNoteForm({ locale }: { locale: Locale }) {
                 router.push(`/${locale}/delivery-notes`);
                 router.refresh();
               }}
-              className="w-full"
+              className="w-full sm:w-auto"
             >
               {t('cancel')}
             </Button>
-            <Button type="submit" variant="primary" disabled={working} className="w-full">
-              {working ? t('formCreating') : t('formCreate')}
+            <Button
+              type="submit"
+              variant="primary"
+              disabled={working || missingRefs}
+              onClick={(e) => void onSubmit(e, 'save')}
+              className="w-full sm:w-auto"
+            >
+              {working ? t('formSaving') : isEdit ? t('formSave') : t('formCreate')}
+            </Button>
+            <Button
+              type="submit"
+              variant="secondary"
+              disabled={working || !isEdit || missingRefs}
+              onClick={(e) => void onSubmit(e, 'issue')}
+              className="w-full sm:w-auto"
+            >
+              {working ? t('formIssuing') : t('formIssue')}
             </Button>
           </div>
         </form>

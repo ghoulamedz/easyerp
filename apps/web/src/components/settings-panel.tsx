@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { LocaleSwitcher } from './locale-switcher';
+import { SettingsNav } from './settings-nav';
 import { ThemeSwitch } from './theme-switch';
 import { Button, Card, CardBody, CardHeader } from './ui';
 import { ApiError, apiGet, apiSend } from '../lib/api';
@@ -131,6 +132,16 @@ export function SettingsPanel({ locale }: { locale: Locale }) {
 
   return (
     <div className="space-y-4">
+      {/* First, because it is the way to everything else: the rail links to
+          `/settings` and stops there, so without this list the seven screens below
+          are reachable only by typing their URL. */}
+      <Card>
+        <CardHeader title={t('settingsTitle')} />
+        <CardBody>
+          <SettingsNav locale={locale} />
+        </CardBody>
+      </Card>
+
       <Card>
         <CardHeader title={t('settingsAppearance')} />
         <CardBody>

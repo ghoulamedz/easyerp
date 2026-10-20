@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { CreditNoteForm } from '@/components/credit-note-form';
+import { CreditNoteUnifiedForm } from '@/components/credit-note-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -20,7 +20,7 @@ export default async function NewCreditNotePage({ params }: { params: Promise<{ 
   return (
     <div className="space-y-6">
       <PageHeader title={t('newCreditNote')} description={t('creditNotesDescription')} />
-      <CreditNoteForm locale={typedLocale} />
+      <CreditNoteUnifiedForm locale={typedLocale} />
     </div>
   );
 }
