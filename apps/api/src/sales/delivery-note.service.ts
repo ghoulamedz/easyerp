@@ -406,10 +406,21 @@ export class DeliveryNoteService {
 
       // Goods (not services) move the ledger. The order of the loop is
       // deterministic, so the ledger's running balance reads the same across retries.
+      //
+      // The item types are read in *one* query rather than one per line: this loop runs
+      // inside the transaction that holds the Item row locks, so a round trip per line
+      // lengthens the lock window on a remote database for an answer that is a single
+      // `in` list away.
+      const lineItems = await tx.item.findMany({
+        where: { id: { in: [...new Set(child.lines.map((line) => line.itemId))] } },
+        select: { id: true, itemType: true },
+      });
+      const itemTypeById = new Map(lineItems.map((item) => [item.id, item.itemType]));
+
       for (const line of child.lines) {
-        const item = await tx.item.findUnique({ where: { id: line.itemId } });
-        invariant(item, `Item ${line.itemId} vanished while issuing ${noteId}.`);
-        if (item.itemType === 'SERVICE') continue;
+        const itemType = itemTypeById.get(line.itemId);
+        invariant(itemType !== undefined, `Item ${line.itemId} vanished while issuing ${noteId}.`);
+        if (itemType === 'SERVICE') continue;
 
         await this.stock.appendEntry(tx, {
           itemId: line.itemId,

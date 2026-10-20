@@ -206,7 +206,9 @@ export function ProductionOrderUnifiedForm({
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : t(action === 'issue' ? 'issueFailed' : 'saveFailed'));
-    } finally {
+      // Re-enable only when the write failed. On success the screen is leaving,
+      // and clearing the flag while Next navigates is what made the button
+      // clickable again mid-navigation — a second click then posts twice.
       setWorking(false);
     }
   };

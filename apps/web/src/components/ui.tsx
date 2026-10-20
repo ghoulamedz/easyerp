@@ -5,6 +5,7 @@
  */
 
 import type { ComponentPropsWithoutRef, ElementType, ReactNode } from 'react';
+import { BackButton } from './back-button';
 
 export function cx(...values: (string | false | null | undefined)[]): string {
   return values.filter(Boolean).join(' ');
@@ -167,18 +168,29 @@ export function Select({ value, onChange, options, className }: SelectProps) {
 
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The heading every screen opens with.
+ *
+ * It carries the back control, so every screen has one from a single change rather
+ * than fifty-eight. `hideBack` exists for the two screens where a back control is
+ * meaningless — the dashboard, which is where back lands, and sign-in, which a
+ * signed-out visitor has nowhere to go back from.
+ */
 export function PageHeader({
   title,
   description,
   action,
+  hideBack = false,
 }: {
   title: string;
   description?: string;
   action?: ReactNode;
+  hideBack?: boolean;
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
+        {hideBack ? null : <BackButton />}
         <h1 className="text-xl font-semibold tracking-tight text-ink">{title}</h1>
         {description ? (
           <p className="mt-1 max-w-2xl text-sm text-ink-muted">{description}</p>
@@ -191,4 +203,58 @@ export function PageHeader({
 
 export function EmptyState({ children }: { children: ReactNode }) {
   return <p className="py-8 text-center text-sm text-ink-muted">{children}</p>;
+}
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A placeholder with the shape of the thing that is coming.
+ *
+ * Perceived speed is not the same as speed: a screen that shows the layout of its
+ * content immediately reads as working, while a bare "Loading…" line reads as stuck —
+ * and on a free-tier database the wait is real and not ours to remove. These carry
+ * `aria-hidden` and the container announces itself with `role="status"`, so a screen
+ * reader hears "loading" once rather than a dozen empty boxes.
+ */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={cx('animate-pulse rounded-md bg-surface-sunken', className)}
+    />
+  );
+}
+
+/** A stack of rows shaped like a list, for a screen whose table is still loading. */
+export function SkeletonRows({ rows = 4, className }: { rows?: number; className?: string }) {
+  return (
+    <div role="status" aria-live="polite" className={cx('space-y-3', className)}>
+      <span className="sr-only">Loading</span>
+      {Array.from({ length: rows }, (_, index) => (
+        <div key={index} className="flex items-center gap-3 py-3">
+          <Skeleton className="size-9 shrink-0 rounded-lg" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-3.5 w-1/3" />
+            <Skeleton className="h-3 w-1/5" />
+          </div>
+          <Skeleton className="h-3.5 w-16" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The header a screen is about to draw, so the page does not jump when it arrives. */
+export function SkeletonPage() {
+  return (
+    <div role="status" aria-live="polite" className="space-y-6">
+      <span className="sr-only">Loading</span>
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-3.5 w-72" />
+      </div>
+      <div className="rounded-xl border border-line bg-surface-raised p-5">
+        <SkeletonRows rows={5} />
+      </div>
+    </div>
+  );
 }

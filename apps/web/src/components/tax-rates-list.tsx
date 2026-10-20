@@ -17,7 +17,7 @@ import { ApiError, apiSend } from '../lib/api';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
 import { TaxRateForm } from './tax-rate-form';
-import { Button } from './ui';
+import { Button, SkeletonRows } from './ui';
 
 const EMPTY_DATE = '—';
 
@@ -51,7 +51,9 @@ function TaxRatesListBody({ locale, onDone }: { locale: Locale; onDone: () => vo
   }
 
   if (result.state === 'loading') {
-    return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
+    // A skeleton with the shape of the rows, not a line of text: the wait is real on a
+    // free-tier database, and a screen that shows its layout reads as working.
+    return <SkeletonRows rows={5} className="py-4" />;
   }
 
   if (result.state === 'failed') {

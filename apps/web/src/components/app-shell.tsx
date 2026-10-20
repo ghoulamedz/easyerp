@@ -16,6 +16,7 @@ import { LocaleSwitcher } from './locale-switcher';
 import { MobileNav } from './mobile-nav';
 import { ThemeSwitch } from './theme-switch';
 import { isNavVisible, useModuleStates } from '../lib/use-modules';
+import { forgetSession } from '../lib/client-session';
 import { translatorFor, type Locale } from '../i18n/config';
 import { IconLogout } from './icons';
 
@@ -35,6 +36,7 @@ export function AppShell({ locale, children }: { locale: Locale; children: React
         setSignOutFailed(true);
         return;
       }
+      forgetSession();
       window.location.href = `/${locale}/sign-in`;
     } catch {
       setSignOutFailed(true);

@@ -31,35 +31,35 @@ export class DocumentListService {
     const where = {
       type: type as string,
       ...(parsed.status ? { status: parsed.status } : {}),
-      ...(parsed.q
-        ? { number: { contains: parsed.q, mode: 'insensitive' as const } }
-        : {}),
+      ...(parsed.q ? { number: { contains: parsed.q, mode: 'insensitive' as const } } : {}),
     };
 
-    // First, count the total directly.
-    const total = await this.prisma.document.count({ where });
-
-    // First, collect IDs from Prisma (this will be the locked set).
-    const documents = await this.prisma.document.findMany({
-      where,
-      select: {
-        id: true,
-        type: true,
-        status: true,
-        number: true,
-        partyId: true,
-        party: {
-          select: { name: true },
+    // The count and the page are independent reads of the same filter, so they go at
+    // once: awaiting them in sequence cost two round trips on every list screen, and
+    // on a remote database the round trip *is* the cost.
+    const [total, documents] = await Promise.all([
+      this.prisma.document.count({ where }),
+      this.prisma.document.findMany({
+        where,
+        select: {
+          id: true,
+          type: true,
+          status: true,
+          number: true,
+          partyId: true,
+          party: {
+            select: { name: true },
+          },
+          issuedAt: true,
+          grossAmount: true,
+          currency: true,
         },
-        issuedAt: true,
-        grossAmount: true,
-        currency: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      // 1-indexed page: skip the previous pages' worth of rows.
-      skip: (parsed.page - 1) * parsed.pageSize,
-      take: parsed.pageSize,
-    });
+        orderBy: { createdAt: 'desc' },
+        // 1-indexed page: skip the previous pages' worth of rows.
+        skip: (parsed.page - 1) * parsed.pageSize,
+        take: parsed.pageSize,
+      }),
+    ]);
 
     // Now lock those specific rows to prevent stale reads from concurrent mutations.
     const ids: string[] = documents.map((d) => d.id);
@@ -91,7 +91,8 @@ export class DocumentListService {
 
   async find(id: string, type: DocumentType): Promise<DocumentSummary | null> {
     // Lock the document row to prevent stale reads from concurrent mutations.
-    await this.prisma.$queryRaw`SELECT 1 FROM "document" WHERE id = ${id} AND type = ${type} FOR UPDATE`;
+    await this.prisma
+      .$queryRaw`SELECT 1 FROM "document" WHERE id = ${id} AND type = ${type} FOR UPDATE`;
 
     const document = await this.prisma.document.findUnique({
       where: { id },

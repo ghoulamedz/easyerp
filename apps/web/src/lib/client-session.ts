@@ -46,6 +46,42 @@ export async function fetchSession(): Promise<ClientSession | null> {
   }
 }
 
+/**
+ * The one session request in flight, shared by every consumer on the page.
+ *
+ * `fetchSession` costs two round trips (`/api/auth/get-session`, then
+ * `/api/users/me`), and every permission check reads it. Without sharing, those calls
+ * multiply by the number of *controls*, not the number of screens: a five-row document
+ * list asked for the session sixteen times, and a twenty-five-row one would ask
+ * seventy-six times — over 150 requests, each a database round trip on Neon, to answer
+ * a question whose answer cannot change mid-page.
+ *
+ * Sharing the promise, rather than caching a value, keeps every existing caller's
+ * behaviour: each still awaits it, each still sets its own state, and a failure still
+ * resolves to `null` for all of them. What changes is that the first caller does the
+ * work and the rest wait on it.
+ *
+ * `forgetSession()` is what keeps that honest across a sign-in or a sign-out. Those are
+ * the only two moments the answer changes, and both call it.
+ */
+let inFlight: Promise<ClientSession | null> | null = null;
+
+function sharedSession(): Promise<ClientSession | null> {
+  inFlight ??= fetchSession();
+  return inFlight;
+}
+
+/**
+ * Drop the shared answer, so the next caller asks again.
+ *
+ * Called after signing in and after signing out. Permissions are enforced server-side
+ * on every request, so a stale client answer can only ever hide a button — never grant
+ * one — which is why this is a correction rather than a security boundary.
+ */
+export function forgetSession(): void {
+  inFlight = null;
+}
+
 /** Hook to subscribe to session changes. */
 export function useSession() {
   const [session, setSession] = useState<ClientSession | null>(null);
@@ -55,7 +91,7 @@ export function useSession() {
     let cancelled = false;
     const loadSession = async () => {
       setLoading(true);
-      const data = await fetchSession();
+      const data = await sharedSession();
       if (!cancelled) {
         setSession(data);
         setLoading(false);

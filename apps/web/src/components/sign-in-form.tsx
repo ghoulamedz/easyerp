@@ -7,6 +7,7 @@ import { Button, Card, CardBody } from './ui';
 import { useSession } from '../lib/client-session';
 import { IconAlert, IconEye, IconEyeOff } from './icons';
 import { translatorFor, type Locale } from '../i18n/config';
+import { forgetSession } from '../lib/client-session';
 
 /**
  * Sign-in against the API's own Better Auth endpoint.
@@ -37,13 +38,20 @@ export function SignInForm({ locale }: { locale: Locale }) {
       });
       if (!response.ok) {
         setError(t('signInError'));
+        // A refused sign-in stays on this screen, so the button must come back.
+        setWorking(false);
         return;
       }
+      // The session that just began is a different answer from the one the shell
+      // already fetched, and this is a soft navigation, so the shared promise has to
+      // be dropped or the next screen reuses "signed out".
+      forgetSession();
+      // On success the screen is leaving. Clearing the flag here would re-enable
+      // the button while Next navigates, and a second click posts twice.
       router.push(`/${locale}/dashboard`);
       router.refresh();
     } catch {
       setError(t('signInError'));
-    } finally {
       setWorking(false);
     }
   };

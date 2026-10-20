@@ -4,6 +4,7 @@ import type { LabelRecord } from '@easyerp/contracts';
 import { translatorFor, type Locale, type MessageKey } from '../i18n/config';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
+import { SkeletonRows } from './ui';
 
 function labelTypeKey(type: LabelRecord['entityType']): MessageKey {
   return type === 'DOCUMENT' ? 'labelTypeDocument' : 'labelTypeTaxRate';
@@ -15,7 +16,9 @@ export function LabelsList({ locale }: { locale: Locale }) {
   const canManage = useHasPermission('terminology:manage');
 
   if (result.state === 'loading') {
-    return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
+    // A skeleton with the shape of the rows, not a line of text: the wait is real on a
+    // free-tier database, and a screen that shows its layout reads as working.
+    return <SkeletonRows rows={5} className="py-4" />;
   }
 
   if (result.state === 'failed') {

@@ -8,6 +8,7 @@ import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
 import { FilterBar } from './filter-bar';
 import { DocumentActions, printHrefFor } from './document-actions';
+import { SkeletonRows } from './ui';
 
 function statusKey(status: DocumentSummary['status']): MessageKey {
   switch (status) {
@@ -104,7 +105,9 @@ function DocumentListBody({
   const canCreate = useHasPermission(createPermission);
 
   if (result.state === 'loading') {
-    return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
+    // A skeleton with the shape of the rows, not a line of text: the wait is real on a
+    // free-tier database, and a screen that shows its layout reads as working.
+    return <SkeletonRows rows={5} className="py-4" />;
   }
 
   if (result.state === 'failed') {

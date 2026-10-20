@@ -31,30 +31,46 @@ import { apiGet } from './api';
 /** Fired after a Module is switched, so every nav re-reads without a reload. */
 export const MODULES_CHANGED_EVENT = 'easyerp:modules-changed';
 
+/**
+ * The module list in flight, shared by the rail and the mobile drawer.
+ *
+ * Both are mounted at once, so an unshared read asks the API twice for the same
+ * answer on every page. Sharing the promise costs nothing and removes one request.
+ */
+let inFlight: Promise<readonly ModuleState[] | null> | null = null;
+
+function sharedModules(): Promise<readonly ModuleState[] | null> {
+  inFlight ??= apiGet<ModuleState[]>('/settings/modules').then(
+    (data) => (Array.isArray(data) ? data : null),
+    () => null,
+  );
+  return inFlight;
+}
+
 export function useModuleStates(): readonly ModuleState[] | null {
   const [states, setStates] = useState<readonly ModuleState[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const load = (): void => {
-      apiGet<ModuleState[]>('/settings/modules').then(
-        (data) => {
-          if (!cancelled && Array.isArray(data)) setStates(data);
-        },
-        () => {
-          if (!cancelled) setStates(null);
-        },
-      );
+      sharedModules().then((data) => {
+        if (!cancelled) setStates(data);
+      });
     };
 
     load();
     // The settings screen switches a Module in another component tree; without this
     // the rail kept the old list until a full page load, which is what "I turned it
     // off and the link is still there" looked like.
-    window.addEventListener(MODULES_CHANGED_EVENT, load);
+    // A switch invalidates the shared answer as well as re-reading it.
+    const onChanged = (): void => {
+      inFlight = null;
+      load();
+    };
+    window.addEventListener(MODULES_CHANGED_EVENT, onChanged);
     return () => {
       cancelled = true;
-      window.removeEventListener(MODULES_CHANGED_EVENT, load);
+      window.removeEventListener(MODULES_CHANGED_EVENT, onChanged);
     };
   }, []);
 

@@ -65,6 +65,28 @@ describe('SetupScreen defaults', () => {
     expect(screen.getByDisplayValue('TVA07')).toBeInTheDocument();
   });
 
+  it('says which email and password are the login', async () => {
+    // The two fields a person must not mistype: a wrong one means the administrator
+    // they just created cannot sign in, and the only way back is a database edit.
+    renderScreen();
+
+    await screen.findByLabelText('Country (ISO, 2 letters)');
+
+    expect(screen.getByText('This email is used for login.')).toBeInTheDocument();
+    expect(screen.getByText('This password is used for login.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Email address')).toHaveAttribute('autocomplete', 'username');
+  });
+
+  it('asks for one email, not two', async () => {
+    // The business contact email was a second, near-identical box on the same form,
+    // editable from Settings afterwards and printed nowhere.
+    renderScreen();
+
+    await screen.findByLabelText('Country (ISO, 2 letters)');
+
+    expect(screen.getAllByLabelText(/[Ee]mail/)).toHaveLength(1);
+  });
+
   it('does not prefill a token, a company name or a password outside development', async () => {
     renderScreen();
 

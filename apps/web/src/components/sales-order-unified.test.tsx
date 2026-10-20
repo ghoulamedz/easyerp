@@ -79,6 +79,22 @@ describe('SalesOrderUnifiedForm', () => {
     });
   });
 
+  it('keeps the button disabled until the screen leaves', async () => {
+    // The report was "it greys out a little but returns clickable before the next
+    // page". `router.push` is a mock here that never navigates, so a button that
+    // re-enabled would be clickable now — and a second click would post a second
+    // draft. The flag is cleared only on failure.
+    const user = userEvent.setup();
+    render(<SalesOrderUnifiedForm locale="en" />);
+
+    expect(await screen.findByLabelText('Customer')).toBeInTheDocument();
+    const create = screen.getByRole('button', { name: 'Create' });
+    await user.click(create);
+
+    await waitFor(() => expect(push).toHaveBeenCalledWith('/en/sales-orders'));
+    expect(screen.getByRole('button', { name: 'Saving…' })).toBeDisabled();
+  });
+
   it('grows lines and shows the refusal without navigating', async () => {
     const user = userEvent.setup();
     (global.fetch as ReturnType<typeof vi.fn>).mockImplementation(async (url: unknown) => {

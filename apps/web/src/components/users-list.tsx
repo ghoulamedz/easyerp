@@ -19,6 +19,7 @@ import { ApiError, apiGet, apiSend } from '../lib/api';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
 import { FilterBar } from './filter-bar';
+import { SkeletonRows } from './ui';
 
 function failureMessage(failure: unknown, fallback: string): string {
   if (failure instanceof ApiError || failure instanceof Error) return failure.message;
@@ -77,7 +78,9 @@ function UsersListBody({ locale, onDone }: { locale: Locale; onDone: () => void 
   }
 
   if (result.state === 'loading') {
-    return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
+    // A skeleton with the shape of the rows, not a line of text: the wait is real on a
+    // free-tier database, and a screen that shows its layout reads as working.
+    return <SkeletonRows rows={5} className="py-4" />;
   }
 
   if (result.state === 'failed') {

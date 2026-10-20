@@ -34,6 +34,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       <PageHeader
         title={`${t('dashboardGreeting')}, ${greetingName}`}
         description={`${businessName} · ${t('tagline')}`}
+        // Back lands on the dashboard, so a control here would be a loop.
+        hideBack
       />
 
       <StatusPanel locale={typedLocale} />

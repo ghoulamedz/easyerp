@@ -28,10 +28,12 @@ export default async function AppLayout({
   // there is nobody to sign in as until Setup creates the Administrator.
   // If the API is unreachable we assume a fresh deployment → /setup (so the
   // operator lands where the DB error is shown, not behind a sign-in wall).
-  const status = await readSetupStatusSafe();
+  // Both answers are needed on the common path, and awaiting them in sequence cost a
+  // round trip on every page load. They are independent reads of two endpoints, so
+  // they go at once; the redirects below still evaluate them in the same order, and a
+  // fresh deployment simply spends one harmless call on `/auth/get-session`.
+  const [status, session] = await Promise.all([readSetupStatusSafe(), readSession()]);
   if (status.needsSetup) redirect(`/${typedLocale}/setup`);
-
-  const session = await readSession();
   if (!session) redirect(`/${typedLocale}/sign-in`);
 
   return <AppShell locale={typedLocale}>{children}</AppShell>;

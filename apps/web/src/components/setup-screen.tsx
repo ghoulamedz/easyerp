@@ -70,7 +70,6 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
   const [vatRegime, setVatRegime] = useState<'STANDARD' | 'EXEMPT'>('STANDARD');
   const [currency, setCurrency] = useState('TND');
   const [phone, setPhone] = useState(seed('+216 12 345 678'));
-  const [email, setEmail] = useState(seed('contact@mycompany.tn'));
   const [addressLine1, setAddressLine1] = useState(seed('123 Main Street'));
   const [addressLine2, setAddressLine2] = useState('');
   const [city, setCity] = useState(seed('Tunis'));
@@ -127,7 +126,6 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
           vatRegime,
           currency: currency.trim().toUpperCase() || 'TND',
           ...(optional(phone) ? { phone: optional(phone) } : {}),
-          ...(optional(email) ? { email: optional(email) } : {}),
           ...(optional(addressLine1) ? { addressLine1: optional(addressLine1) } : {}),
           ...(optional(addressLine2) ? { addressLine2: optional(addressLine2) } : {}),
           ...(optional(city) ? { city: optional(city) } : {}),
@@ -153,7 +151,7 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
     } finally {
       setWorking(false);
     }
-  }, [token, legalName, displayName, taxIdentifier, countryCode, vatRegime, currency, phone, email, addressLine1, addressLine2, city, postalCode, adminName, adminEmail, adminPassword, units, rates, modules, t]);
+  }, [token, legalName, displayName, taxIdentifier, countryCode, vatRegime, currency, phone, addressLine1, addressLine2, city, postalCode, adminName, adminEmail, adminPassword, units, rates, modules, t]);
 
   if (done) {
     return (
@@ -323,17 +321,6 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
                     className={FIELD}
                   />
                 </div>
-                <div>
-                  <Label htmlFor="setup-email">{t('setupEmail')}</Label>
-                  <input
-                    id="setup-email"
-                    type="email"
-                    dir="ltr"
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className={FIELD}
-                  />
-                </div>
                 <div className="sm:col-span-2">
                   <Label htmlFor="setup-addr1">{t('setupAddress1')}</Label>
                   <input
@@ -376,52 +363,70 @@ export function SetupScreen({ locale, dbError }: { locale: Locale; dbError?: str
 
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold text-ink">{t('setupAdmin')}</legend>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <Label htmlFor="setup-aname">{t('setupAdminName')}</Label>
-                  <input
-                    id="setup-aname"
-                    required
-                    value={adminName}
-                    onChange={(event) => setAdminName(event.target.value)}
-                    className={FIELD}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="setup-aemail">{t('setupAdminEmail')}</Label>
-                  <input
-                    id="setup-aemail"
-                    type="email"
-                    required
-                    dir="ltr"
-                    value={adminEmail}
-                    onChange={(event) => setAdminEmail(event.target.value)}
-                    className={FIELD}
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <Label htmlFor="setup-apw">{t('setupAdminPassword')}</Label>
-                  <div className="relative">
+              {/*
+                The two fields that become the login, side by side and framed, because
+                they are the ones a person must not get wrong: a typo here means the
+                administrator they just created cannot sign in, and the only way back
+                is a database edit. Everything else on this form is editable from
+                Settings afterwards; these two are not.
+              */}
+              <div className="rounded-lg border border-brand bg-brand-soft p-3">
+                <p className="mb-3 text-xs font-medium text-ink">{t('setupLoginHint')}</p>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="setup-aname">{t('setupAdminName')}</Label>
                     <input
-                      id="setup-apw"
-                      type={showAdminPassword ? 'text' : 'password'}
+                      id="setup-aname"
                       required
-                      minLength={8}
-                      maxLength={128}
-                      autoComplete="new-password"
-                      dir="ltr"
-                      value={adminPassword}
-                      onChange={(event) => setAdminPassword(event.target.value)}
-                      className={FIELD + ' pe-10'}
+                      value={adminName}
+                      onChange={(event) => setAdminName(event.target.value)}
+                      className={FIELD}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowAdminPassword(!showAdminPassword)}
-                      className="absolute inset-y-0 end-0 pe-3 flex items-center text-ink-subtle hover:text-ink"
-                      aria-label={showAdminPassword ? t('hidePassword') : t('showPassword')}
-                    >
-                      {showAdminPassword ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
-                    </button>
+                  </div>
+                  {/* Email and password side by side: together they are the login, and
+                      the two fields a person must not mistype — a wrong one means the
+                      administrator they just created cannot sign in. */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="setup-aemail">{t('setupAdminEmail')}</Label>
+                      <input
+                        id="setup-aemail"
+                        type="email"
+                        required
+                        dir="ltr"
+                        autoComplete="username"
+                        value={adminEmail}
+                        onChange={(event) => setAdminEmail(event.target.value)}
+                        className={FIELD}
+                      />
+                      <p className="mt-1 text-xs text-ink-muted">{t('setupEmailUsedForLogin')}</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="setup-apw">{t('setupAdminPassword')}</Label>
+                      <div className="relative">
+                        <input
+                          id="setup-apw"
+                          type={showAdminPassword ? 'text' : 'password'}
+                          required
+                          minLength={8}
+                          maxLength={128}
+                          autoComplete="new-password"
+                          dir="ltr"
+                          value={adminPassword}
+                          onChange={(event) => setAdminPassword(event.target.value)}
+                          className={FIELD + ' pe-10'}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowAdminPassword(!showAdminPassword)}
+                          className="absolute inset-y-0 end-0 pe-3 flex items-center text-ink-subtle hover:text-ink"
+                          aria-label={showAdminPassword ? t('hidePassword') : t('showPassword')}
+                        >
+                          {showAdminPassword ? <IconEyeOff className="size-5" /> : <IconEye className="size-5" />}
+                        </button>
+                      </div>
+                      <p className="mt-1 text-xs text-ink-muted">{t('setupPasswordUsedForLogin')}</p>
+                    </div>
                   </div>
                 </div>
               </div>

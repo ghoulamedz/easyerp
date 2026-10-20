@@ -97,7 +97,9 @@ export function UserEditForm({ locale, id }: { locale: Locale; id: string }) {
       router.refresh();
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t('loadFailed'));
-    } finally {
+      // Re-enable only when the write failed. On success the screen is leaving,
+      // and clearing the flag while Next navigates is what made the button
+      // clickable again mid-navigation — a second click then posts twice.
       setWorking(false);
     }
   };

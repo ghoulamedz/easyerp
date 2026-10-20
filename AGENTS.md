@@ -7,6 +7,7 @@ A multi-tenant-by-deployment ERP in TypeScript, sold to independent Businesses. 
 - **`CONTEXT.md`** — the domain vocabulary. Use its terms verbatim in code, tables, types and commits; a new name is a change to the glossary, not a local synonym.
 - **`docs/adr/`** — the settled decisions. Treat them as the contract: if code and an ADR disagree, the code is wrong. Read the ADR for the reasoning when a decision looks surprising, before changing it.
 - **`docs/legacy-app-audit.md`** — the static audit of the legacy app being replaced, and the defect each module must not reproduce. Everything needed from the original audit lives in this repository; do not look for it outside.
+- **`PERFORMANCE.md`** — the known-slow list, with what was measured and what is deliberately still undone. Read it before optimising anything, so a known decision is not re-litigated and a measured number is not replaced by a guess.
 
 ## Toolchain constraints
 
@@ -53,6 +54,24 @@ These hold in every file. Each is a one-line restatement of an ADR; the ADR hold
 - Stock changes only by appending a Stock Ledger Entry, inside one interactive transaction, under a row lock. `On-hand` is derived; there is no balance column.
 - Single-tenant schema: no `tenant_id` column.
 - Permissions are the only authorization. `resource:action` strings, checked server-side on every request; the interface grants nothing.
+
+## This deployment is live — do not break it
+
+The demo runs on Vercel + Neon and **a client is using it as production**. Its database will be
+migrated to a VPS later, so the data in it is the thing that must survive.
+
+- **No schema changes.** No new column, no dropped column, no renamed table, no migration. The
+  running database is the one that will be moved; a migration that only "works on a fresh database"
+  is a migration that breaks this one.
+- **No breaking API changes.** Additive only: a new optional field, a new route, a new screen. Never
+  change what an existing request or response means.
+- **No expensive architectural or design changes.** A refactor that touches the module graph, the
+  authentication path, the numbering series or the stock ledger is out of scope, however clean it
+  would be. The same work can wait for the VPS.
+- **Be extremely careful.** Read the code around a change before making it. Prefer the smaller edit.
+  When a request seems to need a schema change, say so and stop rather than improvise one.
+- **Do not commit or push until explicitly told to**, per the rule below — this deployment follows
+  `master`, so a push is a deploy.
 
 ## Git
 

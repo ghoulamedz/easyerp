@@ -7,6 +7,7 @@ import { apiSend } from '../lib/api';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
 import { MODULES_CHANGED_EVENT } from '../lib/use-modules';
+import { SkeletonRows } from './ui';
 
 export function ModulesList({ locale }: { locale: Locale }) {
   const t = translatorFor(locale);
@@ -16,7 +17,9 @@ export function ModulesList({ locale }: { locale: Locale }) {
   const [error, setError] = useState<string | null>(null);
 
   if (result.state === 'loading') {
-    return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
+    // A skeleton with the shape of the rows, not a line of text: the wait is real on a
+    // free-tier database, and a screen that shows its layout reads as working.
+    return <SkeletonRows rows={5} className="py-4" />;
   }
 
   if (result.state === 'failed') {
