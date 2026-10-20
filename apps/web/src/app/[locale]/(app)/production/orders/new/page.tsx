@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { ProductionOrderForm } from '@/components/production-order-form';
+import { ProductionOrderUnifiedForm } from '@/components/production-order-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -24,7 +24,7 @@ export default async function NewProductionOrderPage({
   return (
     <div className="space-y-6">
       <PageHeader title={t('newProductionOrder')} description={t('productionDescription')} />
-      <ProductionOrderForm locale={typedLocale} />
+      <ProductionOrderUnifiedForm locale={typedLocale} />
     </div>
   );
 }

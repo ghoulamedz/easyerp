@@ -3,12 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { DocumentSummary, DocumentType } from '@easyerp/contracts';
-import { translatorFor, type Locale, type MessageKey, format } from '../i18n/config';
-import { ApiError, apiSend } from '../lib/api';
-import { localizeErrorMessage, currentLocale } from '../lib/error-messages';
+import { translatorFor, type Locale, type MessageKey } from '../i18n/config';
 import { useCollection } from '../lib/use-collection';
 import { useHasPermission } from '../lib/use-permissions';
 import { FilterBar } from './filter-bar';
+import { DocumentActions, printHrefFor } from './document-actions';
 
 function statusKey(status: DocumentSummary['status']): MessageKey {
   switch (status) {
@@ -30,9 +29,7 @@ function statusKey(status: DocumentSummary['status']): MessageKey {
  * BROUILLON across the sheet, so a preview can never be mistaken for a filed
  * document. Nothing here is conditional on status any more.
  */
-function printHref(endpoint: string, row: DocumentSummary): string {
-  return `/api${endpoint}/${row.id}/print`;
-}
+
 
 export interface DocumentListProps {
   locale: Locale;
@@ -105,70 +102,6 @@ function DocumentListBody({
     ...(status ? { status } : {}),
   });
   const canCreate = useHasPermission(createPermission);
-  // Always called (hooks order): an absent prop can never match a permission.
-  const canIssue = useHasPermission(issuePermission ?? '');
-  const canCancel = useHasPermission(cancelPermission ?? '');
-  const canEdit = useHasPermission(editPermission ?? '');
-  const showIssue = issuePermission !== undefined && canIssue;
-  const showCancel = cancelPermission !== undefined && canCancel;
-  const showEdit = editPermission !== undefined && canEdit && editBaseHref;
-  const showActions = showIssue || showCancel || showEdit;
-  const [pending, setPending] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const ALREADY_ISSUED_KEY: Record<DocumentType, MessageKey> = {
-    SALES_ORDER: 'alreadyIssuedSalesOrder',
-    DELIVERY_NOTE: 'alreadyIssuedDeliveryNote',
-    CUSTOMER_INVOICE: 'alreadyIssuedCustomerInvoice',
-    CREDIT_NOTE: 'alreadyIssuedCreditNote',
-    PURCHASE_ORDER: 'alreadyIssuedPurchaseOrder',
-    PRODUCTION_ORDER: 'alreadyIssuedProductionOrder',
-    GOODS_RECEIPT: 'alreadyIssuedPurchaseOrder',
-  } as const;
-
-  function alreadyIssuedKey(type: DocumentType): MessageKey {
-    return ALREADY_ISSUED_KEY[type];
-  }
-
-  function localizeAlreadyIssued(error: ApiError, row: DocumentSummary): string {
-    // Server message pattern: "Type <id> is already issued as <number>. ..."
-    // Extract the issued number from the message.
-    const match = error.message.match(/already issued as ([^.]+)/i);
-    const number = match?.[1]?.trim() ?? row.number ?? '—';
-    const template = t(alreadyIssuedKey(row.type));
-    return format(template, { number });
-  }
-
-  async function runAction(id: string, action: 'issue' | 'cancel'): Promise<void> {
-    const key = `${action}:${id}`;
-    setPending(key);
-    setActionError(null);
-    try {
-      await apiSend(`${endpoint}/${id}/${action}`, 'POST');
-      onDone();
-    } catch (error) {
-      const row = rows.find((r) => r.id === id);
-      let message: string;
-      if (
-        error instanceof ApiError &&
-        error.code === 'CONFLICT' &&
-        /already issued/i.test(error.message) &&
-        row
-      ) {
-        message = localizeAlreadyIssued(error, row);
-      } else if (error instanceof ApiError) {
-        const locale = currentLocale();
-        message = localizeErrorMessage(error.code, error.message, locale);
-      } else if (error instanceof Error) {
-        message = error.message;
-      } else {
-        message = String(error);
-      }
-      setActionError(message);
-    } finally {
-      setPending(null);
-    }
-  }
 
   if (result.state === 'loading') {
     return <p className="py-8 text-center text-sm text-ink-muted">{t('loading')}</p>;
@@ -225,11 +158,17 @@ function DocumentListBody({
               {canCreate ? (
                 <Link
                   href={newHref}
-                  className="mt-4 inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover"
                 >
-                  {t(addFirstKey)}
+                  {t(newKey)}
                 </Link>
               ) : null}
+              <Link
+                href={newHref}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover"
+              >
+                {t(addFirstKey)}
+              </Link>
             </>
           )}
         </div>
@@ -238,107 +177,50 @@ function DocumentListBody({
   }
 
   return (
-    <div>
+    <div className="space-y-4">
       {filters}
-      {canCreate ? (
-        <div className="mb-4 flex justify-end">
-          <Link
-            href={newHref}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border border-transparent bg-brand px-3.5 py-2 text-sm font-medium text-brand-contrast hover:bg-brand-hover"
-          >
-            {t(newKey)}
-          </Link>
-        </div>
-      ) : null}
-      {actionError ? (
-        <p role="alert" className="mb-4 text-sm text-danger">
-          {actionError}
-        </p>
-      ) : null}
       <div className="divide-y divide-line">
-        {rows.map((row) => {
-          // View/Print ride on the paper, not on the transition permissions: a
-          // session that may not issue may still read, and a draft prints too.
-          const print = printHref(endpoint, row);
-          // Edit is for drafts only, and the server says the same: an issued document
-          // has no update endpoint that accepts it (ADR 0006, ADR 0018).
-          const edit = showEdit && row.status === 'DRAFT' ? `${editBaseHref}/${row.id}/edit` : null;
-          const detail = detailBaseHref === undefined ? null : `${detailBaseHref}/${row.id}`;
-          const canIssueRow = showIssue && row.status === 'DRAFT';
-          const canCancelRow = showCancel && row.status !== 'CANCELLED';
-          return (
-            <div key={row.id} className="py-4">
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
-                <div>
-                  <p className="font-medium text-ink">{row.number ?? t('statusDraft')}</p>
-                  <p className="text-sm text-ink-muted">{row.partyName}</p>
-                </div>
-                <div className="text-sm text-ink-muted">
-                  <p className="mb-1">{t('docCounterparty')}</p>
-                  <p className="font-medium">{row.partyName}</p>
-                </div>
-                <div className="text-sm text-ink-muted">
-                  <p className="mb-1">{t('docStatus')}</p>
-                  <p className="font-medium">{t(statusKey(row.status))}</p>
-                </div>
-                <div className="text-sm text-ink-muted">
-                  <p className="mb-1">{t('docTotal')}</p>
-                  <p className="font-medium text-success">
-                    {row.grossAmount} {row.currency}
-                  </p>
-                </div>
+        {rows.map((row) => (
+          <div key={row.id} className="py-4">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
+              <div>
+                <p className="font-medium text-ink">{row.number ?? t('statusDraft')}</p>
+                <p className="text-sm text-ink-muted">{row.partyName}</p>
               </div>
-              {/* Always rendered: Print is unconditional, so the row of actions can no
-                  longer be gated on the transition permissions a session happens to hold. */}
-              <div className="mt-2 flex gap-2">
-                {canIssueRow ? (
-                  <button
-                    type="button"
-                    disabled={pending !== null}
-                    onClick={() => void runAction(row.id, 'issue')}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken disabled:opacity-50"
-                  >
-                    {t('docIssue')}
-                  </button>
-                ) : null}
-                {canCancelRow ? (
-                  <button
-                    type="button"
-                    disabled={pending !== null}
-                    onClick={() => void runAction(row.id, 'cancel')}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken disabled:opacity-50"
-                  >
-                    {t('cancel')}
-                  </button>
-                ) : null}
-                {edit !== null ? (
-                  <Link
-                    href={edit}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
-                  >
-                    {t('editButton')}
-                  </Link>
-                ) : null}
-                {detail !== null ? (
-                  <Link
-                    href={detail}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
-                  >
-                    {t('viewButton')}
-                  </Link>
-                ) : null}
-                <a
-                  href={print}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink hover:bg-surface-sunken"
-                >
-                  {t('printButton')}
-                </a>
+              <div className="text-sm text-ink-muted">
+                <p className="mb-1">{t('docCounterparty')}</p>
+                <p className="font-medium">{row.partyName}</p>
+              </div>
+              <div className="text-sm text-ink-muted">
+                <p className="mb-1">{t('docStatus')}</p>
+                <p className="font-medium">{t(statusKey(row.status))}</p>
+              </div>
+              <div className="text-sm text-ink-muted">
+                <p className="mb-1">{t('docTotal')}</p>
+                <p className="font-medium text-success">
+                  {row.grossAmount} {row.currency}
+                </p>
               </div>
             </div>
-          );
-        })}
+            <div className="mt-2">
+              <DocumentActions
+                locale={locale}
+                endpoint={endpoint}
+                id={row.id}
+                type={row.type}
+                status={row.status}
+                number={row.number}
+                printHref={printHrefFor(endpoint, row.id)}
+                issuePermission={issuePermission}
+                cancelPermission={cancelPermission}
+                editPermission={editPermission}
+                editBaseHref={editBaseHref}
+                detailHref={detailBaseHref ? detailBaseHref + "/" + row.id : undefined}
+                onChanged={onDone}
+              />
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

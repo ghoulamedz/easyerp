@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { PurchaseOrderForm } from '@/components/purchase-order-form';
+import { PurchaseOrderUnifiedForm } from '@/components/purchase-order-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -24,7 +24,7 @@ export default async function NewPurchaseOrderPage({
   return (
     <div className="space-y-6">
       <PageHeader title={t('newPurchaseOrder')} description={t('purchasingDescription')} />
-      <PurchaseOrderForm locale={typedLocale} />
+      <PurchaseOrderUnifiedForm locale={typedLocale} />
     </div>
   );
 }

@@ -448,7 +448,7 @@ describe('DocumentList view/print', () => {
 describe('DocumentList filtering', () => {
   const filterableRows = [
     draftRow,
-    { ...issuedRow, partyName: 'Globex SA' },
+    { ...issuedRow, id: 'o-2', partyName: 'Globex SA' },
   ];
 
   function stubFilterableList() {
@@ -595,6 +595,8 @@ describe('DocumentList button visibility by status', () => {
     renderList('/sales/orders');
 
     await screen.findAllByText('Acme SARL');
+    
+
 
     expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
@@ -605,7 +607,9 @@ describe('DocumentList button visibility by status', () => {
     renderList('/sales/orders');
 
     await screen.findAllByText('Acme SARL');
-
+    // Session loads async; wait for Cancel button
+    await screen.findByRole('button', { name: 'Cancel' });
+    
     expect(screen.queryByRole('button', { name: 'Issue' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
   });
@@ -661,6 +665,8 @@ describe('DocumentList button visibility by status', () => {
     );
 
     await screen.findAllByText('Acme SARL');
+    // Session loads async; wait for Issue button
+    await screen.findByRole('button', { name: 'Issue' });
 
     expect(screen.getByRole('button', { name: 'Issue' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View' })).not.toBeInTheDocument();

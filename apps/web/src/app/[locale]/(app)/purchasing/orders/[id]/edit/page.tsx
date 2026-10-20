@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui';
-import { PurchaseOrderEditForm } from '@/components/purchase-order-edit-form';
+import { PurchaseOrderUnifiedForm } from '@/components/purchase-order-unified';
 import { isLocale, translatorFor, type Locale } from '@/i18n/config';
 
 export async function generateMetadata({
@@ -8,7 +8,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ locale: string; id: string }>;
 }): Promise<Metadata> {
-  const { locale } = await params;
+  const { locale, id } = await params;
   return { title: isLocale(locale) ? translatorFor(locale)('editPurchaseOrder') : 'Edit purchase order' };
 }
 
@@ -24,7 +24,7 @@ export default async function EditPurchaseOrderPage({
   return (
     <div className="space-y-6">
       <PageHeader title={t('editPurchaseOrder')} description={t('purchasingDescription')} />
-      <PurchaseOrderEditForm locale={typedLocale} id={id} />
+      <PurchaseOrderUnifiedForm locale={typedLocale} id={id} />
     </div>
   );
 }
