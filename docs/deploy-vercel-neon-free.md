@@ -323,6 +323,74 @@ Afterwards, check the counts rather than the deploy log — `SELECT count(*) FRO
 on both sides, and `SELECT code, year, "nextValue" FROM number_series;` — and print one
 invoice that already exists, to confirm the paper still carries the row's figures.
 
+## Updating the live app without losing data, and without an outage
+
+Both deploy workflows are **manual now** — `gh workflow run …`, never a push — so a
+release is a decision rather than a side effect of merging. That is the first half of
+"don't lose data"; this is the rest.
+
+### What is safe by construction
+
+- **Nothing in the deploy path writes downwards.** The `neon-db` job creates the `demo`
+  branch only if it is missing, then runs `prisma migrate deploy`, which applies
+  committed migrations and never drops a table or a row. No seed file, no
+  `migrate reset`, no `db push` anywhere in a script.
+- **The application and the database deploy independently.** Vercel replaces the
+  functions; the database is untouched. A bad release is reverted by redeploying the
+  previous commit — the data never moved.
+- **Migrations are additive by rule** (`AGENTS.md`). A migration that drops or renames a
+  column is the one thing that makes a rollback unsafe, because the old code then reads a
+  schema it does not understand.
+
+### The order that keeps downtime to one migration
+
+Run migrations **before** the new code, which is what the workflow already does:
+
+1. `prisma migrate deploy` against the live branch. This is the only step with a real
+   cost, and it is seconds for an additive migration.
+2. Deploy the API, then the web app.
+3. Smoke test: the workflow POSTs sign-in against every resolved web origin and fails the
+   run on a 403, which is how a stale proxy target is caught before a client sees it.
+
+Between steps 1 and 2 the *old* code runs against the *new* schema. An additive migration
+(an added nullable column, a new table, a new index) is invisible to it. That is the whole
+reason for the additive-only rule: it is what makes the window empty rather than merely
+short.
+
+### The 30-second manual version, for a one-file fix
+
+```bash
+# 1. Prove it locally first — this is the gate, not a formality.
+pnpm verify && pnpm test:integration
+
+# 2. Take a dump you can go back to. Cheap, and the free plan only keeps six hours.
+UNPOOLED="$(neonctl connection-string --project-id "$NEON_PROJECT_ID" --branch demo --role neondb_owner)"
+pg_dump "$UNPOOLED" -Fc --no-owner --no-privileges -f before-$(date +%F-%H%M).dump
+
+# 3. Deploy. Manual, and it migrates then deploys then smoke-tests.
+gh workflow run deploy-demo.yml --ref master
+gh run watch "$(gh run list --workflow=deploy-demo.yml --limit=1 --json databaseId --jq '.[0].databaseId')"
+```
+
+### If a release goes wrong
+
+1. **Revert the code, not the database.** `git revert` the commit and run the workflow
+   again. Vercel keeps every previous deployment, so `vercel rollback` (or promoting the
+   last good deployment in the dashboard) is immediate and touches no data.
+2. **Only if a migration itself was wrong**, restore the dump: `pg_restore` into the
+   branch. This is why the dump is taken *before* the workflow runs, not after.
+3. Never restore a dump taken *after* the bad migration over one taken before it — that
+   re-applies the damage.
+
+### What to stop doing
+
+- **No more *Reset from parent*.** It restores `main`, which has never been migrated, so
+  it takes the schema as well as the rows — see the section above. It was the right tool
+  while the demo was disposable; it is not now.
+- **No `pnpm db:reset` against anything but `localhost:55432`.** The harness refuses a
+  database whose name does not end in `_test`, which is the guard that makes this hard to
+  do by accident.
+
 ## Stale / missing in repo docs (flags)
 
 1. **Path is `DEPLOY.md` (repo root), not `docs/DEPLOY.md`.** This task's brief

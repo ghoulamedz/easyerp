@@ -27,9 +27,10 @@ name: Deploy VPS (Production)
 #   PROD_FIRST_SETUP_TOKEN `openssl rand -base64 32`
 #   PROD_ACME_EMAIL     admin@client-domain.tn
 
+# Manual only. A client's production release is never a side effect of a push, and the
+# `release/*` trigger that used to be here meant a branch name could deploy a VPS.
+#   gh workflow run deploy-vps.yml -f domain=client.example.tn
 on:
-  push:
-    branches: [release/*]
   workflow_dispatch:
     inputs:
       domain:

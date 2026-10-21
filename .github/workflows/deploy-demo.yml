@@ -5,9 +5,10 @@ name: Deploy Demo (Vercel + Neon)
 #   - Web → Vercel (Next.js static + SSR)
 #   - DB  → Neon serverless Postgres (free tier)
 
+# Manual only, deliberately. This workflow deploys the demo that a client is using as
+# production, so a merge is not a reason to publish it: the release is a decision.
+#   gh workflow run deploy-demo.yml --ref master
 on:
-  push:
-    branches: [master]
   workflow_dispatch:
 
 concurrency:

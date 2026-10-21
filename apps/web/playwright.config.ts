@@ -11,6 +11,17 @@ const WEB_PORT = Number(process.env.E2E_WEB_PORT ?? 3100);
  */
 const API_PORT = Number(process.env.E2E_API_PORT ?? 3102);
 
+/**
+ * The repository root, so the `webServer` commands below can build through Turborepo.
+ *
+ * Building each package with `pnpm --filter <pkg> build` runs `tsc` on that package
+ * alone. `@easyerp/contracts` is a workspace dependency with its own `dist`, and a
+ * clean clone has none — so a direct build fails with one `Cannot find module
+ * '@easyerp/contracts'` per import. Locally that was invisible, because `dist/` was
+ * already there from an earlier build; in CI it failed every run.
+ */
+const repoRoot = '../..';
+
 const baseURL = `http://127.0.0.1:${WEB_PORT}`;
 const apiURL = `http://127.0.0.1:${API_PORT}`;
 
@@ -84,7 +95,11 @@ export default defineConfig({
    */
   webServer: [
     {
-      command: 'pnpm --filter @easyerp/api build && pnpm --filter @easyerp/api start',
+      // `turbo run build` honours `dependsOn: ["^build"]`, so the contracts package is
+      // compiled before the code that imports it. The filter keeps the web out of this
+      // process; Turbo's cache makes the second server's build a no-op.
+      command: 'pnpm turbo run build --filter=@easyerp/api && pnpm --filter @easyerp/api start',
+      cwd: repoRoot,
       url: `${apiURL}/api/health`,
       env: apiEnv,
       reuseExistingServer: !process.env.CI,
@@ -93,7 +108,8 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: `pnpm build && pnpm start --port ${WEB_PORT}`,
+      command: `pnpm turbo run build --filter=@easyerp/web && pnpm --filter @easyerp/web start --port ${WEB_PORT}`,
+      cwd: repoRoot,
       url: baseURL,
       env: { API_INTERNAL_URL: apiURL },
       reuseExistingServer: !process.env.CI,

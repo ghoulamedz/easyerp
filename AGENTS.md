@@ -70,8 +70,12 @@ migrated to a VPS later, so the data in it is the thing that must survive.
   would be. The same work can wait for the VPS.
 - **Be extremely careful.** Read the code around a change before making it. Prefer the smaller edit.
   When a request seems to need a schema change, say so and stop rather than improvise one.
-- **Do not commit or push until explicitly told to**, per the rule below — this deployment follows
-  `master`, so a push is a deploy.
+- **Do not commit or push until explicitly told to**, per the rule below. Both deploy workflows are
+  `workflow_dispatch`-only now, so a push no longer publishes anything — but the rule stands, and
+  `gh workflow run deploy-demo.yml --ref master` is what deploys.
+- **Take a `pg_dump` before a release you are unsure about.** Neon's free plan keeps six hours of
+  history; the dump is the only thing older than that. `docs/deploy-vercel-neon-free.md` has the
+  command and the rollback order.
 
 ## Git
 

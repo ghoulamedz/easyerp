@@ -51,19 +51,34 @@ Names match the Demo section of `.env.example`, which documents each value
 and the command that generates it.
 
 ### Trigger Deploy
-Push to `master` branch, or run workflow manually:
+
+**Manual only — a push does not deploy anything.** Both deploy workflows are
+`workflow_dispatch`-only, so a release is a decision rather than a side effect of merging.
+
 ```bash
-gh workflow run deploy-demo.yml
+# Demo (Vercel + Neon)
+gh workflow run deploy-demo.yml --ref master
+
+# A client's VPS
+gh workflow run deploy-vps.yml -f domain=client.example.tn
+
+# Watch it
+gh run watch "$(gh run list --workflow=deploy-demo.yml --limit=1 \
+  --json databaseId --jq '.[0].databaseId')"
 ```
 
-### Fresh deploy wipes the demo database
-Every deploy resets the demo database and re-applies migrations, so no rows
-survive from one deploy to the next:
-- `/fr/setup` is ALWAYS open on a fresh deploy.
-- No accounts exist — run first Setup yourself with the token below.
-- The smoke test in `deploy-demo.yml` still runs, but it is self-cleaning:
-  it creates a throwaway Business + Administrator to prove the flow, then the
-  next deploy wipes them. Do not rely on its credentials.
+`ci.yml` still runs on every push and pull request. It deploys nothing; it is the
+quality gate (lint, typecheck, unit, integration, e2e).
+
+### A deploy does NOT wipe the demo database
+The `demo` branch is persistent, and the workflow creates it only if it is missing and
+then runs `prisma migrate deploy` — which applies committed migrations and never drops a
+table or a row. The Business, its Parties, its Items and its `number_series` survive
+every deploy. There is no seed file, and no `migrate reset` or `db push` anywhere in a
+script.
+
+`/fr/setup` is therefore **closed** after the first Setup, and the smoke test signs in as
+the existing account rather than creating one.
 
 ### Demo URLs (after deploy)
 - **Web App**: `https://easyerp-web-<org>.vercel.app`
@@ -79,21 +94,43 @@ There are no long-lived demo credentials. After each deploy:
 
 ### Redeploy
 ```bash
-# Option 1: push to master (deploy-demo.yml runs automatically)
-git push origin master
-# Option 2: manual trigger
-gh workflow run deploy-demo.yml
+gh workflow run deploy-demo.yml --ref master
 ```
 
-### Reset the demo database manually
-The workflow does this automatically on every deploy. Only do it by hand
-when you need a clean demo without redeploying the apps:
+### Updating the live app without losing data
+
+**What is safe by construction.** Nothing in the deploy path writes downwards. The
+application and the database deploy independently: Vercel replaces the functions and the
+database is untouched, so a bad release is reverted by redeploying the previous commit
+and the data never moved.
+
+**The order, which the workflow already follows.** Migrate → deploy → smoke test.
+Between the migration and the new code, the *old* code runs against the *new* schema. An
+additive migration — an added nullable column, a new table, a new index — is invisible to
+it. That is the whole reason for the additive-only rule in `AGENTS.md`: it is what makes
+the upgrade window empty rather than merely short.
+
+**Before a release you are unsure about, take a dump.** Neon's free plan keeps six hours
+of history; a dump is the only thing older than that.
+
 ```bash
-# 1. At console.neon.tech: delete the 'demo' branch, then recreate it from 'main'.
-# 2. Migrate the fresh branch with the DIRECT (unpooled) URL:
-DATABASE_URL="<direct-demo-branch-url>" pnpm --filter @easyerp/api prisma:migrate:deploy
-# 3. Visit /fr/setup — it is open again, no accounts exist.
+UNPOOLED="$(neonctl connection-string --project-id "$NEON_PROJECT_ID" --branch demo --role neondb_owner)"
+pg_dump "$UNPOOLED" -Fc --no-owner --no-privileges -f before-$(date +%F-%H%M).dump
 ```
+
+**If a release goes wrong, revert the code — not the database.**
+1. `git revert` the commit and run the workflow again, or promote the previous Vercel
+   deployment. Immediate, and it touches no data.
+2. Only if a *migration* was wrong, `pg_restore` the dump taken **before** the run.
+3. Never restore a dump taken after a bad migration over one taken before it — that
+   re-applies the damage.
+
+**Do not use Neon's *Reset from parent*.** It restores `main`, which has never been
+migrated, so it takes the schema as well as the rows. It was the right tool while the
+demo was disposable; a client is using it as production now.
+
+The longer version, with the three reset routes and the VPS migration, is in
+`docs/deploy-vercel-neon-free.md`.
 
 ---
 
